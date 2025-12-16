@@ -26,8 +26,19 @@ export interface Contact {
   stageId: string;
   notes: string;
   notesLastEdited?: string;
+  lastInteractionDate?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export type ActivityType = 'call' | 'email' | 'meeting' | 'note' | 'stage_change' | 'task_completed';
+
+export interface Activity {
+  id: string;
+  contactId: string;
+  type: ActivityType;
+  description: string;
+  timestamp: string;
 }
 
 export const DEFAULT_STAGES: Stage[] = [

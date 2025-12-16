@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Contact, Task, Stage, DEFAULT_STAGES } from '@/types/crm';
+import { Contact, Task, Stage, Activity, ActivityType, DEFAULT_STAGES } from '@/types/crm';
+import { addDays, format } from 'date-fns';
 
 const STORAGE_KEYS = {
   contacts: 'simplecrm_contacts',
   tasks: 'simplecrm_tasks',
   stages: 'simplecrm_stages',
+  activities: 'simplecrm_activities',
 };
 
 function loadFromStorage<T>(key: string, defaultValue: T): T {
@@ -30,6 +32,9 @@ export function useCRM() {
   const [stages, setStages] = useState<Stage[]>(() => 
     loadFromStorage(STORAGE_KEYS.stages, DEFAULT_STAGES)
   );
+  const [activities, setActivities] = useState<Activity[]>(() =>
+    loadFromStorage(STORAGE_KEYS.activities, [])
+  );
 
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.contacts, contacts);
@@ -42,6 +47,35 @@ export function useCRM() {
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.stages, stages);
   }, [stages]);
+
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.activities, activities);
+  }, [activities]);
+
+  // Activity operations
+  const addActivity = useCallback((contactId: string, type: ActivityType, description: string) => {
+    const newActivity: Activity = {
+      id: crypto.randomUUID(),
+      contactId,
+      type,
+      description,
+      timestamp: new Date().toISOString(),
+    };
+    setActivities(prev => [newActivity, ...prev]);
+    
+    // Update last interaction date
+    setContacts(prev => prev.map(c =>
+      c.id === contactId 
+        ? { ...c, lastInteractionDate: new Date().toISOString(), updatedAt: new Date().toISOString() }
+        : c
+    ));
+    
+    return newActivity;
+  }, []);
+
+  const getContactActivities = useCallback((contactId: string) => {
+    return activities.filter(a => a.contactId === contactId);
+  }, [activities]);
 
   // Contact operations
   const addContact = useCallback((contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -64,11 +98,28 @@ export function useCRM() {
   const deleteContact = useCallback((id: string) => {
     setContacts(prev => prev.filter(c => c.id !== id));
     setTasks(prev => prev.filter(t => t.contactId !== id));
+    setActivities(prev => prev.filter(a => a.contactId !== id));
   }, []);
 
-  const moveContactToStage = useCallback((contactId: string, stageId: string) => {
-    updateContact(contactId, { stageId });
-  }, [updateContact]);
+  const moveContactToStage = useCallback((contactId: string, newStageId: string) => {
+    const contact = contacts.find(c => c.id === contactId);
+    const oldStage = stages.find(s => s.id === contact?.stageId);
+    const newStage = stages.find(s => s.id === newStageId);
+    
+    if (contact && oldStage && newStage && oldStage.id !== newStage.id) {
+      addActivity(contactId, 'stage_change', `Moved from ${oldStage.name} to ${newStage.name}`);
+    }
+    
+    updateContact(contactId, { stageId: newStageId });
+  }, [contacts, stages, updateContact, addActivity]);
+
+  const logInteraction = useCallback((contactId: string) => {
+    setContacts(prev => prev.map(c =>
+      c.id === contactId 
+        ? { ...c, lastInteractionDate: new Date().toISOString(), updatedAt: new Date().toISOString() }
+        : c
+    ));
+  }, []);
 
   // Task operations
   const addTask = useCallback((task: Omit<Task, 'id' | 'createdAt'>) => {
@@ -90,8 +141,20 @@ export function useCRM() {
   }, []);
 
   const toggleTaskComplete = useCallback((id: string) => {
+    const task = tasks.find(t => t.id === id);
+    if (task && !task.completed) {
+      // Log activity when completing a task
+      addActivity(task.contactId, 'task_completed', `Completed: ${task.title}`);
+    }
     setTasks(prev => prev.map(t => 
       t.id === id ? { ...t, completed: !t.completed } : t
+    ));
+  }, [tasks, addActivity]);
+
+  const rescheduleTask = useCallback((id: string, newDate: Date) => {
+    const formattedDate = format(newDate, 'yyyy-MM-dd');
+    setTasks(prev => prev.map(t => 
+      t.id === id ? { ...t, dueDate: formattedDate } : t
     ));
   }, []);
 
@@ -136,16 +199,21 @@ export function useCRM() {
     contacts,
     tasks,
     stages,
+    activities,
     addContact,
     updateContact,
     deleteContact,
     moveContactToStage,
+    logInteraction,
     addTask,
     updateTask,
     deleteTask,
     toggleTaskComplete,
+    rescheduleTask,
     updateStage,
     reorderStages,
+    addActivity,
+    getContactActivities,
     getContactTasks,
     getTasksForToday,
     getOverdueTasks,

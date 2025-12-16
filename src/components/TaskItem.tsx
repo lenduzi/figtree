@@ -1,8 +1,15 @@
-import { format, isToday, isPast, parseISO } from 'date-fns';
-import { Check, Calendar, Clock, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { format, isToday, isPast, parseISO, addDays } from 'date-fns';
+import { Check, Calendar, Clock, Trash2, CalendarClock } from 'lucide-react';
 import { Task, Contact } from '@/types/crm';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 
 interface TaskItemProps {
   task: Task;
@@ -10,6 +17,7 @@ interface TaskItemProps {
   onToggleComplete: (id: string) => void;
   onDelete?: (id: string) => void;
   onContactClick?: (contactId: string) => void;
+  onReschedule?: (id: string, newDate: Date) => void;
   showContact?: boolean;
 }
 
@@ -19,11 +27,30 @@ export function TaskItem({
   onToggleComplete, 
   onDelete,
   onContactClick,
+  onReschedule,
   showContact = false 
 }: TaskItemProps) {
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
+  
   const dueDate = parseISO(task.dueDate);
   const isOverdue = isPast(dueDate) && !isToday(dueDate);
   const isDueToday = isToday(dueDate);
+
+  const handleQuickReschedule = (days: number) => {
+    if (onReschedule) {
+      onReschedule(task.id, addDays(new Date(), days));
+    }
+    setRescheduleOpen(false);
+  };
+
+  const handleDateSelect = (date: Date | undefined) => {
+    if (date && onReschedule) {
+      onReschedule(task.id, date);
+    }
+    setShowCalendar(false);
+    setRescheduleOpen(false);
+  };
 
   return (
     <div
@@ -87,6 +114,65 @@ export function TaskItem({
           )}
         </div>
       </div>
+
+      {onReschedule && !task.completed && (
+        <Popover open={rescheduleOpen} onOpenChange={setRescheduleOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            >
+              <CalendarClock className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-2" align="end">
+            {showCalendar ? (
+              <CalendarPicker
+                mode="single"
+                selected={dueDate}
+                onSelect={handleDateSelect}
+                initialFocus
+              />
+            ) : (
+              <div className="flex flex-col gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start"
+                  onClick={() => handleQuickReschedule(1)}
+                >
+                  Tomorrow
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start"
+                  onClick={() => handleQuickReschedule(3)}
+                >
+                  In 3 Days
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start"
+                  onClick={() => handleQuickReschedule(7)}
+                >
+                  Next Week
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start"
+                  onClick={() => setShowCalendar(true)}
+                >
+                  Pick Date...
+                </Button>
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
+      )}
 
       {onDelete && (
         <Button

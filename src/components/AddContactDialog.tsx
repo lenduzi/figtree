@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import {
   Dialog,
@@ -21,11 +21,24 @@ import { useCRMContext } from '@/contexts/CRMContext';
 
 interface AddContactDialogProps {
   defaultStageId?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  triggerless?: boolean;
 }
 
-export function AddContactDialog({ defaultStageId }: AddContactDialogProps) {
+export function AddContactDialog({ 
+  defaultStageId, 
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+  triggerless = false,
+}: AddContactDialogProps) {
   const { stages, addContact } = useCRMContext();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = isControlled ? controlledOnOpenChange! : setInternalOpen;
+
   const [formData, setFormData] = useState({
     fullName: '',
     company: '',
@@ -33,6 +46,18 @@ export function AddContactDialog({ defaultStageId }: AddContactDialogProps) {
     phone: '',
     stageId: defaultStageId || stages[0]?.id || '',
   });
+
+  useEffect(() => {
+    if (!open) {
+      setFormData({
+        fullName: '',
+        company: '',
+        email: '',
+        phone: '',
+        stageId: defaultStageId || stages[0]?.id || '',
+      });
+    }
+  }, [open, defaultStageId, stages]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,12 +80,14 @@ export function AddContactDialog({ defaultStageId }: AddContactDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Contact
-        </Button>
-      </DialogTrigger>
+      {!triggerless && (
+        <DialogTrigger asChild>
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Contact
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Add New Contact</DialogTitle>
