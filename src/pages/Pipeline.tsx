@@ -65,11 +65,11 @@ export default function Pipeline() {
   };
 
   return (
-    <div className="p-6 h-full">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-6 lg:p-8 xl:p-10 h-full">
+      <div className="flex items-center justify-between mb-6 lg:mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Pipeline</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-3xl lg:text-4xl font-bold text-foreground">Pipeline</h1>
+          <p className="text-muted-foreground lg:text-lg mt-1">
             Drag contacts between stages or click to view details
           </p>
         </div>
@@ -83,12 +83,12 @@ export default function Pipeline() {
         onDragEnd={handleDragEnd}
       >
         <ScrollArea className="w-full pb-4">
-          <div className="flex gap-4 min-w-max">
+          <div className="flex gap-4 lg:gap-6 min-w-max">
             {sortedStages.map((stage) => {
               const stageContacts = getContactsByStage(stage.id);
               return (
                 <DroppableStage key={stage.id} stage={stage} contactCount={stageContacts.length}>
-                  <div className="space-y-3">
+                  <div className="space-y-3 lg:space-y-4">
                     {stageContacts.map((contact) => (
                       <DraggableContact
                         key={contact.id}

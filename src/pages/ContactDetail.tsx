@@ -133,20 +133,20 @@ export default function ContactDetail() {
   const completedTasks = contactTasks.filter(t => t.completed);
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-6 lg:p-8 xl:p-10 max-w-5xl lg:max-w-6xl 2xl:max-w-7xl mx-auto">
       <button
         onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors"
+        className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 lg:mb-8 transition-colors lg:text-lg"
       >
-        <ArrowLeft className="h-4 w-4" />
+        <ArrowLeft className="h-4 w-4 lg:h-5 lg:w-5" />
         Back
       </button>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:gap-8 lg:grid-cols-3">
         {/* Contact Info */}
         <Card className="lg:col-span-1">
-          <CardHeader className="flex flex-row items-start justify-between">
-            <CardTitle className="text-lg">Contact Info</CardTitle>
+          <CardHeader className="flex flex-row items-start justify-between lg:p-6">
+            <CardTitle className="text-lg lg:text-xl">Contact Info</CardTitle>
             <div className="flex gap-2">
               {isEditing ? (
                 <Button size="sm" onClick={handleSaveEdit}>
@@ -180,7 +180,7 @@ export default function ContactDetail() {
               </AlertDialog>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 lg:px-6 lg:pb-6">
             {isEditing ? (
               <>
                 <div className="space-y-2">
@@ -232,7 +232,7 @@ export default function ContactDetail() {
             ) : (
               <>
                 <div>
-                  <h2 className="text-xl font-semibold text-foreground">{contact.fullName}</h2>
+                  <h2 className="text-xl lg:text-2xl font-semibold text-foreground">{contact.fullName}</h2>
                   {stage && (
                     <Badge 
                       className="mt-2"
@@ -245,16 +245,16 @@ export default function ContactDetail() {
                     </Badge>
                   )}
                 </div>
-                <div className="space-y-2 text-sm">
+                <div className="space-y-2 lg:space-y-3 text-sm lg:text-base">
                   {contact.company && (
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <Building2 className="h-4 w-4" />
+                      <Building2 className="h-4 w-4 lg:h-5 lg:w-5" />
                       {contact.company}
                     </div>
                   )}
                   {contact.email && (
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <Mail className="h-4 w-4" />
+                      <Mail className="h-4 w-4 lg:h-5 lg:w-5" />
                       <a href={`mailto:${contact.email}`} className="hover:text-primary">
                         {contact.email}
                       </a>
@@ -262,15 +262,15 @@ export default function ContactDetail() {
                   )}
                   {contact.phone && (
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <Phone className="h-4 w-4" />
+                      <Phone className="h-4 w-4 lg:h-5 lg:w-5" />
                       <a href={`tel:${contact.phone}`} className="hover:text-primary">
                         {contact.phone}
                       </a>
                     </div>
                   )}
                   {contact.lastInteractionDate && (
-                    <div className="flex items-center gap-2 text-muted-foreground pt-2 border-t">
-                      <Clock className="h-4 w-4" />
+                    <div className="flex items-center gap-2 text-muted-foreground pt-2 lg:pt-3 border-t">
+                      <Clock className="h-4 w-4 lg:h-5 lg:w-5" />
                       Last contact: {formatDistanceToNow(new Date(contact.lastInteractionDate), { addSuffix: true })}
                     </div>
                   )}
@@ -284,35 +284,35 @@ export default function ContactDetail() {
         <div className="lg:col-span-2 space-y-6">
           {/* Notes */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center justify-between">
+            <CardHeader className="lg:p-6">
+              <CardTitle className="text-lg lg:text-xl flex items-center justify-between">
                 Notes
                 {contact.notesLastEdited && (
-                  <span className="text-xs font-normal text-muted-foreground">
+                  <span className="text-xs lg:text-sm font-normal text-muted-foreground">
                     Last edited {format(new Date(contact.notesLastEdited), 'MMM d, h:mm a')}
                   </span>
                 )}
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="lg:px-6 lg:pb-6">
               <Textarea
                 value={notes}
                 onChange={(e) => handleNotesChange(e.target.value)}
                 placeholder="Add notes about this contact..."
-                className="min-h-32 resize-none"
+                className="min-h-32 lg:min-h-40 lg:text-base resize-none"
               />
             </CardContent>
           </Card>
 
           {/* Tasks */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg">Tasks & Reminders</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between lg:p-6">
+              <CardTitle className="text-lg lg:text-xl">Tasks & Reminders</CardTitle>
               <AddTaskDialog contactId={contact.id} />
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-3 lg:space-y-4 lg:px-6 lg:pb-6">
               {openTasks.length === 0 && completedTasks.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
+                <p className="text-sm lg:text-base text-muted-foreground text-center py-4">
                   No tasks yet. Add a task to track follow-ups.
                 </p>
               ) : (
@@ -327,8 +327,8 @@ export default function ContactDetail() {
                     />
                   ))}
                   {completedTasks.length > 0 && (
-                    <div className="pt-4 border-t">
-                      <p className="text-xs text-muted-foreground mb-3">
+                    <div className="pt-4 lg:pt-5 border-t">
+                      <p className="text-xs lg:text-sm text-muted-foreground mb-3">
                         Completed ({completedTasks.length})
                       </p>
                       {completedTasks.map(task => (
@@ -348,32 +348,32 @@ export default function ContactDetail() {
 
           {/* Activity Log */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg">Activity Log</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between lg:p-6">
+              <CardTitle className="text-lg lg:text-xl">Activity Log</CardTitle>
               <AddActivityDialog contactId={contact.id} />
             </CardHeader>
-            <CardContent>
+            <CardContent className="lg:px-6 lg:pb-6">
               {contactActivities.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
+                <p className="text-sm lg:text-base text-muted-foreground text-center py-4">
                   No activity yet. Log calls, emails, or meetings to track interactions.
                 </p>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 lg:space-y-4">
                   {contactActivities.slice(0, 10).map((activity) => (
-                    <div key={activity.id} className="flex items-start gap-3 text-sm">
-                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                    <div key={activity.id} className="flex items-start gap-3 lg:gap-4 text-sm lg:text-base">
+                      <div className="h-8 w-8 lg:h-10 lg:w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
                         {activityIcons[activity.type]}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-foreground">{activity.description}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs lg:text-sm text-muted-foreground">
                           {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
                         </p>
                       </div>
                     </div>
                   ))}
                   {contactActivities.length > 10 && (
-                    <p className="text-xs text-muted-foreground text-center pt-2">
+                    <p className="text-xs lg:text-sm text-muted-foreground text-center pt-2">
                       + {contactActivities.length - 10} more activities
                     </p>
                   )}

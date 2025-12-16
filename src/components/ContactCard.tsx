@@ -21,19 +21,19 @@ export const ContactCard = forwardRef<HTMLDivElement, ContactCardProps>(
         className={`cursor-pointer hover:shadow-md transition-shadow bg-card ${isDragging ? 'opacity-50 shadow-lg' : ''}`}
         onClick={onClick}
       >
-        <CardContent className="p-4">
+        <CardContent className="p-4 lg:p-5">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <h3 className="font-semibold text-foreground truncate">{contact.fullName}</h3>
-              <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                <Building2 className="h-3 w-3 shrink-0" />
+              <h3 className="font-semibold text-foreground lg:text-lg truncate">{contact.fullName}</h3>
+              <div className="flex items-center gap-1 text-sm lg:text-base text-muted-foreground mt-1">
+                <Building2 className="h-3 w-3 lg:h-4 lg:w-4 shrink-0" />
                 <span className="truncate">{contact.company || 'No company'}</span>
               </div>
             </div>
             {stage && (
               <Badge 
                 variant="secondary" 
-                className="shrink-0 text-xs"
+                className="shrink-0 text-xs lg:text-sm"
                 style={{ 
                   backgroundColor: `${stage.color}20`,
                   color: stage.color,
@@ -45,32 +45,32 @@ export const ContactCard = forwardRef<HTMLDivElement, ContactCardProps>(
             )}
           </div>
 
-          <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+          <div className="mt-3 space-y-1 text-xs lg:text-sm text-muted-foreground">
             {contact.email && (
               <div className="flex items-center gap-2">
-                <Mail className="h-3 w-3" />
+                <Mail className="h-3 w-3 lg:h-4 lg:w-4" />
                 <span className="truncate">{contact.email}</span>
               </div>
             )}
             {contact.phone && (
               <div className="flex items-center gap-2">
-                <Phone className="h-3 w-3" />
+                <Phone className="h-3 w-3 lg:h-4 lg:w-4" />
                 <span>{contact.phone}</span>
               </div>
             )}
           </div>
 
-          <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
+          <div className="mt-3 lg:mt-4 pt-3 lg:pt-4 border-t border-border flex items-center justify-between">
             {contact.lastInteractionDate ? (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Clock className="h-3 w-3" />
+              <span className="text-xs lg:text-sm text-muted-foreground flex items-center gap-1">
+                <Clock className="h-3 w-3 lg:h-4 lg:w-4" />
                 {formatDistanceToNow(new Date(contact.lastInteractionDate), { addSuffix: true })}
               </span>
             ) : (
-              <span className="text-xs text-muted-foreground">No interactions yet</span>
+              <span className="text-xs lg:text-sm text-muted-foreground">No interactions yet</span>
             )}
             {taskCount > 0 && (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs lg:text-sm text-muted-foreground">
                 {taskCount} task{taskCount !== 1 ? 's' : ''}
               </span>
             )}
