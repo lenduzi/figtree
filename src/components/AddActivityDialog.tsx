@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Phone, Mail, Users, FileText } from 'lucide-react';
+import { Phone, Mail, Users, FileText, PhoneMissed } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -20,6 +20,7 @@ interface AddActivityDialogProps {
 
 const activityTypes: { type: ActivityType; label: string; icon: React.ElementType }[] = [
   { type: 'call', label: 'Call', icon: Phone },
+  { type: 'call_attempted', label: 'No Answer', icon: PhoneMissed },
   { type: 'email', label: 'Email', icon: Mail },
   { type: 'meeting', label: 'Meeting', icon: Users },
   { type: 'note', label: 'Note', icon: FileText },
@@ -44,6 +45,7 @@ export function AddActivityDialog({ contactId }: AddActivityDialogProps) {
   const handleQuickLog = (type: ActivityType) => {
     const defaultDescriptions: Record<ActivityType, string> = {
       call: 'Had a phone call',
+      call_attempted: 'Called, not reached',
       email: 'Sent an email',
       meeting: 'Had a meeting',
       note: 'Added a note',
@@ -56,14 +58,14 @@ export function AddActivityDialog({ contactId }: AddActivityDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <div className="flex gap-2">
-        {activityTypes.slice(0, 3).map(({ type, icon: Icon }) => (
+        {activityTypes.slice(0, 4).map(({ type, label, icon: Icon }) => (
           <Button
             key={type}
             variant="outline"
             size="icon"
             className="h-8 w-8"
             onClick={() => handleQuickLog(type)}
-            title={`Log ${type}`}
+            title={label}
           >
             <Icon className="h-4 w-4" />
           </Button>
@@ -81,7 +83,7 @@ export function AddActivityDialog({ contactId }: AddActivityDialogProps) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label>Activity Type</Label>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-5 gap-2">
               {activityTypes.map(({ type, label, icon: Icon }) => (
                 <Button
                   key={type}

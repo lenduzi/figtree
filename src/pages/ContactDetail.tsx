@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, Mail, Phone, Trash2, Edit2, Save, Clock, CheckCircle2, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Building2, Mail, Phone, Trash2, Edit2, Save, Clock, CheckCircle2, ArrowRight, PhoneMissed } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { TaskItem } from '@/components/TaskItem';
 import { AddTaskDialog } from '@/components/AddTaskDialog';
@@ -34,6 +34,7 @@ import { ActivityType } from '@/types/crm';
 
 const activityIcons: Record<ActivityType, React.ReactNode> = {
   call: <Phone className="h-4 w-4" />,
+  call_attempted: <PhoneMissed className="h-4 w-4" />,
   email: <Mail className="h-4 w-4" />,
   meeting: <Building2 className="h-4 w-4" />,
   note: <Edit2 className="h-4 w-4" />,
@@ -49,6 +50,7 @@ export default function ContactDetail() {
     getStageById, 
     getContactTasks,
     getContactActivities,
+    deleteActivity,
     stages, 
     updateContact, 
     deleteContact,
@@ -360,7 +362,7 @@ export default function ContactDetail() {
               ) : (
                 <div className="space-y-3 lg:space-y-4">
                   {contactActivities.slice(0, 10).map((activity) => (
-                    <div key={activity.id} className="flex items-start gap-3 lg:gap-4 text-sm lg:text-base">
+                    <div key={activity.id} className="flex items-start gap-3 lg:gap-4 text-sm lg:text-base group">
                       <div className="h-8 w-8 lg:h-10 lg:w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
                         {activityIcons[activity.type]}
                       </div>
@@ -370,6 +372,14 @@ export default function ContactDetail() {
                           {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
                         </p>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive-foreground"
+                        onClick={() => deleteActivity(activity.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   ))}
                   {contactActivities.length > 10 && (
