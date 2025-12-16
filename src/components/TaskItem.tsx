@@ -55,7 +55,7 @@ export function TaskItem({
   return (
     <div
       className={cn(
-        'flex items-start gap-3 p-3 rounded-lg border transition-colors',
+        'flex items-start gap-3 lg:gap-4 p-3 lg:p-4 rounded-lg border transition-colors',
         task.completed && 'opacity-60 bg-muted/50',
         !task.completed && isOverdue && 'border-destructive bg-destructive/10',
         !task.completed && isDueToday && 'border-accent bg-accent/20'
@@ -65,24 +65,24 @@ export function TaskItem({
         variant="ghost"
         size="icon"
         className={cn(
-          'h-6 w-6 rounded-full border-2 shrink-0',
+          'h-6 w-6 lg:h-7 lg:w-7 rounded-full border-2 shrink-0',
           task.completed ? 'bg-primary border-primary' : 'border-muted-foreground'
         )}
         onClick={() => onToggleComplete(task.id)}
       >
-        {task.completed && <Check className="h-3 w-3 text-primary-foreground" />}
+        {task.completed && <Check className="h-3 w-3 lg:h-4 lg:w-4 text-primary-foreground" />}
       </Button>
 
       <div className="flex-1 min-w-0">
         <p className={cn(
-          'font-medium text-sm',
+          'font-medium text-sm lg:text-base',
           task.completed && 'line-through text-muted-foreground'
         )}>
           {task.title}
         </p>
         
         {task.description && (
-          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+          <p className="text-xs lg:text-sm text-muted-foreground mt-1 line-clamp-2">
             {task.description}
           </p>
         )}
@@ -90,25 +90,25 @@ export function TaskItem({
         {showContact && contact && (
           <button
             onClick={() => onContactClick?.(contact.id)}
-            className="text-xs text-primary hover:underline mt-1 block"
+            className="text-xs lg:text-sm text-primary hover:underline mt-1 block"
           >
             {contact.fullName} • {contact.company}
           </button>
         )}
 
-        <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-3 mt-2 text-xs lg:text-sm text-muted-foreground">
           <span className={cn(
             'flex items-center gap-1',
             !task.completed && isOverdue && 'text-destructive-foreground font-medium',
             !task.completed && isDueToday && 'text-accent-foreground font-medium'
           )}>
-            <Calendar className="h-3 w-3" />
+            <Calendar className="h-3 w-3 lg:h-4 lg:w-4" />
             {isOverdue && !task.completed ? 'Overdue: ' : ''}
             {isDueToday && !task.completed ? 'Today' : format(dueDate, 'MMM d, yyyy')}
           </span>
           {task.dueTime && (
             <span className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
+              <Clock className="h-3 w-3 lg:h-4 lg:w-4" />
               {task.dueTime}
             </span>
           )}
@@ -121,9 +121,9 @@ export function TaskItem({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              className="h-8 w-8 lg:h-9 lg:w-9 text-muted-foreground hover:text-foreground"
             >
-              <CalendarClock className="h-4 w-4" />
+              <CalendarClock className="h-4 w-4 lg:h-5 lg:w-5" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-2" align="end">
@@ -178,10 +178,10 @@ export function TaskItem({
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-destructive-foreground"
+          className="h-8 w-8 lg:h-9 lg:w-9 text-muted-foreground hover:text-destructive-foreground"
           onClick={() => onDelete(task.id)}
         >
-          <Trash2 className="h-4 w-4" />
+          <Trash2 className="h-4 w-4 lg:h-5 lg:w-5" />
         </Button>
       )}
     </div>
