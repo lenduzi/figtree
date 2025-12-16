@@ -1,19 +1,35 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { ContactCard } from '@/components/ContactCard';
 import { AddContactDialog } from '@/components/AddContactDialog';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  DndContext,
+  DragOverlay,
+  closestCorners,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragStartEvent,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import { Contact } from '@/types/crm';
+import { DroppableStage } from '@/components/DroppableStage';
+import { DraggableContact } from '@/components/DraggableContact';
 
 export default function Pipeline() {
   const navigate = useNavigate();
   const { contacts, stages, tasks, moveContactToStage, getStageById } = useCRMContext();
+  const [activeContact, setActiveContact] = useState<Contact | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
 
   const sortedStages = [...stages].sort((a, b) => a.order - b.order);
 
@@ -25,78 +41,86 @@ export default function Pipeline() {
     return tasks.filter(t => t.contactId === contactId && !t.completed).length;
   };
 
+  const handleDragStart = (event: DragStartEvent) => {
+    const contact = contacts.find(c => c.id === event.active.id);
+    if (contact) {
+      setActiveContact(contact);
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveContact(null);
+
+    if (over && active.id !== over.id) {
+      const contactId = active.id as string;
+      const newStageId = over.id as string;
+      
+      // Check if dropping on a stage
+      const isStage = stages.some(s => s.id === newStageId);
+      if (isStage) {
+        moveContactToStage(contactId, newStageId);
+      }
+    }
+  };
+
   return (
     <div className="p-6 h-full">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Pipeline</h1>
           <p className="text-muted-foreground mt-1">
-            Drag contacts or use dropdown to move between stages
+            Drag contacts between stages or click to view details
           </p>
         </div>
         <AddContactDialog />
       </div>
 
-      <ScrollArea className="w-full pb-4">
-        <div className="flex gap-4 min-w-max">
-          {sortedStages.map((stage) => {
-            const stageContacts = getContactsByStage(stage.id);
-            return (
-              <div
-                key={stage.id}
-                className="w-72 flex-shrink-0 bg-muted/30 rounded-lg p-4"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div 
-                      className="w-3 h-3 rounded-full" 
-                      style={{ backgroundColor: stage.color }}
-                    />
-                    <h3 className="font-semibold text-foreground">{stage.name}</h3>
-                  </div>
-                  <span className="text-sm text-muted-foreground">
-                    {stageContacts.length}
-                  </span>
-                </div>
-
-                <div className="space-y-3">
-                  {stageContacts.map((contact) => (
-                    <div key={contact.id} className="space-y-2">
-                      <ContactCard
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <ScrollArea className="w-full pb-4">
+          <div className="flex gap-4 min-w-max">
+            {sortedStages.map((stage) => {
+              const stageContacts = getContactsByStage(stage.id);
+              return (
+                <DroppableStage key={stage.id} stage={stage} contactCount={stageContacts.length}>
+                  <div className="space-y-3">
+                    {stageContacts.map((contact) => (
+                      <DraggableContact
+                        key={contact.id}
                         contact={contact}
                         taskCount={getOpenTaskCount(contact.id)}
                         onClick={() => navigate(`/contacts/${contact.id}`)}
                       />
-                      <Select
-                        value={contact.stageId}
-                        onValueChange={(newStageId) => moveContactToStage(contact.id, newStageId)}
-                      >
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Move to..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {sortedStages.map((s) => (
-                            <SelectItem key={s.id} value={s.id}>
-                              {s.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ))}
+                    ))}
 
-                  {stageContacts.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-8">
-                      No contacts in this stage
-                    </p>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+                    {stageContacts.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-8">
+                        No contacts in this stage
+                      </p>
+                    )}
+                  </div>
+                </DroppableStage>
+              );
+            })}
+          </div>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+
+        <DragOverlay>
+          {activeContact ? (
+            <ContactCard
+              contact={activeContact}
+              taskCount={getOpenTaskCount(activeContact.id)}
+              isDragging
+            />
+          ) : null}
+        </DragOverlay>
+      </DndContext>
     </div>
   );
 }

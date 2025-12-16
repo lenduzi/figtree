@@ -3,11 +3,10 @@ import { CalendarCheck, AlertTriangle, Clock, ChevronRight } from 'lucide-react'
 import { useCRMContext } from '@/contexts/CRMContext';
 import { TaskItem } from '@/components/TaskItem';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { isToday, isPast, parseISO } from 'date-fns';
 
 export default function FollowUpToday() {
   const navigate = useNavigate();
-  const { tasks, contacts, stages, toggleTaskComplete, getContactById, getStageById } = useCRMContext();
+  const { tasks, contacts, toggleTaskComplete, getContactById, rescheduleTask } = useCRMContext();
 
   const today = new Date().toISOString().split('T')[0];
   
@@ -27,6 +26,9 @@ export default function FollowUpToday() {
             ? "You're all caught up! No pending follow-ups."
             : `${totalActionItems} action item${totalActionItems !== 1 ? 's' : ''} need your attention`
           }
+        </p>
+        <p className="text-xs text-muted-foreground mt-2">
+          Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">⌘K</kbd> to search
         </p>
       </div>
 
@@ -48,6 +50,7 @@ export default function FollowUpToday() {
                   contact={contact}
                   onToggleComplete={toggleTaskComplete}
                   onContactClick={(id) => navigate(`/contacts/${id}`)}
+                  onReschedule={rescheduleTask}
                   showContact
                 />
               );
@@ -74,6 +77,7 @@ export default function FollowUpToday() {
                   contact={contact}
                   onToggleComplete={toggleTaskComplete}
                   onContactClick={(id) => navigate(`/contacts/${id}`)}
+                  onReschedule={rescheduleTask}
                   showContact
                 />
               );
@@ -100,6 +104,7 @@ export default function FollowUpToday() {
                   contact={contact}
                   onToggleComplete={toggleTaskComplete}
                   onContactClick={(id) => navigate(`/contacts/${id}`)}
+                  onReschedule={rescheduleTask}
                   showContact
                 />
               );

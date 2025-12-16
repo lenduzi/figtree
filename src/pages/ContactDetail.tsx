@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, Mail, Phone, Trash2, Edit2, Save } from 'lucide-react';
+import { ArrowLeft, Building2, Mail, Phone, Trash2, Edit2, Save, Clock, CheckCircle2, ArrowRight } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { TaskItem } from '@/components/TaskItem';
 import { AddTaskDialog } from '@/components/AddTaskDialog';
+import { AddActivityDialog } from '@/components/AddActivityDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -28,7 +29,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
+import { ActivityType } from '@/types/crm';
+
+const activityIcons: Record<ActivityType, React.ReactNode> = {
+  call: <Phone className="h-4 w-4" />,
+  email: <Mail className="h-4 w-4" />,
+  meeting: <Building2 className="h-4 w-4" />,
+  note: <Edit2 className="h-4 w-4" />,
+  stage_change: <ArrowRight className="h-4 w-4" />,
+  task_completed: <CheckCircle2 className="h-4 w-4" />,
+};
 
 export default function ContactDetail() {
   const { id } = useParams<{ id: string }>();
@@ -36,17 +47,20 @@ export default function ContactDetail() {
   const { 
     getContactById, 
     getStageById, 
-    getContactTasks, 
+    getContactTasks,
+    getContactActivities,
     stages, 
     updateContact, 
     deleteContact,
     toggleTaskComplete,
     deleteTask,
+    rescheduleTask,
   } = useCRMContext();
 
   const contact = getContactById(id || '');
   const stage = contact ? getStageById(contact.stageId) : undefined;
   const contactTasks = getContactTasks(id || '');
+  const contactActivities = getContactActivities(id || '');
 
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({
@@ -119,7 +133,7 @@ export default function ContactDetail() {
   const completedTasks = contactTasks.filter(t => t.completed);
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-5xl mx-auto">
       <button
         onClick={() => navigate(-1)}
         className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors"
@@ -254,6 +268,12 @@ export default function ContactDetail() {
                       </a>
                     </div>
                   )}
+                  {contact.lastInteractionDate && (
+                    <div className="flex items-center gap-2 text-muted-foreground pt-2 border-t">
+                      <Clock className="h-4 w-4" />
+                      Last contact: {formatDistanceToNow(new Date(contact.lastInteractionDate), { addSuffix: true })}
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -303,6 +323,7 @@ export default function ContactDetail() {
                       task={task}
                       onToggleComplete={toggleTaskComplete}
                       onDelete={deleteTask}
+                      onReschedule={rescheduleTask}
                     />
                   ))}
                   {completedTasks.length > 0 && (
@@ -321,6 +342,42 @@ export default function ContactDetail() {
                     </div>
                   )}
                 </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Activity Log */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg">Activity Log</CardTitle>
+              <AddActivityDialog contactId={contact.id} />
+            </CardHeader>
+            <CardContent>
+              {contactActivities.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No activity yet. Log calls, emails, or meetings to track interactions.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {contactActivities.slice(0, 10).map((activity) => (
+                    <div key={activity.id} className="flex items-start gap-3 text-sm">
+                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                        {activityIcons[activity.type]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-foreground">{activity.description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                  {contactActivities.length > 10 && (
+                    <p className="text-xs text-muted-foreground text-center pt-2">
+                      + {contactActivities.length - 10} more activities
+                    </p>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>
