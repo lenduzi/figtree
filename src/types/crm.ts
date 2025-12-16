@@ -31,7 +31,7 @@ export interface Contact {
   updatedAt: string;
 }
 
-export type ActivityType = 'call' | 'email' | 'meeting' | 'note' | 'stage_change' | 'task_completed';
+export type ActivityType = 'call' | 'call_attempted' | 'email' | 'meeting' | 'note' | 'stage_change' | 'task_completed';
 
 export interface Activity {
   id: string;

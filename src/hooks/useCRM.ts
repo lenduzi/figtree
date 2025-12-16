@@ -73,6 +73,10 @@ export function useCRM() {
     return newActivity;
   }, []);
 
+  const deleteActivity = useCallback((id: string) => {
+    setActivities(prev => prev.filter(a => a.id !== id));
+  }, []);
+
   const getContactActivities = useCallback((contactId: string) => {
     return activities.filter(a => a.contactId === contactId);
   }, [activities]);
@@ -213,6 +217,7 @@ export function useCRM() {
     updateStage,
     reorderStages,
     addActivity,
+    deleteActivity,
     getContactActivities,
     getContactTasks,
     getTasksForToday,
