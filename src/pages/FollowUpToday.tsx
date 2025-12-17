@@ -1,18 +1,58 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarCheck, AlertTriangle, Clock, ChevronRight } from 'lucide-react';
+import { CalendarCheck, AlertTriangle, Clock, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { TaskItem } from '@/components/TaskItem';
 import { TaskDetailDialog } from '@/components/TaskDetailDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Task } from '@/types/crm';
 
+interface RecentlyCompleted {
+  task: Task;
+  completedAt: number;
+}
+
 export default function FollowUpToday() {
   const navigate = useNavigate();
   const { tasks, contacts, toggleTaskComplete, getContactById, rescheduleTask } = useCRMContext();
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [recentlyCompleted, setRecentlyCompleted] = useState<RecentlyCompleted[]>([]);
 
   const today = new Date().toISOString().split('T')[0];
+
+  // Clean up expired recently completed tasks
+  useEffect(() => {
+    if (recentlyCompleted.length === 0) return;
+    
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setRecentlyCompleted(prev => 
+        prev.filter(item => now - item.completedAt < 5000)
+      );
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [recentlyCompleted.length]);
+
+  const handleToggleComplete = useCallback((taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (task && !task.completed) {
+      // Task is being completed - add to recently completed
+      setRecentlyCompleted(prev => [
+        ...prev.filter(item => item.task.id !== taskId),
+        { task, completedAt: Date.now() }
+      ]);
+    } else {
+      // Task is being uncompleted - remove from recently completed
+      setRecentlyCompleted(prev => prev.filter(item => item.task.id !== taskId));
+    }
+    toggleTaskComplete(taskId);
+  }, [tasks, toggleTaskComplete]);
+
+  const handleUndoComplete = useCallback((taskId: string) => {
+    setRecentlyCompleted(prev => prev.filter(item => item.task.id !== taskId));
+    toggleTaskComplete(taskId);
+  }, [toggleTaskComplete]);
   
   const openTasks = tasks.filter(t => !t.completed);
   const overdueTasks = openTasks.filter(t => t.dueDate < today);
@@ -52,7 +92,7 @@ export default function FollowUpToday() {
                   key={task.id}
                   task={task}
                   contact={contact}
-                  onToggleComplete={toggleTaskComplete}
+                  onToggleComplete={handleToggleComplete}
                   onContactClick={(id) => navigate(`/contacts/${id}`)}
                   onReschedule={rescheduleTask}
                   onTaskClick={setSelectedTask}
@@ -80,7 +120,7 @@ export default function FollowUpToday() {
                   key={task.id}
                   task={task}
                   contact={contact}
-                  onToggleComplete={toggleTaskComplete}
+                  onToggleComplete={handleToggleComplete}
                   onContactClick={(id) => navigate(`/contacts/${id}`)}
                   onReschedule={rescheduleTask}
                   onTaskClick={setSelectedTask}
@@ -129,7 +169,48 @@ export default function FollowUpToday() {
         </Card>
       )}
 
-      {totalActionItems === 0 && upcomingTasks.length === 0 && (
+      {recentlyCompleted.length > 0 && (
+        <Card className="mt-6 lg:mt-8 border-muted bg-muted/30">
+          <CardHeader className="pb-3 lg:pb-4 lg:px-6">
+            <CardTitle className="flex items-center gap-2 text-muted-foreground text-base lg:text-lg font-medium">
+              <CheckCircle2 className="h-4 w-4 lg:h-5 lg:w-5" />
+              Just Completed
+              <span className="text-xs font-normal">(click to undo)</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 lg:space-y-3 lg:px-6">
+            {recentlyCompleted.map(({ task }) => {
+              const contact = getContactById(task.contactId);
+              return (
+                <button
+                  key={task.id}
+                  onClick={() => handleUndoComplete(task.id)}
+                  className="w-full text-left p-3 lg:p-4 rounded-lg bg-background/50 border border-border/50 hover:bg-background hover:border-border transition-colors cursor-pointer group"
+                >
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-muted-foreground/50 group-hover:text-primary transition-colors" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm lg:text-base text-muted-foreground line-through truncate">
+                        {task.title}
+                      </p>
+                      {contact && (
+                        <p className="text-xs lg:text-sm text-muted-foreground/70">
+                          {contact.fullName}{contact.company ? ` • ${contact.company}` : ''}
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground/50 group-hover:text-primary transition-colors">
+                      Undo
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      {totalActionItems === 0 && upcomingTasks.length === 0 && recentlyCompleted.length === 0 && (
         <Card className="text-center py-12 lg:py-16">
           <CardContent>
             <CalendarCheck className="h-16 w-16 lg:h-20 lg:w-20 mx-auto text-muted-foreground/50 mb-4" />
