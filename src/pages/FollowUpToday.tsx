@@ -1,12 +1,16 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CalendarCheck, AlertTriangle, Clock, ChevronRight } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { TaskItem } from '@/components/TaskItem';
+import { TaskDetailDialog } from '@/components/TaskDetailDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Task } from '@/types/crm';
 
 export default function FollowUpToday() {
   const navigate = useNavigate();
   const { tasks, contacts, toggleTaskComplete, getContactById, rescheduleTask } = useCRMContext();
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const today = new Date().toISOString().split('T')[0];
   
@@ -51,6 +55,7 @@ export default function FollowUpToday() {
                   onToggleComplete={toggleTaskComplete}
                   onContactClick={(id) => navigate(`/contacts/${id}`)}
                   onReschedule={rescheduleTask}
+                  onTaskClick={setSelectedTask}
                   showContact
                 />
               );
@@ -78,6 +83,7 @@ export default function FollowUpToday() {
                   onToggleComplete={toggleTaskComplete}
                   onContactClick={(id) => navigate(`/contacts/${id}`)}
                   onReschedule={rescheduleTask}
+                  onTaskClick={setSelectedTask}
                   showContact
                 />
               );
@@ -105,6 +111,7 @@ export default function FollowUpToday() {
                   onToggleComplete={toggleTaskComplete}
                   onContactClick={(id) => navigate(`/contacts/${id}`)}
                   onReschedule={rescheduleTask}
+                  onTaskClick={setSelectedTask}
                   showContact
                 />
               );
@@ -133,6 +140,15 @@ export default function FollowUpToday() {
           </CardContent>
         </Card>
       )}
+
+      <TaskDetailDialog
+        task={selectedTask}
+        contact={selectedTask ? getContactById(selectedTask.contactId) : undefined}
+        open={!!selectedTask}
+        onOpenChange={(open) => !open && setSelectedTask(null)}
+        onContactClick={(id) => navigate(`/contacts/${id}`)}
+        showContact
+      />
     </div>
   );
 }

@@ -18,6 +18,7 @@ interface TaskItemProps {
   onDelete?: (id: string) => void;
   onContactClick?: (contactId: string) => void;
   onReschedule?: (id: string, newDate: Date) => void;
+  onTaskClick?: (task: Task) => void;
   showContact?: boolean;
 }
 
@@ -28,6 +29,7 @@ export function TaskItem({
   onDelete,
   onContactClick,
   onReschedule,
+  onTaskClick,
   showContact = false 
 }: TaskItemProps) {
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
@@ -73,7 +75,13 @@ export function TaskItem({
         {task.completed && <Check className="h-3 w-3 lg:h-4 lg:w-4 text-primary-foreground" />}
       </Button>
 
-      <div className="flex-1 min-w-0">
+      <div 
+        className={cn(
+          "flex-1 min-w-0",
+          onTaskClick && "cursor-pointer hover:bg-muted/50 -m-2 p-2 rounded-md transition-colors"
+        )}
+        onClick={() => onTaskClick?.(task)}
+      >
         <p className={cn(
           'font-medium text-sm lg:text-base',
           task.completed && 'line-through text-muted-foreground'
