@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Building2, Mail, Phone, Trash2, Edit2, Save, Clock, CheckCircle2, ArrowRight, PhoneMissed } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { TaskItem } from '@/components/TaskItem';
+import { TaskDetailDialog } from '@/components/TaskDetailDialog';
 import { AddTaskDialog } from '@/components/AddTaskDialog';
 import { AddActivityDialog } from '@/components/AddActivityDialog';
 import { Button } from '@/components/ui/button';
@@ -30,7 +31,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { format, formatDistanceToNow } from 'date-fns';
-import { ActivityType } from '@/types/crm';
+import { ActivityType, Task } from '@/types/crm';
 
 const activityIcons: Record<ActivityType, React.ReactNode> = {
   call: <Phone className="h-4 w-4" />,
@@ -74,6 +75,7 @@ export default function ContactDetail() {
   });
   const [notes, setNotes] = useState('');
   const [notesTimeout, setNotesTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   useEffect(() => {
     if (contact) {
@@ -326,6 +328,7 @@ export default function ContactDetail() {
                       onToggleComplete={toggleTaskComplete}
                       onDelete={deleteTask}
                       onReschedule={rescheduleTask}
+                      onTaskClick={setSelectedTask}
                     />
                   ))}
                   {completedTasks.length > 0 && (
@@ -339,6 +342,7 @@ export default function ContactDetail() {
                           task={task}
                           onToggleComplete={toggleTaskComplete}
                           onDelete={deleteTask}
+                          onTaskClick={setSelectedTask}
                         />
                       ))}
                     </div>
@@ -393,6 +397,12 @@ export default function ContactDetail() {
           </Card>
         </div>
       </div>
+
+      <TaskDetailDialog
+        task={selectedTask}
+        open={!!selectedTask}
+        onOpenChange={(open) => !open && setSelectedTask(null)}
+      />
     </div>
   );
 }
