@@ -57,7 +57,10 @@ export default function FollowUpToday() {
   const openTasks = tasks.filter(t => !t.completed);
   const overdueTasks = openTasks.filter(t => t.dueDate < today);
   const todayTasks = openTasks.filter(t => t.dueDate === today);
-  const upcomingTasks = openTasks.filter(t => t.dueDate > today).slice(0, 5);
+  const upcomingTasks = openTasks
+    .filter(t => t.dueDate > today)
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+    .slice(0, 5);
 
   const totalActionItems = overdueTasks.length + todayTasks.length;
 

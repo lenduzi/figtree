@@ -20,7 +20,9 @@ export interface Task {
 export interface Contact {
   id: string;
   fullName: string;
+  role?: string;
   company: string;
+  website?: string;
   email: string;
   phone: string;
   stageId: string;

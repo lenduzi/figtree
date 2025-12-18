@@ -41,7 +41,9 @@ export function AddContactDialog({
 
   const [formData, setFormData] = useState({
     fullName: '',
+    role: '',
     company: '',
+    website: '',
     email: '',
     phone: '',
     stageId: defaultStageId || stages[0]?.id || '',
@@ -51,7 +53,9 @@ export function AddContactDialog({
     if (!open) {
       setFormData({
         fullName: '',
+        role: '',
         company: '',
+        website: '',
         email: '',
         phone: '',
         stageId: defaultStageId || stages[0]?.id || '',
@@ -70,7 +74,9 @@ export function AddContactDialog({
 
     setFormData({
       fullName: '',
+      role: '',
       company: '',
+      website: '',
       email: '',
       phone: '',
       stageId: defaultStageId || stages[0]?.id || '',
@@ -104,12 +110,30 @@ export function AddContactDialog({
             />
           </div>
           <div className="space-y-2">
+            <Label htmlFor="role">Role</Label>
+            <Input
+              id="role"
+              value={formData.role}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+              placeholder="CMO, Sales Manager, etc."
+            />
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="company">Company</Label>
             <Input
               id="company"
               value={formData.company}
               onChange={(e) => setFormData({ ...formData, company: e.target.value })}
               placeholder="Acme Inc."
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="website">Website</Label>
+            <Input
+              id="website"
+              value={formData.website}
+              onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+              placeholder="https://example.com"
             />
           </div>
           <div className="space-y-2">
