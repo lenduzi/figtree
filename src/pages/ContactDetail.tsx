@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, Mail, Phone, Trash2, Edit2, Save, Clock, CheckCircle2, ArrowRight, PhoneMissed } from 'lucide-react';
+import { ArrowLeft, Building2, Mail, Phone, Trash2, Edit2, Save, Clock, CheckCircle2, ArrowRight, PhoneMissed, Globe, User } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { TaskItem } from '@/components/TaskItem';
 import { TaskDetailDialog } from '@/components/TaskDetailDialog';
@@ -68,7 +68,9 @@ export default function ContactDetail() {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({
     fullName: '',
+    role: '',
     company: '',
+    website: '',
     email: '',
     phone: '',
     stageId: '',
@@ -81,7 +83,9 @@ export default function ContactDetail() {
     if (contact) {
       setEditData({
         fullName: contact.fullName,
+        role: contact.role || '',
         company: contact.company,
+        website: contact.website || '',
         email: contact.email,
         phone: contact.phone,
         stageId: contact.stageId,
@@ -147,8 +151,9 @@ export default function ContactDetail() {
       </button>
 
       <div className="grid gap-6 lg:gap-8 lg:grid-cols-3">
-        {/* Contact Info */}
-        <Card className="lg:col-span-1">
+        {/* Left Column: Contact Info + Activity Log */}
+        <div className="lg:col-span-1 space-y-6 lg:space-y-8">
+        <Card>
           <CardHeader className="flex flex-row items-start justify-between lg:p-6">
             <CardTitle className="text-lg lg:text-xl">Contact Info</CardTitle>
             <div className="flex gap-2">
@@ -195,10 +200,26 @@ export default function ContactDetail() {
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label>Role</Label>
+                  <Input
+                    value={editData.role}
+                    onChange={(e) => setEditData({ ...editData, role: e.target.value })}
+                    placeholder="CMO, Sales Manager, etc."
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label>Company</Label>
                   <Input
                     value={editData.company}
                     onChange={(e) => setEditData({ ...editData, company: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Website</Label>
+                  <Input
+                    value={editData.website}
+                    onChange={(e) => setEditData({ ...editData, website: e.target.value })}
+                    placeholder="https://example.com"
                   />
                 </div>
                 <div className="space-y-2">
@@ -237,6 +258,9 @@ export default function ContactDetail() {
               <>
                 <div>
                   <h2 className="text-xl lg:text-2xl font-semibold text-foreground">{contact.fullName}</h2>
+                  {contact.role && (
+                    <p className="text-sm lg:text-base text-muted-foreground mt-1">{contact.role}</p>
+                  )}
                   {stage && (
                     <Badge 
                       className="mt-2"
@@ -254,6 +278,19 @@ export default function ContactDetail() {
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Building2 className="h-4 w-4 lg:h-5 lg:w-5" />
                       {contact.company}
+                    </div>
+                  )}
+                  {contact.website && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Globe className="h-4 w-4 lg:h-5 lg:w-5" />
+                      <a 
+                        href={contact.website.startsWith('http') ? contact.website : `https://${contact.website}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="hover:text-primary truncate"
+                      >
+                        {contact.website.replace(/^https?:\/\//, '')}
+                      </a>
                     </div>
                   )}
                   {contact.email && (
@@ -284,8 +321,53 @@ export default function ContactDetail() {
           </CardContent>
         </Card>
 
-        {/* Notes & Tasks */}
-        <div className="lg:col-span-2 space-y-6">
+          {/* Activity Log - on left column */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between lg:p-6">
+              <CardTitle className="text-lg lg:text-xl">Activity Log</CardTitle>
+              <AddActivityDialog contactId={contact.id} />
+            </CardHeader>
+            <CardContent className="lg:px-6 lg:pb-6">
+              {contactActivities.length === 0 ? (
+                <p className="text-sm lg:text-base text-muted-foreground text-center py-4">
+                  No activity yet. Log calls, emails, or meetings to track interactions.
+                </p>
+              ) : (
+                <div className="space-y-3 lg:space-y-4">
+                  {contactActivities.slice(0, 10).map((activity) => (
+                    <div key={activity.id} className="flex items-start gap-3 lg:gap-4 text-sm lg:text-base group">
+                      <div className="h-8 w-8 lg:h-10 lg:w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+                        {activityIcons[activity.type]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-foreground">{activity.description}</p>
+                        <p className="text-xs lg:text-sm text-muted-foreground">
+                          {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive-foreground"
+                        onClick={() => deleteActivity(activity.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  {contactActivities.length > 10 && (
+                    <p className="text-xs lg:text-sm text-muted-foreground text-center pt-2">
+                      + {contactActivities.length - 10} more activities
+                    </p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Column: Notes & Tasks */}
+        <div className="lg:col-span-2 space-y-6 lg:space-y-8">
           {/* Notes */}
           <Card>
             <CardHeader className="lg:p-6">
@@ -348,50 +430,6 @@ export default function ContactDetail() {
                     </div>
                   )}
                 </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Activity Log */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between lg:p-6">
-              <CardTitle className="text-lg lg:text-xl">Activity Log</CardTitle>
-              <AddActivityDialog contactId={contact.id} />
-            </CardHeader>
-            <CardContent className="lg:px-6 lg:pb-6">
-              {contactActivities.length === 0 ? (
-                <p className="text-sm lg:text-base text-muted-foreground text-center py-4">
-                  No activity yet. Log calls, emails, or meetings to track interactions.
-                </p>
-              ) : (
-                <div className="space-y-3 lg:space-y-4">
-                  {contactActivities.slice(0, 10).map((activity) => (
-                    <div key={activity.id} className="flex items-start gap-3 lg:gap-4 text-sm lg:text-base group">
-                      <div className="h-8 w-8 lg:h-10 lg:w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
-                        {activityIcons[activity.type]}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-foreground">{activity.description}</p>
-                        <p className="text-xs lg:text-sm text-muted-foreground">
-                          {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive-foreground"
-                        onClick={() => deleteActivity(activity.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                  {contactActivities.length > 10 && (
-                    <p className="text-xs lg:text-sm text-muted-foreground text-center pt-2">
-                      + {contactActivities.length - 10} more activities
-                    </p>
-                  )}
-                </div>
               )}
             </CardContent>
           </Card>
