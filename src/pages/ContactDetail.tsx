@@ -323,7 +323,7 @@ export default function ContactDetail() {
 
           {/* Activity Log - on left column */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between lg:p-6">
+            <CardHeader className="lg:p-6 space-y-3">
               <CardTitle className="text-lg lg:text-xl">Activity Log</CardTitle>
               <AddActivityDialog contactId={contact.id} />
             </CardHeader>
