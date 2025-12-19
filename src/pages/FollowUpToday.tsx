@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarCheck, AlertTriangle, Clock, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { CalendarCheck, AlertTriangle, Clock, ChevronRight, CheckCircle2, Plus } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { TaskItem } from '@/components/TaskItem';
 import { TaskDetailDialog } from '@/components/TaskDetailDialog';
+import { AddTaskWithContactDialog } from '@/components/AddTaskWithContactDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Task } from '@/types/crm';
 
 interface RecentlyCompleted {
@@ -67,13 +69,25 @@ export default function FollowUpToday() {
   return (
     <div className="p-6 lg:p-8 xl:p-10 max-w-4xl lg:max-w-5xl 2xl:max-w-6xl mx-auto">
       <div className="mb-8 lg:mb-10">
-        <h1 className="text-3xl lg:text-4xl font-bold text-foreground">Follow-Up Today</h1>
-        <p className="text-muted-foreground lg:text-lg mt-1">
-          {totalActionItems === 0 
-            ? "You're all caught up! No pending follow-ups."
-            : `${totalActionItems} action item${totalActionItems !== 1 ? 's' : ''} need your attention`
-          }
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl lg:text-4xl font-bold text-foreground">Follow-Up Today</h1>
+            <p className="text-muted-foreground lg:text-lg mt-1">
+              {totalActionItems === 0 
+                ? "You're all caught up! No pending follow-ups."
+                : `${totalActionItems} action item${totalActionItems !== 1 ? 's' : ''} need your attention`
+              }
+            </p>
+          </div>
+          <AddTaskWithContactDialog
+            trigger={
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                New Task
+              </Button>
+            }
+          />
+        </div>
         <p className="text-xs lg:text-sm text-muted-foreground mt-2">
           Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs lg:text-sm">⌘K</kbd> to search
         </p>
