@@ -29,8 +29,8 @@ function AppContent() {
         <div className="min-h-screen flex w-full">
           <AppSidebar />
           <main className="flex-1 overflow-auto">
-            <header className="h-14 border-b border-border flex items-center px-4">
-              <SidebarTrigger />
+            <header className="h-14 border-b border-border flex items-center px-4 gap-2">
+              <SidebarTrigger className="h-9 w-9" />
             </header>
             <Routes>
               <Route path="/" element={<FollowUpToday />} />

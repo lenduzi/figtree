@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, UserPlus } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { useCRMContext } from '@/contexts/CRMContext';
+import { Separator } from '@/components/ui/separator';
 
 interface AddTaskWithContactDialogProps {
   trigger?: React.ReactNode;
@@ -27,8 +28,10 @@ interface AddTaskWithContactDialogProps {
 }
 
 export function AddTaskWithContactDialog({ trigger, defaultContactId }: AddTaskWithContactDialogProps) {
-  const { addTask, contacts } = useCRMContext();
+  const { addTask, addContact, contacts, stages } = useCRMContext();
   const [open, setOpen] = useState(false);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [quickAddName, setQuickAddName] = useState('');
   const [formData, setFormData] = useState({
     contactId: defaultContactId || '',
     title: '',
@@ -40,6 +43,25 @@ export function AddTaskWithContactDialog({ trigger, defaultContactId }: AddTaskW
 
   // Sort contacts alphabetically by name
   const sortedContacts = [...contacts].sort((a, b) => a.fullName.localeCompare(b.fullName));
+
+  const handleQuickAddContact = () => {
+    if (!quickAddName.trim()) return;
+    
+    const newContact = addContact({
+      fullName: quickAddName.trim(),
+      role: '',
+      company: '',
+      website: '',
+      email: '',
+      phone: '',
+      stageId: stages[0]?.id || '',
+      notes: '',
+    });
+    
+    setFormData({ ...formData, contactId: newContact.id });
+    setQuickAddName('');
+    setShowQuickAdd(false);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,21 +105,72 @@ export function AddTaskWithContactDialog({ trigger, defaultContactId }: AddTaskW
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="contact">Contact *</Label>
-            <Select
-              value={formData.contactId}
-              onValueChange={(value) => setFormData({ ...formData, contactId: value })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a contact..." />
-              </SelectTrigger>
-              <SelectContent>
-                {sortedContacts.map((contact) => (
-                  <SelectItem key={contact.id} value={contact.id}>
-                    {contact.fullName}{contact.company ? ` — ${contact.company}` : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {!showQuickAdd ? (
+              <div className="space-y-2">
+                <Select
+                  value={formData.contactId}
+                  onValueChange={(value) => setFormData({ ...formData, contactId: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a contact..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sortedContacts.map((contact) => (
+                      <SelectItem key={contact.id} value={contact.id}>
+                        {contact.fullName}{contact.company ? ` — ${contact.company}` : ''}
+                      </SelectItem>
+                    ))}
+                    <Separator className="my-1" />
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-primary hover:bg-accent rounded-sm cursor-pointer"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setShowQuickAdd(true);
+                      }}
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      Add new contact
+                    </button>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-2 p-3 border border-border rounded-md bg-muted/30">
+                <Label htmlFor="quickAddName" className="text-sm">New contact name</Label>
+                <Input
+                  id="quickAddName"
+                  value={quickAddName}
+                  onChange={(e) => setQuickAddName(e.target.value)}
+                  placeholder="Enter name..."
+                  autoFocus
+                />
+                <p className="text-xs text-muted-foreground">You can add more details later in Contacts.</p>
+                <div className="flex gap-2 pt-1">
+                  <Button 
+                    type="button" 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowQuickAdd(false);
+                      setQuickAddName('');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="button" 
+                    size="sm" 
+                    onClick={handleQuickAddContact}
+                    disabled={!quickAddName.trim()}
+                  >
+                    <UserPlus className="h-4 w-4 mr-1" />
+                    Add
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="title">Title *</Label>
