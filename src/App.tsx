@@ -29,7 +29,7 @@ function AppContent() {
         <div className="min-h-screen flex w-full">
           <AppSidebar />
           <main className="flex-1 overflow-auto">
-            <header className="h-14 border-b border-border flex items-center px-4 lg:hidden">
+            <header className="h-14 border-b border-border flex items-center px-4">
               <SidebarTrigger />
             </header>
             <Routes>

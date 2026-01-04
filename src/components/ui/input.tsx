@@ -3,7 +3,21 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
-  ({ className, type, ...props }, ref) => {
+  ({ className, type, onChange, ...props }, ref) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const { selectionStart } = e.target;
+      const newValue = e.target.value.replace(/->/g, '→');
+      const offset = e.target.value.length - newValue.length;
+      
+      if (newValue !== e.target.value) {
+        e.target.value = newValue;
+        const newPos = (selectionStart || 0) - offset;
+        e.target.setSelectionRange(newPos, newPos);
+      }
+      
+      onChange?.(e);
+    };
+
     return (
       <input
         type={type}
@@ -12,6 +26,7 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
           className,
         )}
         ref={ref}
+        onChange={handleChange}
         {...props}
       />
     );

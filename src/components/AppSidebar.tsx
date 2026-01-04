@@ -1,4 +1,4 @@
-import { CalendarCheck, Users, Kanban, Bell, Settings } from 'lucide-react';
+import { CalendarCheck, Users, Kanban, Bell, Settings, TreePine } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import {
   Sidebar,
@@ -28,7 +28,10 @@ export function AppSidebar() {
   return (
     <Sidebar className="border-r border-border lg:w-64 xl:w-72">
       <SidebarHeader className="p-4 lg:p-5 border-b border-border">
-        <h1 className="text-xl lg:text-2xl font-semibold text-foreground">SimpleCRM</h1>
+        <div className="flex items-center gap-2">
+          <TreePine className="h-6 w-6 text-primary" />
+          <h1 className="text-xl lg:text-2xl font-semibold text-foreground">Figtree</h1>
+        </div>
       </SidebarHeader>
       <SidebarContent className="p-2 lg:p-3">
         <SidebarGroup>
@@ -41,7 +44,7 @@ export function AppSidebar() {
                       to={item.url}
                       end={item.url === '/'}
                       className="flex items-center gap-3 px-3 py-2 lg:py-3 rounded-md transition-colors hover:bg-accent"
-                      activeClassName="bg-primary text-primary-foreground hover:bg-primary"
+                      activeClassName="bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
                     >
                       <item.icon className="h-5 w-5 lg:h-6 lg:w-6" />
                       <span className="flex-1 lg:text-base">{item.title}</span>
@@ -65,7 +68,7 @@ export function AppSidebar() {
               <NavLink
                 to="/settings"
                 className="flex items-center gap-3 px-3 py-2 lg:py-3 rounded-md transition-colors hover:bg-accent"
-                activeClassName="bg-primary text-primary-foreground hover:bg-primary"
+                activeClassName="bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
               >
                 <Settings className="h-5 w-5 lg:h-6 lg:w-6" />
                 <span className="lg:text-base">Settings</span>
