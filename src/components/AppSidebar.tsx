@@ -1,5 +1,6 @@
 import { CalendarCheck, Users, Kanban, Bell, Settings, TreePine } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Sidebar,
   SidebarContent,
@@ -10,6 +11,7 @@ import {
   SidebarMenuItem,
   SidebarHeader,
   SidebarFooter,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +25,21 @@ const navItems = [
 
 export function AppSidebar() {
   const { getTasksForToday } = useCRMContext();
+  const { isMobile, setOpenMobile } = useSidebar();
   const todayTasks = getTasksForToday();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleNavClick = (url: string) => {
+    // Only navigate if not already on this route
+    if (location.pathname !== url) {
+      navigate(url);
+    }
+    // Close sidebar on mobile after selecting
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
 
   return (
     <Sidebar className="border-r border-border lg:w-64 xl:w-72">
@@ -45,6 +61,7 @@ export function AppSidebar() {
                       end={item.url === '/'}
                       className="flex items-center gap-3 px-3 py-2 lg:py-3 rounded-md transition-colors hover:bg-accent"
                       activeClassName="bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
+                      onClick={() => handleNavClick(item.url)}
                     >
                       <item.icon className="h-5 w-5 lg:h-6 lg:w-6" />
                       <span className="flex-1 lg:text-base">{item.title}</span>
@@ -69,6 +86,7 @@ export function AppSidebar() {
                 to="/settings"
                 className="flex items-center gap-3 px-3 py-2 lg:py-3 rounded-md transition-colors hover:bg-accent"
                 activeClassName="bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
+                onClick={() => handleNavClick('/settings')}
               >
                 <Settings className="h-5 w-5 lg:h-6 lg:w-6" />
                 <span className="lg:text-base">Settings</span>
