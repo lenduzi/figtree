@@ -24,9 +24,10 @@ import { useCRMContext } from '@/contexts/CRMContext';
 
 interface CommandPaletteProps {
   onAddContact?: () => void;
+  onAddTask?: () => void;
 }
 
-export function CommandPalette({ onAddContact }: CommandPaletteProps) {
+export function CommandPalette({ onAddContact, onAddTask }: CommandPaletteProps) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const { contacts, tasks, getStageById } = useCRMContext();
@@ -86,6 +87,12 @@ export function CommandPalette({ onAddContact }: CommandPaletteProps) {
             <CommandItem onSelect={() => handleSelect(onAddContact)}>
               <Plus className="mr-2 h-4 w-4" />
               Add New Contact
+            </CommandItem>
+          )}
+          {onAddTask && (
+            <CommandItem onSelect={() => handleSelect(onAddTask)}>
+              <CheckSquare className="mr-2 h-4 w-4" />
+              Add New Task
             </CommandItem>
           )}
         </CommandGroup>

@@ -9,6 +9,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { CRMProvider } from "@/contexts/CRMContext";
 import { CommandPalette } from "@/components/CommandPalette";
 import { AddContactDialog } from "@/components/AddContactDialog";
+import { AddTaskWithContactDialog } from "@/components/AddTaskWithContactDialog";
 import FollowUpToday from "./pages/FollowUpToday";
 import Contacts from "./pages/Contacts";
 import Pipeline from "./pages/Pipeline";
@@ -21,10 +22,14 @@ const queryClient = new QueryClient();
 
 function AppContent() {
   const [addContactOpen, setAddContactOpen] = useState(false);
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
 
   return (
     <>
-      <CommandPalette onAddContact={() => setAddContactOpen(true)} />
+      <CommandPalette 
+        onAddContact={() => setAddContactOpen(true)} 
+        onAddTask={() => setAddTaskOpen(true)}
+      />
       <SidebarProvider>
         <div className="min-h-screen flex w-full">
           <AppSidebar />
@@ -44,8 +49,9 @@ function AppContent() {
           </main>
         </div>
       </SidebarProvider>
-      {/* Hidden trigger for command palette */}
+      {/* Hidden dialogs for command palette */}
       <AddContactDialog open={addContactOpen} onOpenChange={setAddContactOpen} triggerless />
+      <AddTaskWithContactDialog open={addTaskOpen} onOpenChange={setAddTaskOpen} triggerless />
     </>
   );
 }
