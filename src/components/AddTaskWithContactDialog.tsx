@@ -25,11 +25,30 @@ import { Separator } from '@/components/ui/separator';
 interface AddTaskWithContactDialogProps {
   trigger?: React.ReactNode;
   defaultContactId?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  triggerless?: boolean;
 }
 
-export function AddTaskWithContactDialog({ trigger, defaultContactId }: AddTaskWithContactDialogProps) {
+export function AddTaskWithContactDialog({ 
+  trigger, 
+  defaultContactId,
+  open: controlledOpen,
+  onOpenChange,
+  triggerless = false,
+}: AddTaskWithContactDialogProps) {
   const { addTask, addContact, contacts, stages } = useCRMContext();
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : uncontrolledOpen;
+  const setOpen = (value: boolean) => {
+    if (isControlled) {
+      onOpenChange?.(value);
+    } else {
+      setUncontrolledOpen(value);
+    }
+  };
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickAddName, setQuickAddName] = useState('');
   const [formData, setFormData] = useState({
@@ -90,14 +109,16 @@ export function AddTaskWithContactDialog({ trigger, defaultContactId }: AddTaskW
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger || (
-          <Button size="sm">
-            <Plus className="h-4 w-4 mr-1" />
-            New Task
-          </Button>
-        )}
-      </DialogTrigger>
+      {!triggerless && (
+        <DialogTrigger asChild>
+          {trigger || (
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-1" />
+              New Task
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Add New Task</DialogTitle>
