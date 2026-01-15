@@ -1,16 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Search, 
-  User, 
-  CheckSquare, 
-  CalendarCheck, 
-  Users, 
-  Kanban, 
-  Bell, 
-  Settings,
-  Plus
-} from 'lucide-react';
+import { User, CheckSquare, Plus } from 'lucide-react';
 import {
   CommandDialog,
   CommandEmpty,
@@ -57,31 +47,6 @@ export function CommandPalette({ onAddContact, onAddTask }: CommandPaletteProps)
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
         
-        <CommandGroup heading="Navigation">
-          <CommandItem onSelect={() => handleSelect(() => navigate('/'))}>
-            <CalendarCheck className="mr-2 h-4 w-4" />
-            Follow-Up Today
-          </CommandItem>
-          <CommandItem onSelect={() => handleSelect(() => navigate('/contacts'))}>
-            <Users className="mr-2 h-4 w-4" />
-            Contacts
-          </CommandItem>
-          <CommandItem onSelect={() => handleSelect(() => navigate('/pipeline'))}>
-            <Kanban className="mr-2 h-4 w-4" />
-            Pipeline
-          </CommandItem>
-          <CommandItem onSelect={() => handleSelect(() => navigate('/reminders'))}>
-            <Bell className="mr-2 h-4 w-4" />
-            All Reminders
-          </CommandItem>
-          <CommandItem onSelect={() => handleSelect(() => navigate('/settings'))}>
-            <Settings className="mr-2 h-4 w-4" />
-            Settings
-          </CommandItem>
-        </CommandGroup>
-
-        <CommandSeparator />
-
         <CommandGroup heading="Quick Actions">
           {onAddContact && (
             <CommandItem onSelect={() => handleSelect(onAddContact)}>
@@ -96,6 +61,7 @@ export function CommandPalette({ onAddContact, onAddTask }: CommandPaletteProps)
             </CommandItem>
           )}
         </CommandGroup>
+
 
         {contacts.length > 0 && (
           <>
