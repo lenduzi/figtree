@@ -43,6 +43,33 @@ export interface Activity {
   timestamp: string;
 }
 
+// Research Lists feature
+export type ResearchStatus = 'researching' | 'ready' | 'promoted';
+export type ResearchPriority = 'low' | 'medium' | 'high';
+
+export interface ResearchList {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ResearchEntry {
+  id: string;
+  listId: string;
+  company: string;
+  poc: string; // Point of Contact
+  email: string;
+  website: string;
+  industry: string;
+  notes: string;
+  priority: ResearchPriority;
+  status: ResearchStatus;
+  linkedContactId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const DEFAULT_STAGES: Stage[] = [
   { id: 'lead', name: 'Lead', color: 'hsl(var(--chart-1))', order: 0 },
   { id: 'contacted', name: 'Contacted', color: 'hsl(var(--chart-2))', order: 1 },

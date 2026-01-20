@@ -1,4 +1,4 @@
-import { CalendarCheck, Users, Kanban, Bell, Settings, TreePine } from 'lucide-react';
+import { CalendarCheck, Users, Kanban, Bell, Settings, TreePine, ClipboardList } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -20,6 +20,7 @@ const navItems = [
   { title: 'Follow-Up Today', url: '/', icon: CalendarCheck },
   { title: 'Contacts', url: '/contacts', icon: Users },
   { title: 'Pipeline', url: '/pipeline', icon: Kanban },
+  { title: 'Planning', url: '/planning', icon: ClipboardList },
   { title: 'All Reminders', url: '/reminders', icon: Bell },
 ];
 

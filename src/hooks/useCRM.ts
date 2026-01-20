@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Contact, Task, Stage, Activity, ActivityType, DEFAULT_STAGES } from '@/types/crm';
+import { Contact, Task, Stage, Activity, ActivityType, DEFAULT_STAGES, ResearchList, ResearchEntry, ResearchStatus, ResearchPriority } from '@/types/crm';
 import { addDays, format } from 'date-fns';
 
 const STORAGE_KEYS = {
@@ -7,6 +7,8 @@ const STORAGE_KEYS = {
   tasks: 'simplecrm_tasks',
   stages: 'simplecrm_stages',
   activities: 'simplecrm_activities',
+  researchLists: 'simplecrm_research_lists',
+  researchEntries: 'simplecrm_research_entries',
 };
 
 function loadFromStorage<T>(key: string, defaultValue: T): T {
@@ -35,6 +37,12 @@ export function useCRM() {
   const [activities, setActivities] = useState<Activity[]>(() =>
     loadFromStorage(STORAGE_KEYS.activities, [])
   );
+  const [researchLists, setResearchLists] = useState<ResearchList[]>(() =>
+    loadFromStorage(STORAGE_KEYS.researchLists, [])
+  );
+  const [researchEntries, setResearchEntries] = useState<ResearchEntry[]>(() =>
+    loadFromStorage(STORAGE_KEYS.researchEntries, [])
+  );
 
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.contacts, contacts);
@@ -51,6 +59,14 @@ export function useCRM() {
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.activities, activities);
   }, [activities]);
+
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.researchLists, researchLists);
+  }, [researchLists]);
+
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.researchEntries, researchEntries);
+  }, [researchEntries]);
 
   // Activity operations
   const addActivity = useCallback((contactId: string, type: ActivityType, description: string) => {
@@ -171,6 +187,101 @@ export function useCRM() {
     setStages(newStages.map((s, i) => ({ ...s, order: i })));
   }, []);
 
+  // Research List operations
+  const addResearchList = useCallback((name: string) => {
+    const newList: ResearchList = {
+      id: crypto.randomUUID(),
+      name,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setResearchLists(prev => [...prev, newList]);
+    return newList;
+  }, []);
+
+  const updateResearchList = useCallback((id: string, updates: Partial<ResearchList>) => {
+    setResearchLists(prev => prev.map(l => 
+      l.id === id ? { ...l, ...updates, updatedAt: new Date().toISOString() } : l
+    ));
+  }, []);
+
+  const deleteResearchList = useCallback((id: string) => {
+    setResearchLists(prev => prev.filter(l => l.id !== id));
+    setResearchEntries(prev => prev.filter(e => e.listId !== id));
+  }, []);
+
+  // Research Entry operations
+  const addResearchEntry = useCallback((listId: string, entry: Partial<Omit<ResearchEntry, 'id' | 'listId' | 'createdAt' | 'updatedAt'>>) => {
+    const newEntry: ResearchEntry = {
+      id: crypto.randomUUID(),
+      listId,
+      company: entry.company || '',
+      poc: entry.poc || '',
+      email: entry.email || '',
+      website: entry.website || '',
+      industry: entry.industry || '',
+      notes: entry.notes || '',
+      priority: entry.priority || 'medium',
+      status: entry.status || 'researching',
+      linkedContactId: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setResearchEntries(prev => [...prev, newEntry]);
+    return newEntry;
+  }, []);
+
+  const updateResearchEntry = useCallback((id: string, updates: Partial<ResearchEntry>) => {
+    setResearchEntries(prev => prev.map(e => 
+      e.id === id ? { ...e, ...updates, updatedAt: new Date().toISOString() } : e
+    ));
+  }, []);
+
+  const deleteResearchEntry = useCallback((id: string) => {
+    setResearchEntries(prev => prev.filter(e => e.id !== id));
+  }, []);
+
+  const getEntriesForList = useCallback((listId: string) => {
+    return researchEntries.filter(e => e.listId === listId);
+  }, [researchEntries]);
+
+  const promoteEntryToContact = useCallback((entryId: string, stageId: string, createTask?: boolean) => {
+    const entry = researchEntries.find(e => e.id === entryId);
+    if (!entry) return null;
+
+    // Create contact from entry
+    const newContact = addContact({
+      fullName: entry.poc || entry.company,
+      company: entry.company,
+      email: entry.email,
+      phone: '',
+      website: entry.website,
+      role: '',
+      stageId,
+      notes: entry.notes,
+    });
+
+    // Link entry to contact and mark as promoted
+    updateResearchEntry(entryId, {
+      linkedContactId: newContact.id,
+      status: 'promoted',
+    });
+
+    // Optionally create a follow-up task
+    if (createTask) {
+      addTask({
+        contactId: newContact.id,
+        title: `Follow up with ${entry.poc || entry.company}`,
+        description: `Promoted from research list`,
+        dueDate: format(new Date(), 'yyyy-MM-dd'),
+        hasReminder: true,
+        completed: false,
+      });
+    }
+
+    return newContact;
+  }, [researchEntries, addContact, updateResearchEntry, addTask]);
+
   // Computed values
   const getContactTasks = useCallback((contactId: string) => {
     return tasks.filter(t => t.contactId === contactId);
@@ -204,6 +315,8 @@ export function useCRM() {
     tasks,
     stages,
     activities,
+    researchLists,
+    researchEntries,
     addContact,
     updateContact,
     deleteContact,
@@ -225,5 +338,14 @@ export function useCRM() {
     getUpcomingTasks,
     getContactById,
     getStageById,
+    // Research operations
+    addResearchList,
+    updateResearchList,
+    deleteResearchList,
+    addResearchEntry,
+    updateResearchEntry,
+    deleteResearchEntry,
+    getEntriesForList,
+    promoteEntryToContact,
   };
 }
