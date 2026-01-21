@@ -21,7 +21,7 @@ export default function Reminders() {
     new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 lg:p-8 xl:p-10 max-w-4xl lg:max-w-5xl 2xl:max-w-6xl mx-auto">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-foreground">All Reminders</h1>
         <p className="text-muted-foreground mt-1">

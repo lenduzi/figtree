@@ -65,7 +65,7 @@ export default function Contacts() {
   };
 
   return (
-    <div className="p-6 lg:p-8 xl:p-10">
+    <div className="p-6 lg:p-8 xl:p-10 max-w-4xl lg:max-w-5xl 2xl:max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6 lg:mb-8">
         <div>
           <h1 className="text-3xl lg:text-4xl font-bold text-foreground">Contacts</h1>
