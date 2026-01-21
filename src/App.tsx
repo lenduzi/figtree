@@ -4,12 +4,14 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { ThemeProvider } from "next-themes";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { CRMProvider } from "@/contexts/CRMContext";
 import { CommandPalette } from "@/components/CommandPalette";
 import { AddContactDialog } from "@/components/AddContactDialog";
 import { AddTaskWithContactDialog } from "@/components/AddTaskWithContactDialog";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import FollowUpToday from "./pages/FollowUpToday";
 import Contacts from "./pages/Contacts";
 import Pipeline from "./pages/Pipeline";
@@ -35,8 +37,9 @@ function AppContent() {
         <div className="min-h-screen flex w-full">
           <AppSidebar />
           <main className="flex-1 overflow-auto">
-            <header className="h-14 border-b border-border flex items-center px-4 gap-2">
+            <header className="h-14 border-b border-border flex items-center justify-between px-4">
               <SidebarTrigger className="h-9 w-9 ml-2" />
+              <ThemeToggle />
             </header>
             <Routes>
               <Route path="/" element={<FollowUpToday />} />
@@ -60,15 +63,17 @@ function AppContent() {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <CRMProvider>
-          <AppContent />
-        </CRMProvider>
-      </BrowserRouter>
-    </TooltipProvider>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <CRMProvider>
+            <AppContent />
+          </CRMProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 
