@@ -44,11 +44,26 @@ export function ResearchEntryRow({ entry, onPromote }: ResearchEntryRowProps) {
     setIsEditing(null);
   };
 
+  const fieldOrder: (keyof ResearchEntry)[] = ['company', 'poc', 'email', 'industry'];
+
   const handleKeyDown = (e: React.KeyboardEvent, field: keyof ResearchEntry) => {
     if (e.key === 'Enter') {
       handleSaveEdit(field);
     } else if (e.key === 'Escape') {
       setIsEditing(null);
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      handleSaveEdit(field);
+      
+      // Move to next field
+      const currentIndex = fieldOrder.indexOf(field);
+      const nextIndex = e.shiftKey ? currentIndex - 1 : currentIndex + 1;
+      
+      if (nextIndex >= 0 && nextIndex < fieldOrder.length) {
+        const nextField = fieldOrder[nextIndex];
+        const nextValue = entry[nextField] as string;
+        handleStartEdit(nextField, nextValue || '');
+      }
     }
   };
 
