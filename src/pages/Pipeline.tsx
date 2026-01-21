@@ -65,7 +65,7 @@ export default function Pipeline() {
   };
 
   return (
-    <div className="p-6 lg:p-8 xl:p-10 h-full">
+    <div className="p-6 lg:p-8 xl:p-10 max-w-6xl 2xl:max-w-7xl mx-auto h-full">
       <div className="flex items-center justify-between mb-6 lg:mb-8">
         <div>
           <h1 className="text-3xl lg:text-4xl font-bold text-foreground">Pipeline</h1>
