@@ -8,7 +8,6 @@ import { AddTaskWithContactDialog } from '@/components/AddTaskWithContactDialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Task } from '@/types/crm';
-import { Badge } from '@/components/ui/badge';
 import { addDays } from 'date-fns';
 
 interface RecentlyCompleted {
@@ -113,20 +112,16 @@ export default function FollowUpToday() {
                 {overdueTasks.map(task => {
                   const contact = getContactById(task.contactId);
                   return (
-                    <div key={task.id} className="relative">
-                      <Badge variant="secondary" className="absolute right-3 top-3 text-xs pointer-events-none">
-                        Overdue
-                      </Badge>
-                      <TaskItem
-                        task={task}
-                        contact={contact}
-                        onToggleComplete={handleToggleComplete}
-                        onContactClick={(id) => navigate(`/contacts/${id}`)}
-                        onReschedule={rescheduleTask}
-                        onTaskClick={setSelectedTask}
-                        showContact
-                      />
-                    </div>
+                    <TaskItem
+                      key={task.id}
+                      task={task}
+                      contact={contact}
+                      onToggleComplete={handleToggleComplete}
+                      onContactClick={(id) => navigate(`/contacts/${id}`)}
+                      onReschedule={rescheduleTask}
+                      onTaskClick={setSelectedTask}
+                      showContact
+                    />
                   );
                 })}
               </div>
