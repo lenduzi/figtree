@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { CRMProvider } from "@/contexts/CRMContext";
 import { CommandPalette } from "@/components/CommandPalette";
 import { AddContactDialog } from "@/components/AddContactDialog";
@@ -36,9 +37,9 @@ function AppContent() {
       <SidebarProvider>
         <div className="min-h-screen flex w-full">
           <AppSidebar />
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 overflow-auto pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
             <header className="h-14 border-b border-border flex items-center justify-between px-4">
-              <SidebarTrigger className="h-9 w-9 ml-2" />
+              <SidebarTrigger className="h-9 w-9 ml-2 hidden md:inline-flex" />
               <ThemeToggle />
             </header>
             <Routes>
@@ -54,6 +55,7 @@ function AppContent() {
           </main>
         </div>
       </SidebarProvider>
+      <MobileBottomNav />
       {/* Hidden dialogs for command palette */}
       <AddContactDialog open={addContactOpen} onOpenChange={setAddContactOpen} triggerless />
       <AddTaskWithContactDialog open={addTaskOpen} onOpenChange={setAddTaskOpen} triggerless />

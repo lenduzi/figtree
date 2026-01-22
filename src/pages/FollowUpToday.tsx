@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarCheck, AlertTriangle, Clock, ChevronRight, CheckCircle2, Plus } from 'lucide-react';
+import { CalendarCheck, AlertTriangle, Clock, CheckCircle2, Plus } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { TaskItem } from '@/components/TaskItem';
 import { TaskDetailDialog } from '@/components/TaskDetailDialog';
@@ -8,6 +8,8 @@ import { AddTaskWithContactDialog } from '@/components/AddTaskWithContactDialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Task } from '@/types/crm';
+import { Badge } from '@/components/ui/badge';
+import { addDays } from 'date-fns';
 
 interface RecentlyCompleted {
   task: Task;
@@ -21,6 +23,7 @@ export default function FollowUpToday() {
   const [recentlyCompleted, setRecentlyCompleted] = useState<RecentlyCompleted[]>([]);
 
   const today = new Date().toISOString().split('T')[0];
+  const comingUpEnd = addDays(new Date(), 7).toISOString().split('T')[0];
 
   // Clean up expired recently completed tasks
   useEffect(() => {
@@ -56,13 +59,12 @@ export default function FollowUpToday() {
     toggleTaskComplete(taskId);
   }, [toggleTaskComplete]);
   
-  const openTasks = tasks.filter(t => !t.completed);
+  const openTasks = tasks.filter(t => !t.completed && t.dueDate);
   const overdueTasks = openTasks.filter(t => t.dueDate < today);
   const todayTasks = openTasks.filter(t => t.dueDate === today);
-  const upcomingTasks = openTasks
-    .filter(t => t.dueDate > today)
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
-    .slice(0, 5);
+  const comingUpTasks = openTasks
+    .filter(t => t.dueDate > today && t.dueDate <= comingUpEnd)
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
   const totalActionItems = overdueTasks.length + todayTasks.length;
 
@@ -93,72 +95,88 @@ export default function FollowUpToday() {
         </p>
       </div>
 
-      {overdueTasks.length > 0 && (
-        <Card className="mb-6 lg:mb-8 border-destructive">
+      <div className="grid gap-6 lg:gap-8 lg:grid-cols-2 items-stretch">
+        <Card className="flex flex-col h-full">
           <CardHeader className="pb-3 lg:pb-4 lg:px-6">
-            <CardTitle className="flex items-center gap-2 text-destructive-foreground text-lg lg:text-xl">
-              <AlertTriangle className="h-5 w-5 lg:h-6 lg:w-6" />
-              Overdue ({overdueTasks.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 lg:space-y-4 lg:px-6">
-            {overdueTasks.map(task => {
-              const contact = getContactById(task.contactId);
-              return (
-                <TaskItem
-                  key={task.id}
-                  task={task}
-                  contact={contact}
-                  onToggleComplete={handleToggleComplete}
-                  onContactClick={(id) => navigate(`/contacts/${id}`)}
-                  onReschedule={rescheduleTask}
-                  onTaskClick={setSelectedTask}
-                  showContact
-                />
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
-
-      {todayTasks.length > 0 && (
-        <Card className="mb-6 lg:mb-8 border-accent">
-          <CardHeader className="pb-3 lg:pb-4 lg:px-6">
-            <CardTitle className="flex items-center gap-2 text-accent-foreground text-lg lg:text-xl">
+            <CardTitle className="flex items-center gap-2 text-foreground text-lg lg:text-xl">
               <CalendarCheck className="h-5 w-5 lg:h-6 lg:w-6" />
-              Due Today ({todayTasks.length})
+              Today
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 lg:space-y-4 lg:px-6">
-            {todayTasks.map(task => {
-              const contact = getContactById(task.contactId);
-              return (
-                <TaskItem
-                  key={task.id}
-                  task={task}
-                  contact={contact}
-                  onToggleComplete={handleToggleComplete}
-                  onContactClick={(id) => navigate(`/contacts/${id}`)}
-                  onReschedule={rescheduleTask}
-                  onTaskClick={setSelectedTask}
-                  showContact
-                />
-              );
-            })}
+          <CardContent className="flex-1 space-y-5 lg:space-y-6 lg:px-6">
+            {overdueTasks.length > 0 && (
+              <div className="space-y-3 lg:space-y-4">
+                <div className="flex items-center gap-2 text-sm lg:text-base text-destructive-foreground">
+                  <AlertTriangle className="h-4 w-4 lg:h-5 lg:w-5" />
+                  Overdue ({overdueTasks.length})
+                </div>
+                {overdueTasks.map(task => {
+                  const contact = getContactById(task.contactId);
+                  return (
+                    <div key={task.id} className="relative">
+                      <Badge variant="secondary" className="absolute right-3 top-3 text-xs pointer-events-none">
+                        Overdue
+                      </Badge>
+                      <TaskItem
+                        task={task}
+                        contact={contact}
+                        onToggleComplete={handleToggleComplete}
+                        onContactClick={(id) => navigate(`/contacts/${id}`)}
+                        onReschedule={rescheduleTask}
+                        onTaskClick={setSelectedTask}
+                        showContact
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {todayTasks.length > 0 && (
+              <div className="space-y-3 lg:space-y-4">
+                <div className="flex items-center gap-2 text-sm lg:text-base text-accent-foreground">
+                  <CalendarCheck className="h-4 w-4 lg:h-5 lg:w-5" />
+                  Due Today ({todayTasks.length})
+                </div>
+                {todayTasks.map(task => {
+                  const contact = getContactById(task.contactId);
+                  return (
+                    <TaskItem
+                      key={task.id}
+                      task={task}
+                      contact={contact}
+                      onToggleComplete={handleToggleComplete}
+                      onContactClick={(id) => navigate(`/contacts/${id}`)}
+                      onReschedule={rescheduleTask}
+                      onTaskClick={setSelectedTask}
+                      showContact
+                    />
+                  );
+                })}
+              </div>
+            )}
+
+            {overdueTasks.length === 0 && todayTasks.length === 0 && (
+              <div className="text-center py-6 lg:py-8">
+                <CalendarCheck className="h-12 w-12 lg:h-14 lg:w-14 mx-auto text-muted-foreground/50 mb-3" />
+                <h2 className="text-lg lg:text-xl font-semibold text-foreground mb-1">All Clear!</h2>
+                <p className="text-muted-foreground lg:text-base">
+                  You have no pending tasks. Add contacts and tasks to get started.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
-      )}
 
-      {upcomingTasks.length > 0 && (
-        <Card>
+        <Card className="flex flex-col h-full">
           <CardHeader className="pb-3 lg:pb-4 lg:px-6">
             <CardTitle className="flex items-center gap-2 text-muted-foreground text-lg lg:text-xl">
               <Clock className="h-5 w-5 lg:h-6 lg:w-6" />
               Coming Up
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 lg:space-y-4 lg:px-6">
-            {upcomingTasks.map(task => {
+          <CardContent className="flex-1 space-y-3 lg:space-y-4 lg:px-6">
+            {comingUpTasks.map(task => {
               const contact = getContactById(task.contactId);
               return (
                 <TaskItem
@@ -173,18 +191,12 @@ export default function FollowUpToday() {
                 />
               );
             })}
-            {tasks.filter(t => !t.completed && t.dueDate > today).length > 5 && (
-              <button
-                onClick={() => navigate('/reminders')}
-                className="flex items-center gap-1 text-sm lg:text-base text-primary hover:underline mt-2"
-              >
-                View all reminders
-                <ChevronRight className="h-4 w-4 lg:h-5 lg:w-5" />
-              </button>
+            {comingUpTasks.length === 0 && (
+              <p className="text-center py-6 text-muted-foreground">No tasks due in the next 7 days</p>
             )}
           </CardContent>
         </Card>
-      )}
+      </div>
 
       {recentlyCompleted.length > 0 && (
         <Card className="mt-6 lg:mt-8 border-muted bg-muted/30">
@@ -223,18 +235,6 @@ export default function FollowUpToday() {
                 </button>
               );
             })}
-          </CardContent>
-        </Card>
-      )}
-
-      {totalActionItems === 0 && upcomingTasks.length === 0 && recentlyCompleted.length === 0 && (
-        <Card className="text-center py-12 lg:py-16">
-          <CardContent>
-            <CalendarCheck className="h-16 w-16 lg:h-20 lg:w-20 mx-auto text-muted-foreground/50 mb-4" />
-            <h2 className="text-xl lg:text-2xl font-semibold text-foreground mb-2">All Clear!</h2>
-            <p className="text-muted-foreground lg:text-lg">
-              You have no pending tasks. Add contacts and tasks to get started.
-            </p>
           </CardContent>
         </Card>
       )}
