@@ -1,4 +1,5 @@
-import { CalendarCheck, Users, Kanban, Bell, Settings, TreePine, ClipboardList } from 'lucide-react';
+import { CalendarCheck, Users, Kanban, Bell, Settings, ClipboardList } from 'lucide-react';
+import figtreeLogo from '@/assets/figtree-logo.png';
 import { NavLink } from '@/components/NavLink';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -47,7 +48,7 @@ export function AppSidebar() {
     <Sidebar className="border-r border-border" collapsible="icon">
       <SidebarHeader className={`border-b border-border ${isCollapsed ? 'p-2 justify-center' : 'p-4 lg:p-5'}`}>
         <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'}`}>
-          <TreePine className="h-6 w-6 text-primary flex-shrink-0" />
+          <img src={figtreeLogo} alt="Figtree logo" className="h-6 w-6 flex-shrink-0" />
           {!isCollapsed && (
             <h1 className="text-xl lg:text-2xl font-semibold text-foreground">Figtree</h1>
           )}
