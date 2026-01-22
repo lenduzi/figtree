@@ -38,22 +38,34 @@ function FullAppFrame() {
 }
 
 export function LandingMorph({ onComplete }: LandingMorphProps) {
-  const sectionRef = useRef<HTMLDivElement | null>(null);
   const reducedMotion = useReducedMotion();
   const [isInteractive, setIsInteractive] = useState(false);
   const completedRef = useRef(false);
+  const morphDistanceRef = useRef(1200);
 
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start start", "end end"],
-  });
+  const { scrollY } = useScroll();
 
-  const fastProgress = useTransform(scrollYProgress, (v) => clamp(v * 1.5, 0, 1));
-  // Snappy easing: eased = 1 - (1 - fastProgress)^3
-  const eased = useTransform(fastProgress, (v) => 1 - Math.pow(1 - v, 3));
-  const easedSpring = useSpring(eased, { stiffness: 220, damping: 28, mass: 0.3 });
+  useEffect(() => {
+    const updateDistance = () => {
+      morphDistanceRef.current = window.innerHeight * 1.05;
+    };
+    updateDistance();
+    window.addEventListener("resize", updateDistance);
+    return () => window.removeEventListener("resize", updateDistance);
+  }, []);
 
-  const scale = useTransform(easedSpring, [0, 0.6, 1], [0.75, 1, 1.25]);
+  // Drive the morph from *page scroll* so it reacts immediately on the first scroll tick.
+  const baseProgress = useTransform(scrollY, (v) =>
+    clamp(v / Math.max(1, morphDistanceRef.current), 0, 1),
+  );
+  // Fast early ramp for "instant" growth; tweak exponent lower for more immediacy.
+  const fastProgress = useTransform(baseProgress, (v) => clamp(Math.pow(v, 0.6) * 1.15, 0, 1));
+  // Smooth premium ease-out; tweak power for snappier or softer feel.
+  const eased = useTransform(fastProgress, (v) => 1 - Math.pow(1 - v, 2.2));
+  const easedSpring = useSpring(eased, { stiffness: 280, damping: 26, mass: 0.24 });
+
+  // Front-load the scale so growth is visible immediately.
+  const scale = useTransform(easedSpring, [0, 0.4, 1], [0.78, 1, 1.3]);
   const radius = useTransform(easedSpring, [0, 1], [24, 0]);
   const chromeOpacity = useTransform(easedSpring, [0, 0.8, 1], [1, 0.4, 0]);
   const shadow = useTransform(
@@ -68,7 +80,7 @@ export function LandingMorph({ onComplete }: LandingMorphProps) {
 
   useMotionValueEvent(fastProgress, "change", (latest) => {
     if (completedRef.current) return;
-    const complete = latest > 0.92;
+    const complete = latest >= 0.99;
     if (complete) {
       completedRef.current = true;
       setIsInteractive(true);
@@ -96,7 +108,7 @@ export function LandingMorph({ onComplete }: LandingMorphProps) {
   );
 
   return (
-    <section ref={sectionRef} className="relative h-[240vh]">
+    <section className="relative h-[240vh]">
       <div className="sticky top-0 h-svh flex items-center justify-center">
         <motion.div
           className="w-full flex justify-center"
