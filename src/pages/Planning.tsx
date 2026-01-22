@@ -115,7 +115,7 @@ export default function Planning() {
             return (
               <Card
                 key={list.id}
-                className="cursor-pointer hover:border-primary/50 transition-colors"
+                className="cursor-pointer transition-colors hover:bg-muted/50 hover:border-muted-foreground/20"
                 onClick={() => setSelectedList(list)}
               >
                 <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">

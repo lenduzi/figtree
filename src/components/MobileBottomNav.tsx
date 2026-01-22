@@ -1,4 +1,4 @@
-import { CalendarCheck, ClipboardList, Kanban, Settings, Users } from "lucide-react";
+import { BookOpen, CalendarCheck, ClipboardList, Kanban, Settings, Users } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { cn } from "@/lib/utils";
 import { useLocation } from "react-router-dom";
@@ -8,6 +8,7 @@ const navItems = [
   { label: "Contacts", to: "/contacts", icon: Users },
   { label: "Pipeline", to: "/pipeline", icon: Kanban },
   { label: "Plan", to: "/planning", icon: ClipboardList },
+  { label: "Resources", to: "/resources", icon: BookOpen },
   { label: "Settings", to: "/settings", icon: Settings },
 ];
 
@@ -21,7 +22,7 @@ export function MobileBottomNav() {
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-20 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-[0_-1px_6px_rgba(0,0,0,0.06)]">
-      <div className="grid grid-cols-5 px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
+      <div className="grid grid-cols-6 px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
         {navItems.map((item) => {
           const active = isActiveRoute(location.pathname, item.to);
           const Icon = item.icon;
