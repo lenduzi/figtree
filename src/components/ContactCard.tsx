@@ -1,9 +1,10 @@
-import { Building2, Mail, Phone, Clock } from 'lucide-react';
+import { Building2, Mail, Phone, Clock, User } from 'lucide-react';
 import { Contact, Stage } from '@/types/crm';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { forwardRef } from 'react';
+import { useCRMContext } from '@/contexts/CRMContext';
 
 interface ContactCardProps {
   contact: Contact;
@@ -15,6 +16,9 @@ interface ContactCardProps {
 
 export const ContactCard = forwardRef<HTMLDivElement, ContactCardProps>(
   ({ contact, stage, taskCount = 0, onClick, isDragging }, ref) => {
+    const { meContactId } = useCRMContext();
+    const isMe = contact.id === meContactId;
+
     return (
       <Card 
         ref={ref}
@@ -24,7 +28,15 @@ export const ContactCard = forwardRef<HTMLDivElement, ContactCardProps>(
         <CardContent className="p-4 lg:p-5">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <h3 className="font-semibold text-foreground lg:text-lg truncate">{contact.fullName}</h3>
+              <div className="flex items-center gap-2 min-w-0">
+                <h3 className="font-semibold text-foreground lg:text-lg truncate">{contact.fullName}</h3>
+                {isMe && (
+                  <Badge variant="outline" className="px-1.5 py-0.5">
+                    <User className="h-3 w-3" />
+                    <span className="sr-only">Me</span>
+                  </Badge>
+                )}
+              </div>
               <div className="flex items-center gap-1 text-sm lg:text-base text-muted-foreground mt-1">
                 <Building2 className="h-3 w-3 lg:h-4 lg:w-4 shrink-0" />
                 <span className="truncate">{contact.company || 'No company'}</span>

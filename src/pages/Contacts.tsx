@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Filter, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, Filter, ArrowUp, ArrowDown, User } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { AddContactDialog } from '@/components/AddContactDialog';
 import { Input } from '@/components/ui/input';
@@ -27,7 +27,7 @@ type SortDirection = 'asc' | 'desc';
 
 export default function Contacts() {
   const navigate = useNavigate();
-  const { contacts, stages, tasks, getStageById } = useCRMContext();
+  const { contacts, stages, tasks, getStageById, meContactId } = useCRMContext();
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('all');
   const [sortField, setSortField] = useState<SortField>('name');
@@ -204,7 +204,17 @@ export default function Contacts() {
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => navigate(`/contacts/${contact.id}`)}
                   >
-                    <TableCell className="font-medium lg:py-4 lg:text-base">{contact.fullName}</TableCell>
+                    <TableCell className="font-medium lg:py-4 lg:text-base">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="truncate">{contact.fullName}</span>
+                        {contact.id === meContactId && (
+                          <Badge variant="outline" className="px-1.5 py-0.5">
+                            <User className="h-3 w-3" />
+                            <span className="sr-only">Me</span>
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="lg:py-4 lg:text-base">{contact.company || '-'}</TableCell>
                     <TableCell className="lg:py-4 lg:text-base">{contact.email || '-'}</TableCell>
                     <TableCell className="lg:py-4">

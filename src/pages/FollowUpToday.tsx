@@ -9,17 +9,21 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Task } from '@/types/crm';
 import { addDays } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 interface RecentlyCompleted {
   task: Task;
   completedAt: number;
 }
 
+const FIRST_TASK_NUDGE_KEY = 'simplecrm_first_task_nudge_seen';
+
 export default function FollowUpToday() {
   const navigate = useNavigate();
   const { tasks, contacts, toggleTaskComplete, getContactById, rescheduleTask } = useCRMContext();
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [recentlyCompleted, setRecentlyCompleted] = useState<RecentlyCompleted[]>([]);
+  const [showFirstTaskNudge, setShowFirstTaskNudge] = useState(false);
 
   const today = new Date().toISOString().split('T')[0];
   const comingUpEnd = addDays(new Date(), 7).toISOString().split('T')[0];
@@ -37,6 +41,25 @@ export default function FollowUpToday() {
 
     return () => clearInterval(interval);
   }, [recentlyCompleted.length]);
+
+  useEffect(() => {
+    const hasAnyTasks = tasks.length > 0;
+    if (hasAnyTasks) {
+      try {
+        localStorage.setItem(FIRST_TASK_NUDGE_KEY, '1');
+      } catch {
+        // ignore storage errors
+      }
+      setShowFirstTaskNudge(false);
+      return;
+    }
+    try {
+      const hasSeen = localStorage.getItem(FIRST_TASK_NUDGE_KEY) === '1';
+      setShowFirstTaskNudge(!hasSeen);
+    } catch {
+      setShowFirstTaskNudge(false);
+    }
+  }, [tasks.length]);
 
   const handleToggleComplete = useCallback((taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
@@ -57,6 +80,16 @@ export default function FollowUpToday() {
     setRecentlyCompleted(prev => prev.filter(item => item.task.id !== taskId));
     toggleTaskComplete(taskId);
   }, [toggleTaskComplete]);
+
+  const handleNewTaskClick = () => {
+    if (!showFirstTaskNudge) return;
+    try {
+      localStorage.setItem(FIRST_TASK_NUDGE_KEY, '1');
+    } catch {
+      // ignore storage errors
+    }
+    setShowFirstTaskNudge(false);
+  };
   
   const openTasks = tasks.filter(t => !t.completed && t.dueDate);
   const overdueTasks = openTasks.filter(t => t.dueDate < today);
@@ -80,14 +113,34 @@ export default function FollowUpToday() {
               }
             </p>
           </div>
-          <AddTaskWithContactDialog
-            trigger={
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                New Task
-              </Button>
-            }
-          />
+          <div className="flex flex-col items-end">
+            <AddTaskWithContactDialog
+              trigger={
+                <Button
+                  onClick={handleNewTaskClick}
+                  className={cn(
+                    "relative",
+                    showFirstTaskNudge &&
+                      "animate-heartbeat ring-2 ring-primary/25 ring-offset-2 ring-offset-background shadow-[0_0_12px_rgba(59,130,246,0.12)]",
+                  )}
+                >
+                  {showFirstTaskNudge && (
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute -inset-1.5 rounded-lg bg-primary/5 blur-sm"
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center">
+                    <Plus className="h-4 w-4 mr-2" />
+                    New Task
+                  </span>
+                </Button>
+              }
+            />
+            {showFirstTaskNudge && (
+              <span className="mt-2 text-xs text-muted-foreground">Create your first task</span>
+            )}
+          </div>
         </div>
         <p className="text-xs lg:text-sm text-muted-foreground mt-2">
           Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs lg:text-sm">⌘K</kbd> to search
@@ -154,9 +207,13 @@ export default function FollowUpToday() {
             {overdueTasks.length === 0 && todayTasks.length === 0 && (
               <div className="text-center py-6 lg:py-8">
                 <CalendarCheck className="h-12 w-12 lg:h-14 lg:w-14 mx-auto text-muted-foreground/50 mb-3" />
-                <h2 className="text-lg lg:text-xl font-semibold text-foreground mb-1">All Clear!</h2>
+                <h2 className="text-lg lg:text-xl font-semibold text-foreground mb-1">
+                  {showFirstTaskNudge ? 'Create your first task' : 'All Clear!'}
+                </h2>
                 <p className="text-muted-foreground lg:text-base">
-                  You have no pending tasks. Add contacts and tasks to get started.
+                  {showFirstTaskNudge
+                    ? 'Add a contact and schedule a follow-up to get started.'
+                    : 'You have no pending tasks. Add contacts and tasks to get started.'}
                 </p>
               </div>
             )}

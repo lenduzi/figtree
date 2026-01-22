@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, UserPlus } from 'lucide-react';
+import { Plus, User, UserPlus } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -21,6 +21,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 
 interface AddTaskWithContactDialogProps {
   trigger?: React.ReactNode;
@@ -37,7 +38,7 @@ export function AddTaskWithContactDialog({
   onOpenChange,
   triggerless = false,
 }: AddTaskWithContactDialogProps) {
-  const { addTask, addContact, contacts, stages } = useCRMContext();
+  const { addTask, addContact, contacts, stages, meContactId } = useCRMContext();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   
   const isControlled = controlledOpen !== undefined;
@@ -136,11 +137,25 @@ export function AddTaskWithContactDialog({
                     <SelectValue placeholder="Select a contact..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {sortedContacts.map((contact) => (
-                      <SelectItem key={contact.id} value={contact.id}>
-                        {contact.fullName}{contact.company ? ` — ${contact.company}` : ''}
-                      </SelectItem>
-                    ))}
+                    {sortedContacts.map((contact) => {
+                      const isMeContact = contact.id === meContactId;
+
+                      return (
+                        <SelectItem key={contact.id} value={contact.id}>
+                          <span className="flex items-center gap-2">
+                            <span>
+                              {contact.fullName}{contact.company ? ` — ${contact.company}` : ''}
+                            </span>
+                            {isMeContact && (
+                              <Badge variant="outline" className="px-1.5 py-0.5">
+                                <User className="h-3 w-3" />
+                                <span className="sr-only">Me</span>
+                              </Badge>
+                            )}
+                          </span>
+                        </SelectItem>
+                      );
+                    })}
                     <Separator className="my-1" />
                     <button
                       type="button"

@@ -135,6 +135,37 @@ Gmail-inspired color palette with clean, neutral grays and blue accents.
   }
 }
 
+@layer utilities {
+  @keyframes heartbeat {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    12% {
+      transform: scale(1.03);
+    }
+    24% {
+      transform: scale(0.98);
+    }
+    36% {
+      transform: scale(1.02);
+    }
+    48% {
+      transform: scale(1);
+    }
+  }
+
+  .animate-heartbeat {
+    animation: heartbeat 1.7s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-heartbeat {
+      animation: none;
+    }
+  }
+}
+
 @layer base {
   * {
     @apply border-border;

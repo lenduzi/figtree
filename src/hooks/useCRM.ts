@@ -11,6 +11,8 @@ const STORAGE_KEYS = {
   researchEntries: 'simplecrm_research_entries',
 };
 const HAS_USED_KEY = 'simplecrm_has_used';
+const ME_CONTACT_ID_KEY = 'simplecrm_me_contact_id';
+const ME_CONTACT_CREATED_KEY = 'simplecrm_me_contact_created';
 
 function loadFromStorage<T>(key: string, defaultValue: T): T {
   try {
@@ -54,6 +56,13 @@ export function useCRM() {
   const [researchEntries, setResearchEntries] = useState<ResearchEntry[]>(() =>
     loadFromStorage(STORAGE_KEYS.researchEntries, [])
   );
+  const [meContactId, setMeContactId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(ME_CONTACT_ID_KEY);
+    } catch {
+      return null;
+    }
+  });
 
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.contacts, contacts);
@@ -78,6 +87,42 @@ export function useCRM() {
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.researchEntries, researchEntries);
   }, [researchEntries]);
+
+  useEffect(() => {
+    if (contacts.length > 0) return;
+    let hasCreated = false;
+    try {
+      hasCreated = localStorage.getItem(ME_CONTACT_CREATED_KEY) === '1';
+    } catch {
+      hasCreated = false;
+    }
+    if (hasCreated) return;
+
+    const now = new Date().toISOString();
+    const stageId = stages[0]?.id || DEFAULT_STAGES[0]?.id || '';
+    const newContact: Contact = {
+      id: crypto.randomUUID(),
+      fullName: 'Me',
+      role: '',
+      company: '',
+      website: '',
+      email: '',
+      phone: '',
+      stageId,
+      notes: '',
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    try {
+      localStorage.setItem(ME_CONTACT_CREATED_KEY, '1');
+      localStorage.setItem(ME_CONTACT_ID_KEY, newContact.id);
+    } catch {
+      // ignore storage errors
+    }
+    setMeContactId(newContact.id);
+    setContacts(prev => (prev.length === 0 ? [newContact] : prev));
+  }, [contacts.length, stages]);
 
   // Activity operations
   const addActivity = useCallback((contactId: string, type: ActivityType, description: string) => {
@@ -131,7 +176,15 @@ export function useCRM() {
     setContacts(prev => prev.filter(c => c.id !== id));
     setTasks(prev => prev.filter(t => t.contactId !== id));
     setActivities(prev => prev.filter(a => a.contactId !== id));
-  }, []);
+    if (id === meContactId) {
+      try {
+        localStorage.removeItem(ME_CONTACT_ID_KEY);
+      } catch {
+        // ignore storage errors
+      }
+      setMeContactId(null);
+    }
+  }, [meContactId]);
 
   const moveContactToStage = useCallback((contactId: string, newStageId: string) => {
     const contact = contacts.find(c => c.id === contactId);
@@ -351,6 +404,7 @@ export function useCRM() {
     getUpcomingTasks,
     getContactById,
     getStageById,
+    meContactId,
     // Research operations
     addResearchList,
     updateResearchList,

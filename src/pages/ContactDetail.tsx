@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, Mail, Phone, Trash2, Edit2, Save, Clock, CheckCircle2, ArrowRight, PhoneMissed, Globe, User } from 'lucide-react';
+import { ArrowLeft, Building2, Mail, Phone, Trash2, Edit2, Save, Clock, CheckCircle2, ArrowRight, PhoneMissed, Globe, User as UserIcon } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { TaskItem } from '@/components/TaskItem';
 import { TaskDetailDialog } from '@/components/TaskDetailDialog';
@@ -55,6 +55,7 @@ export default function ContactDetail() {
     stages, 
     updateContact, 
     deleteContact,
+    meContactId,
     toggleTaskComplete,
     deleteTask,
     rescheduleTask,
@@ -257,7 +258,15 @@ export default function ContactDetail() {
             ) : (
               <>
                 <div>
-                  <h2 className="text-xl lg:text-2xl font-semibold text-foreground">{contact.fullName}</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl lg:text-2xl font-semibold text-foreground">{contact.fullName}</h2>
+                    {contact.id === meContactId && (
+                      <Badge variant="outline" className="px-1.5 py-0.5">
+                        <UserIcon className="h-3 w-3" />
+                        <span className="sr-only">Me</span>
+                      </Badge>
+                    )}
+                  </div>
                   {contact.role && (
                     <p className="text-sm lg:text-base text-muted-foreground mt-1">{contact.role}</p>
                   )}
