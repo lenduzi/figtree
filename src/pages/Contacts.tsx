@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Filter, ArrowUpDown } from 'lucide-react';
+import { Search, Filter, ArrowUp, ArrowDown } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { AddContactDialog } from '@/components/AddContactDialog';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -23,14 +22,26 @@ import {
 } from '@/components/ui/table';
 import { formatDistanceToNow } from 'date-fns';
 
-type SortOption = 'name' | 'company' | 'lastInteraction' | 'created';
+type SortField = 'name' | 'company' | 'email' | 'lastInteraction' | 'stage';
+type SortDirection = 'asc' | 'desc';
 
 export default function Contacts() {
   const navigate = useNavigate();
   const { contacts, stages, tasks, getStageById } = useCRMContext();
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<SortOption>('name');
+  const [sortField, setSortField] = useState<SortField>('name');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      // Default direction: asc for text fields, desc for date (most recent first)
+      setSortDirection(field === 'lastInteraction' ? 'desc' : 'asc');
+    }
+  };
 
   const filteredContacts = contacts
     .filter(contact => {
@@ -44,20 +55,29 @@ export default function Contacts() {
       return matchesSearch && matchesStage;
     })
     .sort((a, b) => {
-      switch (sortBy) {
+      let comparison = 0;
+      switch (sortField) {
         case 'name':
-          return a.fullName.localeCompare(b.fullName);
+          comparison = a.fullName.localeCompare(b.fullName);
+          break;
         case 'company':
-          return a.company.localeCompare(b.company);
+          comparison = (a.company || '').localeCompare(b.company || '');
+          break;
+        case 'email':
+          comparison = (a.email || '').localeCompare(b.email || '');
+          break;
         case 'lastInteraction':
           const aDate = a.lastInteractionDate ? new Date(a.lastInteractionDate).getTime() : 0;
           const bDate = b.lastInteractionDate ? new Date(b.lastInteractionDate).getTime() : 0;
-          return bDate - aDate; // Most recent first
-        case 'created':
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        default:
-          return 0;
+          comparison = aDate - bDate;
+          break;
+        case 'stage':
+          const aStage = getStageById(a.stageId)?.name || '';
+          const bStage = getStageById(b.stageId)?.name || '';
+          comparison = aStage.localeCompare(bStage);
+          break;
       }
+      return sortDirection === 'asc' ? comparison : -comparison;
     });
 
   const getOpenTaskCount = (contactId: string) => {
@@ -100,18 +120,6 @@ export default function Contacts() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-          <SelectTrigger className="w-full sm:w-48 lg:w-56 lg:h-11">
-            <ArrowUpDown className="h-4 w-4 lg:h-5 lg:w-5 mr-2" />
-            <SelectValue placeholder="Sort by" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="name">Name</SelectItem>
-            <SelectItem value="company">Company</SelectItem>
-            <SelectItem value="lastInteraction">Last Interaction</SelectItem>
-            <SelectItem value="created">Date Created</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {filteredContacts.length === 0 ? (
@@ -128,11 +136,61 @@ export default function Contacts() {
           <Table>
             <TableHeader>
               <TableRow className="lg:text-base">
-                <TableHead className="lg:py-4">Name</TableHead>
-                <TableHead className="lg:py-4">Company</TableHead>
-                <TableHead className="lg:py-4">Email</TableHead>
-                <TableHead className="lg:py-4">Last Contact</TableHead>
-                <TableHead className="lg:py-4">Stage</TableHead>
+                <TableHead 
+                  className="lg:py-4 cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => toggleSort('name')}
+                >
+                  <div className="flex items-center gap-1">
+                    Name
+                    {sortField === 'name' && (
+                      sortDirection === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="lg:py-4 cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => toggleSort('company')}
+                >
+                  <div className="flex items-center gap-1">
+                    Company
+                    {sortField === 'company' && (
+                      sortDirection === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="lg:py-4 cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => toggleSort('email')}
+                >
+                  <div className="flex items-center gap-1">
+                    Email
+                    {sortField === 'email' && (
+                      sortDirection === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="lg:py-4 cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => toggleSort('lastInteraction')}
+                >
+                  <div className="flex items-center gap-1">
+                    Last Contact
+                    {sortField === 'lastInteraction' && (
+                      sortDirection === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="lg:py-4 cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => toggleSort('stage')}
+                >
+                  <div className="flex items-center gap-1">
+                    Stage
+                    {sortField === 'stage' && (
+                      sortDirection === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+                    )}
+                  </div>
+                </TableHead>
                 <TableHead className="text-right lg:py-4">Tasks</TableHead>
               </TableRow>
             </TableHeader>
