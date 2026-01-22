@@ -52,7 +52,9 @@ function AppContent() {
             {!isLanding && (
               <header className="h-14 border-b border-border flex items-center justify-between px-4">
                 <SidebarTrigger className="h-9 w-9 ml-2 hidden md:inline-flex" />
-                <ThemeToggle />
+                <div className="ml-auto">
+                  <ThemeToggle />
+                </div>
               </header>
             )}
             <Routes>
@@ -80,7 +82,7 @@ function AppContent() {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
       <TooltipProvider>
         <Toaster />
         <Sonner />

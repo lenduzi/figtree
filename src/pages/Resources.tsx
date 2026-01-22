@@ -222,8 +222,8 @@ export default function Resources() {
     <div className="p-6 lg:p-8 xl:p-10 max-w-4xl lg:max-w-5xl 2xl:max-w-6xl mx-auto space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Resources</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-3xl lg:text-4xl font-bold text-foreground">Resources</h1>
+          <p className="text-muted-foreground lg:text-lg mt-1">
             Store reusable outreach templates and links for quick reuse.
           </p>
         </div>

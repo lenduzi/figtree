@@ -28,7 +28,9 @@ function FullAppFrame() {
       <main className="flex-1 overflow-auto pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
         <header className="h-14 border-b border-border flex items-center justify-between px-4">
           <SidebarTrigger className="h-9 w-9 ml-2 hidden md:inline-flex" />
-          <ThemeToggle />
+          <div className="ml-auto">
+            <ThemeToggle />
+          </div>
         </header>
         <FollowUpToday />
       </main>
@@ -131,9 +133,9 @@ export function LandingMorph({ onComplete }: LandingMorphProps) {
               className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/40"
               style={reducedMotion ? undefined : { opacity: chromeOpacity }}
             >
-              <span className="h-2.5 w-2.5 rounded-full bg-destructive/70" />
-              <span className="h-2.5 w-2.5 rounded-full bg-accent/80" />
-              <span className="h-2.5 w-2.5 rounded-full bg-primary/70" />
+              <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
+              <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
             </motion.div>
             {!isInteractive && (
               <div className="pointer-events-none select-none">

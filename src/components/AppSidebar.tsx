@@ -47,15 +47,15 @@ export function AppSidebar() {
 
   return (
     <Sidebar className="border-r border-border" collapsible="icon">
-      <SidebarHeader className={`border-b border-border ${isCollapsed ? 'p-2 justify-center' : 'p-4 lg:p-5'}`}>
-        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'}`}>
+      <SidebarHeader className={`border-b border-border ${isCollapsed ? 'h-14 p-2 justify-center' : 'h-14 px-4'}`}>
+        <div className={`flex items-center h-full ${isCollapsed ? 'justify-center' : 'gap-2'}`}>
           <img src={figtreeLogo} alt="Figtree logo" className="h-6 w-6 flex-shrink-0" />
           {!isCollapsed && (
             <h1 className="text-xl lg:text-2xl font-semibold text-foreground">Figtree</h1>
           )}
         </div>
       </SidebarHeader>
-      <SidebarContent className={isCollapsed ? 'p-1' : 'p-2 lg:p-3'}>
+      <SidebarContent className={isCollapsed ? 'p-1' : 'p-2 lg:p-3 pt-4 lg:pt-5'}>
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>

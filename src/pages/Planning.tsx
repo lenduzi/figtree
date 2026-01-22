@@ -68,8 +68,8 @@ export default function Planning() {
             <ChevronLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-2xl font-semibold text-foreground">{selectedList.name}</h1>
-            <p className="text-sm text-muted-foreground">Research List</p>
+            <h1 className="text-3xl lg:text-4xl font-bold text-foreground">{selectedList.name}</h1>
+            <p className="text-muted-foreground lg:text-lg mt-1">Research List</p>
           </div>
         </div>
         <ResearchListSheet list={selectedList} />
@@ -82,8 +82,10 @@ export default function Planning() {
     <div className="p-6 lg:p-8 xl:p-10 max-w-4xl lg:max-w-5xl 2xl:max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Planning</h1>
-          <p className="text-muted-foreground">Research and organize prospects before adding to your pipeline</p>
+          <h1 className="text-3xl lg:text-4xl font-bold text-foreground">Planning</h1>
+          <p className="text-muted-foreground lg:text-lg mt-1">
+            Research and organize prospects before adding to your pipeline
+          </p>
         </div>
         <Button onClick={() => setNewListDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
