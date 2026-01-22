@@ -18,7 +18,7 @@ import { useCRMContext } from '@/contexts/CRMContext';
 import { Badge } from '@/components/ui/badge';
 
 const navItems = [
-  { title: 'Follow-Up Today', url: '/', icon: CalendarCheck },
+  { title: 'Follow-Up Today', url: '/app', icon: CalendarCheck },
   { title: 'Contacts', url: '/contacts', icon: Users },
   { title: 'Pipeline', url: '/pipeline', icon: Kanban },
   { title: 'Planning', url: '/planning', icon: ClipboardList },
@@ -74,11 +74,11 @@ export function AppSidebar() {
                       {!isCollapsed && (
                         <>
                           <span className="flex-1 lg:text-base">{item.title}</span>
-                          {item.url === '/' && todayTasks.length > 0 && (
-                            <Badge variant="destructive" className="ml-auto text-xs lg:text-sm">
-                              {todayTasks.length}
-                            </Badge>
-                          )}
+                      {item.url === '/app' && todayTasks.length > 0 && (
+                        <Badge variant="destructive" className="ml-auto text-xs lg:text-sm">
+                          {todayTasks.length}
+                        </Badge>
+                      )}
                         </>
                       )}
                     </NavLink>

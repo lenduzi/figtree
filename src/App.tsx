@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
@@ -14,6 +14,7 @@ import { AddContactDialog } from "@/components/AddContactDialog";
 import { AddTaskWithContactDialog } from "@/components/AddTaskWithContactDialog";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import FollowUpToday from "./pages/FollowUpToday";
+import LandingHome from "./pages/LandingHome";
 import Contacts from "./pages/Contacts";
 import Pipeline from "./pages/Pipeline";
 import Planning from "./pages/Planning";
@@ -27,6 +28,15 @@ const queryClient = new QueryClient();
 function AppContent() {
   const [addContactOpen, setAddContactOpen] = useState(false);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const location = useLocation();
+  const hasUsed = (() => {
+    try {
+      return localStorage.getItem("simplecrm_has_used") === "1";
+    } catch {
+      return false;
+    }
+  })();
+  const isLanding = location.pathname === "/" && !hasUsed;
 
   return (
     <>
@@ -36,14 +46,17 @@ function AppContent() {
       />
       <SidebarProvider>
         <div className="min-h-screen flex w-full">
-          <AppSidebar />
-          <main className="flex-1 overflow-auto pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
-            <header className="h-14 border-b border-border flex items-center justify-between px-4">
-              <SidebarTrigger className="h-9 w-9 ml-2 hidden md:inline-flex" />
-              <ThemeToggle />
-            </header>
+          {!isLanding && <AppSidebar />}
+          <main className={`flex-1 overflow-auto ${isLanding ? '' : 'pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0'}`}>
+            {!isLanding && (
+              <header className="h-14 border-b border-border flex items-center justify-between px-4">
+                <SidebarTrigger className="h-9 w-9 ml-2 hidden md:inline-flex" />
+                <ThemeToggle />
+              </header>
+            )}
             <Routes>
-              <Route path="/" element={<FollowUpToday />} />
+              <Route path="/" element={<LandingHome />} />
+              <Route path="/app" element={<FollowUpToday />} />
               <Route path="/contacts" element={<Contacts />} />
               <Route path="/contacts/:id" element={<ContactDetail />} />
               <Route path="/pipeline" element={<Pipeline />} />
@@ -55,7 +68,7 @@ function AppContent() {
           </main>
         </div>
       </SidebarProvider>
-      <MobileBottomNav />
+      {!isLanding && <MobileBottomNav />}
       {/* Hidden dialogs for command palette */}
       <AddContactDialog open={addContactOpen} onOpenChange={setAddContactOpen} triggerless />
       <AddTaskWithContactDialog open={addTaskOpen} onOpenChange={setAddTaskOpen} triggerless />

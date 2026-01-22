@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { useLocation } from "react-router-dom";
 
 const navItems = [
-  { label: "Tasks", to: "/", icon: CalendarCheck },
+  { label: "Tasks", to: "/app", icon: CalendarCheck },
   { label: "Contacts", to: "/contacts", icon: Users },
   { label: "Pipeline", to: "/pipeline", icon: Kanban },
   { label: "Plan", to: "/planning", icon: ClipboardList },
@@ -12,7 +12,7 @@ const navItems = [
 ];
 
 const isActiveRoute = (pathname: string, to: string) => {
-  if (to === "/") return pathname === "/" || pathname.startsWith("/reminders");
+  if (to === "/app") return pathname === "/app" || pathname === "/" || pathname.startsWith("/reminders");
   return pathname.startsWith(to);
 };
 

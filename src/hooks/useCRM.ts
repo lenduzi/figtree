@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
   researchLists: 'simplecrm_research_lists',
   researchEntries: 'simplecrm_research_entries',
 };
+const HAS_USED_KEY = 'simplecrm_has_used';
 
 function loadFromStorage<T>(key: string, defaultValue: T): T {
   try {
@@ -22,6 +23,16 @@ function loadFromStorage<T>(key: string, defaultValue: T): T {
 
 function saveToStorage<T>(key: string, value: T): void {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function markHasUsed() {
+  try {
+    if (localStorage.getItem(HAS_USED_KEY) !== '1') {
+      localStorage.setItem(HAS_USED_KEY, '1');
+    }
+  } catch {
+    // ignore storage errors
+  }
 }
 
 export function useCRM() {
@@ -106,6 +117,7 @@ export function useCRM() {
       updatedAt: new Date().toISOString(),
     };
     setContacts(prev => [...prev, newContact]);
+    markHasUsed();
     return newContact;
   }, []);
 
@@ -149,6 +161,7 @@ export function useCRM() {
       createdAt: new Date().toISOString(),
     };
     setTasks(prev => [...prev, newTask]);
+    markHasUsed();
     return newTask;
   }, []);
 
