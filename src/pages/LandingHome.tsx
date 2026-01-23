@@ -104,7 +104,7 @@ export default function LandingHome() {
 
   return (
     <div>
-      <section className="bg-background">
+      <section className="relative bg-background">
         <div className="relative px-6 lg:px-8 xl:px-10 pt-16 lg:pt-20 xl:pt-24 pb-16 lg:pb-20 max-w-5xl 2xl:max-w-6xl mx-auto">
           <div className={`relative z-10 ${isMarketing ? "text-center" : "text-center"}`}>
             <div className={isMarketing ? "max-w-5xl mx-auto" : ""}>
@@ -191,16 +191,20 @@ export default function LandingHome() {
             />
           )}
         </div>
+        {isMarketing && (
+          <div className="pointer-events-none absolute inset-x-0 -bottom-10 h-20 bg-[linear-gradient(180deg,_hsl(var(--background))_0%,_hsl(var(--accent)/0.35)_100%)] blur-2xl opacity-80" />
+        )}
       </section>
       {!isMarketing && <LandingMorph onComplete={handleComplete} mode="app" />}
 
       {isMarketing && (
         <>
-          <section className="relative -mt-10 pt-24 pb-24 overflow-hidden bg-[radial-gradient(circle_at_top,_hsl(var(--accent))_0%,_hsl(var(--background))_65%)]">
+          <section className="relative -mt-10 pt-24 pb-28 overflow-hidden bg-[radial-gradient(circle_at_top,_hsl(var(--accent))_0%,_hsl(var(--background))_65%)]">
             <div className="absolute inset-0 pointer-events-none">
               <div className="absolute inset-x-0 -top-20 h-24 bg-[linear-gradient(180deg,_hsl(var(--background))_0%,_hsl(var(--accent)/0.35)_100%)] blur-2xl opacity-80" />
               <div className="absolute right-0 top-12 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
               <div className="absolute left-12 bottom-12 h-48 w-48 rounded-full bg-emerald-300/10 blur-3xl" />
+              <div className="absolute inset-x-0 -bottom-12 h-16 bg-[linear-gradient(180deg,_hsl(var(--accent)/0.25)_0%,_hsl(var(--background))_100%)] blur-2xl opacity-80" />
             </div>
             <div className="relative px-6 lg:px-8 xl:px-10 max-w-5xl 2xl:max-w-6xl mx-auto">
               <div className="max-w-2xl">
@@ -250,7 +254,8 @@ export default function LandingHome() {
             </div>
           </section>
 
-          <section className="py-20 bg-background">
+          <section className="relative py-20 bg-background">
+            <div className="pointer-events-none absolute inset-x-0 -top-10 h-16 bg-[linear-gradient(180deg,_hsl(var(--accent)/0.35)_0%,_transparent_100%)] blur-2xl opacity-70" />
             <div className="px-6 lg:px-8 xl:px-10 max-w-4xl mx-auto">
               <Card className="rounded-[28px] border-border/60 bg-card/95 shadow-[0_16px_40px_rgba(15,23,42,0.12)]">
                 <CardContent className="p-10 md:p-12">
@@ -271,7 +276,8 @@ export default function LandingHome() {
             </div>
           </section>
 
-          <section className="py-20 bg-background">
+          <section className="relative py-20 bg-background">
+            <div className="pointer-events-none absolute inset-x-0 -top-10 h-16 bg-[linear-gradient(180deg,_hsl(var(--background))_0%,_hsl(var(--accent)/0.3)_100%)] blur-2xl opacity-70" />
             <div className="px-6 lg:px-8 xl:px-10 max-w-5xl 2xl:max-w-6xl mx-auto">
               <Card className="border-primary/25 bg-primary/5">
                 <CardContent className="p-10">
@@ -310,6 +316,7 @@ export default function LandingHome() {
             className="relative -mt-8 pt-24 pb-28 bg-[linear-gradient(180deg,_hsl(var(--background))_0%,_hsl(var(--accent)/0.55)_100%)]"
           >
             <div className="absolute inset-x-0 -top-20 h-20 pointer-events-none bg-[linear-gradient(180deg,_hsl(var(--background))_0%,_hsl(var(--accent)/0.35)_100%)] blur-2xl opacity-70" />
+            <div className="absolute inset-x-0 -bottom-12 h-16 pointer-events-none bg-[linear-gradient(180deg,_hsl(var(--accent)/0.35)_0%,_hsl(var(--background))_100%)] blur-2xl opacity-70" />
             <div className="relative px-6 lg:px-8 xl:px-10 max-w-5xl 2xl:max-w-6xl mx-auto">
               <div className="text-center">
                 <h2 className="text-3xl lg:text-4xl font-semibold text-foreground">
@@ -365,7 +372,8 @@ export default function LandingHome() {
             </div>
           </section>
 
-          <section id="feedback" className="py-24 bg-background">
+          <section id="feedback" className="relative py-24 bg-background">
+            <div className="pointer-events-none absolute inset-x-0 -top-10 h-16 bg-[linear-gradient(180deg,_hsl(var(--accent)/0.3)_0%,_transparent_100%)] blur-2xl opacity-70" />
             <div className="px-6 lg:px-8 xl:px-10 max-w-5xl 2xl:max-w-6xl mx-auto">
               <Card className="border-border/60 bg-[linear-gradient(120deg,_hsl(var(--background))_0%,_hsl(var(--accent)/0.5)_100%)]">
                 <CardContent className="p-10 md:p-12">
@@ -393,8 +401,9 @@ export default function LandingHome() {
             </div>
           </section>
 
-          <section className="pb-28 bg-background">
-            <div className="px-6 lg:px-8 xl:px-10 max-w-3xl mx-auto">
+          <section className="relative pb-28 bg-background">
+            <div className="pointer-events-none absolute inset-x-0 -top-10 h-16 bg-[linear-gradient(180deg,_hsl(var(--background))_0%,_hsl(var(--accent)/0.2)_100%)] blur-2xl opacity-70" />
+            <div className="px-6 lg:px-8 xl:px-10 max-w-5xl 2xl:max-w-6xl mx-auto">
               <div className="text-center">
                 <h2 className="text-3xl font-semibold text-foreground">Quick answers</h2>
               </div>
@@ -418,6 +427,12 @@ export default function LandingHome() {
                   <AccordionContent>
                     One-time access to cloud backup (when available), plus priority feedback access. It’s a
                     one-time purchase, not a subscription.
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="figtree">
+                  <AccordionTrigger>Wth is a Figtree?</AccordionTrigger>
+                  <AccordionContent>
+                    It’s the name of the font used here — got the inspo from it.
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
