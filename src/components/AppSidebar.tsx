@@ -1,4 +1,4 @@
-import { CalendarCheck, Users, Kanban, Bell, Settings, ClipboardList, BookOpen } from 'lucide-react';
+import { CalendarCheck, Users, Kanban, Bell, Settings, ClipboardList, BookOpen, Info } from 'lucide-react';
 import figtreeLogo from '@/assets/figtree-logo.png';
 import { NavLink } from '@/components/NavLink';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -86,6 +86,27 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup className={isCollapsed ? 'mt-auto p-1' : 'mt-auto p-2'}>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip={isCollapsed ? 'Learn more' : undefined}>
+                  <NavLink
+                    to="/?marketing=1"
+                    className={`flex items-center rounded-md transition-colors hover:bg-accent ${
+                      isCollapsed ? 'justify-center p-2' : 'gap-3 px-3 py-2 lg:py-3'
+                    }`}
+                    activeClassName="bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
+                    onClick={() => handleNavClick('/?marketing=1')}
+                  >
+                    <Info className="h-5 w-5 lg:h-6 lg:w-6 flex-shrink-0" />
+                    {!isCollapsed && <span className="lg:text-base">Learn more</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

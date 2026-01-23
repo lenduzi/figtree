@@ -15,6 +15,7 @@ const ME_CONTACT_ID_KEY = 'simplecrm_me_contact_id';
 const ME_CONTACT_CREATED_KEY = 'simplecrm_me_contact_created';
 const FIRST_ACTION_KEY = 'simplecrm_first_action_seen';
 const FIRST_ACTION_BANNER_DISMISSED_KEY = 'simplecrm_first_action_banner_dismissed';
+const FIRST_ACTION_NUDGE_DISMISSED_KEY = 'simplecrm_first_action_nudge_dismissed';
 const LEGACY_FIRST_TASK_COMPLETED_KEY = 'simplecrm_first_task_completed';
 
 function loadFromStorage<T>(key: string, defaultValue: T): T {
@@ -83,6 +84,13 @@ export function useCRM() {
       const currentSeen = localStorage.getItem(FIRST_ACTION_KEY) === '1';
       const dismissed = localStorage.getItem(FIRST_ACTION_BANNER_DISMISSED_KEY) === '1';
       return dismissed || (hasUsed && !legacySeen && !currentSeen);
+    } catch {
+      return false;
+    }
+  });
+  const [firstActionNudgeDismissed, setFirstActionNudgeDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(FIRST_ACTION_NUDGE_DISMISSED_KEY) === '1';
     } catch {
       return false;
     }
@@ -425,6 +433,15 @@ export function useCRM() {
 
   const showFirstTaskBanner = firstActionSeen && !firstActionBannerDismissed;
 
+  const dismissFirstActionNudge = useCallback(() => {
+    setFirstActionNudgeDismissed(true);
+    try {
+      localStorage.setItem(FIRST_ACTION_NUDGE_DISMISSED_KEY, '1');
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
   return {
     contacts,
     tasks,
@@ -465,5 +482,8 @@ export function useCRM() {
     promoteEntryToContact,
     showFirstTaskBanner,
     dismissFirstTaskBanner,
+    firstActionSeen,
+    firstActionNudgeDismissed,
+    dismissFirstActionNudge,
   };
 }

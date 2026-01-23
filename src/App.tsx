@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
@@ -31,7 +31,15 @@ function AppContent() {
   const [addContactOpen, setAddContactOpen] = useState(false);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const location = useLocation();
-  const { showFirstTaskBanner, dismissFirstTaskBanner } = useCRMContext();
+  const navigate = useNavigate();
+  const {
+    showFirstTaskBanner,
+    dismissFirstTaskBanner,
+    firstActionSeen,
+    firstActionNudgeDismissed,
+    dismissFirstActionNudge,
+  } = useCRMContext();
+  const [showLearnMoreNudge, setShowLearnMoreNudge] = useState(false);
   const hasUsed = (() => {
     try {
       return localStorage.getItem("simplecrm_has_used") === "1";
@@ -43,6 +51,17 @@ function AppContent() {
     location.pathname === "/" &&
     new URLSearchParams(location.search).get("marketing") === "1";
   const isLanding = location.pathname === "/" && (isMarketing || !hasUsed);
+
+  useEffect(() => {
+    if (isLanding || firstActionSeen || firstActionNudgeDismissed) {
+      setShowLearnMoreNudge(false);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setShowLearnMoreNudge(true);
+    }, 10000);
+    return () => window.clearTimeout(timer);
+  }, [firstActionNudgeDismissed, firstActionSeen, isLanding]);
 
   return (
     <>
@@ -82,7 +101,30 @@ function AppContent() {
       <AddContactDialog open={addContactOpen} onOpenChange={setAddContactOpen} triggerless />
       <AddTaskWithContactDialog open={addTaskOpen} onOpenChange={setAddTaskOpen} triggerless />
       {!isLanding && showFirstTaskBanner && (
-        <FirstTaskBanner onDismiss={dismissFirstTaskBanner} />
+        <FirstTaskBanner
+          onDismiss={dismissFirstTaskBanner}
+          title="✅ Nice – first task done."
+          description="Everything is saved on your device."
+          actionLabel="Add your next contact →"
+          onAction={() => setAddContactOpen(true)}
+        />
+      )}
+      {!isLanding && !showFirstTaskBanner && showLearnMoreNudge && (
+        <FirstTaskBanner
+          onDismiss={() => {
+            dismissFirstActionNudge();
+            setShowLearnMoreNudge(false);
+          }}
+          title="Need more context before you start?"
+          description="See how Figtree works, pricing, and privacy."
+          actionLabel="Learn more →"
+          onAction={() => {
+            dismissFirstActionNudge();
+            setShowLearnMoreNudge(false);
+            navigate("/?marketing=1");
+          }}
+          icon="ℹ️"
+        />
       )}
     </>
   );
