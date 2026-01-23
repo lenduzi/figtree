@@ -47,10 +47,9 @@ function AppContent() {
       return false;
     }
   })();
-  const isMarketing =
-    location.pathname === "/" &&
-    new URLSearchParams(location.search).get("marketing") === "1";
-  const isLanding = location.pathname === "/" && (isMarketing || !hasUsed);
+  const marketingParam = new URLSearchParams(location.search).get("marketing") === "1";
+  const isMarketing = location.pathname === "/marketing" || (location.pathname === "/" && marketingParam);
+  const isLanding = isMarketing || (location.pathname === "/" && !hasUsed);
 
   useEffect(() => {
     if (isLanding || firstActionSeen || firstActionNudgeDismissed) {
@@ -83,6 +82,7 @@ function AppContent() {
             )}
             <Routes>
               <Route path="/" element={<LandingHome />} />
+              <Route path="/marketing" element={<LandingHome />} />
               <Route path="/app" element={<FollowUpToday />} />
               <Route path="/contacts" element={<Contacts />} />
               <Route path="/contacts/:id" element={<ContactDetail />} />
@@ -122,7 +122,7 @@ function AppContent() {
           onAction={() => {
             dismissFirstActionNudge();
             setShowLearnMoreNudge(false);
-            navigate("/?marketing=1");
+            navigate("/marketing");
           }}
           icon="ℹ️"
           autoCloseMs={8000}

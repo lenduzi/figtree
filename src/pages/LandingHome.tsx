@@ -29,9 +29,13 @@ const markHasUsed = () => {
 export default function LandingHome() {
   const navigate = useNavigate();
   const location = useLocation();
-  const isMarketing = useMemo(
-    () => new URLSearchParams(location.search).get("marketing") === "1",
-    [location.search],
+  const isMarketing = useMemo(() => {
+    const hasParam = new URLSearchParams(location.search).get("marketing") === "1";
+    return location.pathname === "/marketing" || (location.pathname === "/" && hasParam);
+  }, [location.pathname, location.search]);
+  const shouldRedirectToMarketing = useMemo(
+    () => location.pathname === "/" && new URLSearchParams(location.search).get("marketing") === "1",
+    [location.pathname, location.search],
   );
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState("");
@@ -40,6 +44,10 @@ export default function LandingHome() {
   const [sendStatus, setSendStatus] = useState<"idle" | "sending" | "sent" | "failed">("idle");
 
   useEffect(() => {
+    if (shouldRedirectToMarketing) {
+      navigate("/marketing", { replace: true });
+      return;
+    }
     if (isMarketing) return;
     try {
       if (localStorage.getItem(HAS_USED_KEY) === "1") {
@@ -48,7 +56,7 @@ export default function LandingHome() {
     } catch {
       // ignore storage errors
     }
-  }, [isMarketing, navigate]);
+  }, [isMarketing, navigate, shouldRedirectToMarketing]);
 
   const handleComplete = () => {
     markHasUsed();
@@ -114,6 +122,61 @@ export default function LandingHome() {
     }, 2500);
     return () => window.clearTimeout(timer);
   }, [sendStatus]);
+
+  useEffect(() => {
+    if (!isMarketing) return;
+    const previousTitle = document.title;
+    const descriptionContent =
+      "A calm, local-first CRM for solo founders. Track follow-ups, manage deals, and stay on top of relationships — free forever on your device.";
+    const canonicalHref = "https://figtreecrm.com/marketing";
+
+    document.title = "Figtree — Free CRM for Solo Founders";
+
+    const ensureMeta = (name: string, content: string) => {
+      let meta = document.querySelector(`meta[name="${name}"]`) as HTMLMetaElement | null;
+      const previous = meta?.getAttribute("content");
+      if (!meta) {
+        meta = document.createElement("meta");
+        meta.setAttribute("name", name);
+        document.head.appendChild(meta);
+      }
+      meta.setAttribute("content", content);
+      return () => {
+        if (previous !== null && previous !== undefined) {
+          meta?.setAttribute("content", previous);
+        } else {
+          meta?.remove();
+        }
+      };
+    };
+
+    const ensureLink = (rel: string, href: string) => {
+      let link = document.querySelector(`link[rel="${rel}"]`) as HTMLLinkElement | null;
+      const previous = link?.getAttribute("href");
+      if (!link) {
+        link = document.createElement("link");
+        link.setAttribute("rel", rel);
+        document.head.appendChild(link);
+      }
+      link.setAttribute("href", href);
+      return () => {
+        if (previous !== null && previous !== undefined) {
+          link?.setAttribute("href", previous);
+        } else {
+          link?.remove();
+        }
+      };
+    };
+
+    const cleanupDescription = ensureMeta("description", descriptionContent);
+    const cleanupCanonical = ensureLink("canonical", canonicalHref);
+
+    return () => {
+      document.title = previousTitle;
+      cleanupDescription();
+      cleanupCanonical();
+    };
+  }, [isMarketing]);
 
   return (
     <div>
