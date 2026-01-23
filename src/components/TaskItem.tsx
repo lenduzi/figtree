@@ -10,6 +10,8 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 interface TaskItemProps {
   task: Task;
@@ -34,6 +36,7 @@ export function TaskItem({
 }: TaskItemProps) {
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
+  const isMobile = useMediaQuery("(max-width: 639px)");
   
   const dueDate = parseISO(task.dueDate);
   const isOverdue = isPast(dueDate) && !isToday(dueDate);
@@ -53,6 +56,79 @@ export function TaskItem({
     setShowCalendar(false);
     setRescheduleOpen(false);
   };
+
+  const handleRescheduleOpenChange = (open: boolean) => {
+    setRescheduleOpen(open);
+    if (!open) {
+      setShowCalendar(false);
+    }
+  };
+
+  const rescheduleContent = (
+    <div className={cn("flex flex-col gap-2", isMobile && "pt-1")}>
+      {isMobile && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-foreground">Reschedule</p>
+          {showCalendar && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-primary"
+              onClick={() => setShowCalendar(false)}
+            >
+              Quick options
+            </Button>
+          )}
+        </div>
+      )}
+      {showCalendar ? (
+        <div className="flex flex-col items-center gap-2">
+          <CalendarPicker
+            mode="single"
+            selected={dueDate}
+            onSelect={handleDateSelect}
+            initialFocus
+            className="w-full max-w-xs"
+          />
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-11 justify-start text-base sm:h-9 sm:text-sm"
+            onClick={() => handleQuickReschedule(1)}
+          >
+            Tomorrow
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-11 justify-start text-base sm:h-9 sm:text-sm"
+            onClick={() => handleQuickReschedule(3)}
+          >
+            In 3 Days
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-11 justify-start text-base sm:h-9 sm:text-sm"
+            onClick={() => handleQuickReschedule(7)}
+          >
+            Next Week
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-11 justify-start text-base sm:h-9 sm:text-sm"
+            onClick={() => setShowCalendar(true)}
+          >
+            Pick Date...
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div
@@ -125,62 +201,38 @@ export function TaskItem({
       </div>
 
       {onReschedule && !task.completed && (
-        <Popover open={rescheduleOpen} onOpenChange={setRescheduleOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 lg:h-9 lg:w-9 text-muted-foreground hover:text-foreground"
-            >
-              <CalendarClock className="h-4 w-4 lg:h-5 lg:w-5" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-2" align="end">
-            {showCalendar ? (
-              <CalendarPicker
-                mode="single"
-                selected={dueDate}
-                onSelect={handleDateSelect}
-                initialFocus
-              />
-            ) : (
-              <div className="flex flex-col gap-1">
+        <>
+          {isMobile ? (
+            <Dialog open={rescheduleOpen} onOpenChange={handleRescheduleOpenChange}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 lg:h-9 lg:w-9 text-muted-foreground hover:text-foreground"
+                onClick={() => setRescheduleOpen(true)}
+              >
+                <CalendarClock className="h-4 w-4 lg:h-5 lg:w-5" />
+              </Button>
+              <DialogContent className="sm:max-w-sm">
+                {rescheduleContent}
+              </DialogContent>
+            </Dialog>
+          ) : (
+            <Popover open={rescheduleOpen} onOpenChange={handleRescheduleOpenChange}>
+              <PopoverTrigger asChild>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="justify-start"
-                  onClick={() => handleQuickReschedule(1)}
+                  size="icon"
+                  className="h-9 w-9 lg:h-9 lg:w-9 text-muted-foreground hover:text-foreground"
                 >
-                  Tomorrow
+                  <CalendarClock className="h-4 w-4 lg:h-5 lg:w-5" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="justify-start"
-                  onClick={() => handleQuickReschedule(3)}
-                >
-                  In 3 Days
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="justify-start"
-                  onClick={() => handleQuickReschedule(7)}
-                >
-                  Next Week
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="justify-start"
-                  onClick={() => setShowCalendar(true)}
-                >
-                  Pick Date...
-                </Button>
-              </div>
-            )}
-          </PopoverContent>
-        </Popover>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-2" align="end">
+                {rescheduleContent}
+              </PopoverContent>
+            </Popover>
+          )}
+        </>
       )}
 
       {onDelete && (
