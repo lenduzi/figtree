@@ -107,6 +107,7 @@ function AppContent() {
           description="Everything is saved on your device."
           actionLabel="Add your next contact →"
           onAction={() => setAddContactOpen(true)}
+          autoCloseMs={8000}
         />
       )}
       {!isLanding && !showFirstTaskBanner && showLearnMoreNudge && (
@@ -124,6 +125,7 @@ function AppContent() {
             navigate("/?marketing=1");
           }}
           icon="ℹ️"
+          autoCloseMs={8000}
         />
       )}
     </>

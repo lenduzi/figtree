@@ -143,7 +143,7 @@ export default function FollowUpToday() {
           </div>
         </div>
         <p className="text-xs lg:text-sm text-muted-foreground mt-2">
-          Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs lg:text-sm">⌘K</kbd> to search
+          Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs lg:text-sm">⌘K</kbd> for Quick Actions
         </p>
       </div>
 

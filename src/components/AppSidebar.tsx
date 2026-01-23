@@ -89,30 +89,24 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <SidebarGroup className={isCollapsed ? 'mt-auto p-1' : 'mt-auto p-2'}>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip={isCollapsed ? 'Learn more' : undefined}>
-                  <NavLink
-                    to="/?marketing=1"
-                    className={`flex items-center rounded-md transition-colors hover:bg-accent ${
-                      isCollapsed ? 'justify-center p-2' : 'gap-3 px-3 py-2 lg:py-3'
-                    }`}
-                    activeClassName="bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
-                    onClick={() => handleNavClick('/?marketing=1')}
-                  >
-                    <Info className="h-5 w-5 lg:h-6 lg:w-6 flex-shrink-0" />
-                    {!isCollapsed && <span className="lg:text-base">Learn more</span>}
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className={`border-t border-border ${isCollapsed ? 'p-1' : 'p-2 lg:p-3'}`}>
+      <SidebarFooter className={`border-t border-border ${isCollapsed ? 'p-2 pb-3' : 'p-3 pb-4 lg:p-4 lg:pb-5'}`}>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip={isCollapsed ? 'Learn more' : undefined}>
+              <NavLink
+                to="/?marketing=1"
+                className={`flex items-center rounded-md transition-colors hover:bg-accent ${
+                  isCollapsed ? 'justify-center p-2' : 'gap-3 px-3 py-2 lg:py-3'
+                }`}
+                activeClassName="bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
+                onClick={() => handleNavClick('/?marketing=1')}
+              >
+                <Info className="h-5 w-5 lg:h-6 lg:w-6 flex-shrink-0" />
+                {!isCollapsed && <span className="lg:text-base">Learn more</span>}
+              </NavLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip={isCollapsed ? 'Settings' : undefined}>
               <NavLink
