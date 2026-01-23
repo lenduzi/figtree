@@ -13,6 +13,9 @@ const STORAGE_KEYS = {
 const HAS_USED_KEY = 'simplecrm_has_used';
 const ME_CONTACT_ID_KEY = 'simplecrm_me_contact_id';
 const ME_CONTACT_CREATED_KEY = 'simplecrm_me_contact_created';
+const FIRST_ACTION_KEY = 'simplecrm_first_action_seen';
+const FIRST_ACTION_BANNER_DISMISSED_KEY = 'simplecrm_first_action_banner_dismissed';
+const LEGACY_FIRST_TASK_COMPLETED_KEY = 'simplecrm_first_task_completed';
 
 function loadFromStorage<T>(key: string, defaultValue: T): T {
   try {
@@ -61,6 +64,27 @@ export function useCRM() {
       return localStorage.getItem(ME_CONTACT_ID_KEY);
     } catch {
       return null;
+    }
+  });
+  const [firstActionSeen, setFirstActionSeen] = useState(() => {
+    try {
+      const hasUsed = localStorage.getItem(HAS_USED_KEY) === '1';
+      const legacySeen = localStorage.getItem(LEGACY_FIRST_TASK_COMPLETED_KEY) === '1';
+      const currentSeen = localStorage.getItem(FIRST_ACTION_KEY) === '1';
+      return currentSeen || legacySeen || hasUsed;
+    } catch {
+      return false;
+    }
+  });
+  const [firstActionBannerDismissed, setFirstActionBannerDismissed] = useState(() => {
+    try {
+      const hasUsed = localStorage.getItem(HAS_USED_KEY) === '1';
+      const legacySeen = localStorage.getItem(LEGACY_FIRST_TASK_COMPLETED_KEY) === '1';
+      const currentSeen = localStorage.getItem(FIRST_ACTION_KEY) === '1';
+      const dismissed = localStorage.getItem(FIRST_ACTION_BANNER_DISMISSED_KEY) === '1';
+      return dismissed || (hasUsed && !legacySeen && !currentSeen);
+    } catch {
+      return false;
     }
   });
 
@@ -154,6 +178,16 @@ export function useCRM() {
   }, [activities]);
 
   // Contact operations
+  const markFirstAction = useCallback(() => {
+    if (firstActionSeen) return;
+    setFirstActionSeen(true);
+    try {
+      localStorage.setItem(FIRST_ACTION_KEY, '1');
+    } catch {
+      // ignore storage errors
+    }
+  }, [firstActionSeen]);
+
   const addContact = useCallback((contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>) => {
     const newContact: Contact = {
       ...contact,
@@ -163,8 +197,9 @@ export function useCRM() {
     };
     setContacts(prev => [...prev, newContact]);
     markHasUsed();
+    markFirstAction();
     return newContact;
-  }, []);
+  }, [markFirstAction]);
 
   const updateContact = useCallback((id: string, updates: Partial<Contact>) => {
     setContacts(prev => prev.map(c => 
@@ -215,8 +250,9 @@ export function useCRM() {
     };
     setTasks(prev => [...prev, newTask]);
     markHasUsed();
+    markFirstAction();
     return newTask;
-  }, []);
+  }, [markFirstAction]);
 
   const updateTask = useCallback((id: string, updates: Partial<Task>) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
@@ -262,8 +298,9 @@ export function useCRM() {
       updatedAt: new Date().toISOString(),
     };
     setResearchLists(prev => [...prev, newList]);
+    markFirstAction();
     return newList;
-  }, []);
+  }, [markFirstAction]);
 
   const updateResearchList = useCallback((id: string, updates: Partial<ResearchList>) => {
     setResearchLists(prev => prev.map(l => 
@@ -294,8 +331,9 @@ export function useCRM() {
       updatedAt: new Date().toISOString(),
     };
     setResearchEntries(prev => [...prev, newEntry]);
+    markFirstAction();
     return newEntry;
-  }, []);
+  }, [markFirstAction]);
 
   const updateResearchEntry = useCallback((id: string, updates: Partial<ResearchEntry>) => {
     setResearchEntries(prev => prev.map(e => 
@@ -376,6 +414,17 @@ export function useCRM() {
     return stages.find(s => s.id === id);
   }, [stages]);
 
+  const dismissFirstTaskBanner = useCallback(() => {
+    setFirstActionBannerDismissed(true);
+    try {
+      localStorage.setItem(FIRST_ACTION_BANNER_DISMISSED_KEY, '1');
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  const showFirstTaskBanner = firstActionSeen && !firstActionBannerDismissed;
+
   return {
     contacts,
     tasks,
@@ -414,5 +463,7 @@ export function useCRM() {
     deleteResearchEntry,
     getEntriesForList,
     promoteEntryToContact,
+    showFirstTaskBanner,
+    dismissFirstTaskBanner,
   };
 }

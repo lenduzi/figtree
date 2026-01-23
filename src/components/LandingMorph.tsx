@@ -16,6 +16,7 @@ import { MobileBottomNav } from "@/components/MobileBottomNav";
 
 type LandingMorphProps = {
   onComplete?: () => void;
+  mode?: "app" | "marketing";
 };
 
 const HAS_USED_KEY = "simplecrm_has_used";
@@ -39,11 +40,13 @@ function FullAppFrame() {
   );
 }
 
-export function LandingMorph({ onComplete }: LandingMorphProps) {
+export function LandingMorph({ onComplete, mode = "app" }: LandingMorphProps) {
   const reducedMotion = useReducedMotion();
   const [isInteractive, setIsInteractive] = useState(false);
   const completedRef = useRef(false);
   const morphDistanceRef = useRef(1200);
+  const enableAppTransition = mode === "app";
+  const sectionHeightClass = enableAppTransition ? "h-[240vh]" : "h-[160vh]";
 
   const { scrollY } = useScroll();
 
@@ -81,7 +84,7 @@ export function LandingMorph({ onComplete }: LandingMorphProps) {
   );
 
   useMotionValueEvent(fastProgress, "change", (latest) => {
-    if (completedRef.current) return;
+    if (!enableAppTransition || completedRef.current) return;
     const complete = latest >= 0.99;
     if (complete) {
       completedRef.current = true;
@@ -110,7 +113,7 @@ export function LandingMorph({ onComplete }: LandingMorphProps) {
   );
 
   return (
-    <section className="relative h-[240vh]">
+    <section className={`relative ${sectionHeightClass}`}>
       <div className="sticky top-0 h-svh flex items-center justify-center">
         <motion.div
           className="w-full flex justify-center"
@@ -146,13 +149,20 @@ export function LandingMorph({ onComplete }: LandingMorphProps) {
         </motion.div>
       </div>
 
-      {isInteractive &&
+      {enableAppTransition &&
+        isInteractive &&
         createPortal(
           <div className="fixed inset-0 z-50 w-screen h-screen">
             <FullAppFrame />
           </div>,
           document.body,
         )}
+      {!enableAppTransition && (
+        <div className="relative h-[40vh]">
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,_hsl(var(--background))_0%,_hsl(var(--accent)/0.45)_60%,_hsl(var(--background))_100%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_hsl(var(--accent)/0.6)_0%,_transparent_70%)] blur-3xl opacity-80" />
+        </div>
+      )}
     </section>
   );
 }

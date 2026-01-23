@@ -8,11 +8,12 @@ import { ThemeProvider } from "next-themes";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
-import { CRMProvider } from "@/contexts/CRMContext";
+import { CRMProvider, useCRMContext } from "@/contexts/CRMContext";
 import { CommandPalette } from "@/components/CommandPalette";
 import { AddContactDialog } from "@/components/AddContactDialog";
 import { AddTaskWithContactDialog } from "@/components/AddTaskWithContactDialog";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { FirstTaskBanner } from "@/components/FirstTaskBanner";
 import FollowUpToday from "./pages/FollowUpToday";
 import LandingHome from "./pages/LandingHome";
 import Contacts from "./pages/Contacts";
@@ -30,6 +31,7 @@ function AppContent() {
   const [addContactOpen, setAddContactOpen] = useState(false);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const location = useLocation();
+  const { showFirstTaskBanner, dismissFirstTaskBanner } = useCRMContext();
   const hasUsed = (() => {
     try {
       return localStorage.getItem("simplecrm_has_used") === "1";
@@ -37,7 +39,10 @@ function AppContent() {
       return false;
     }
   })();
-  const isLanding = location.pathname === "/" && !hasUsed;
+  const isMarketing =
+    location.pathname === "/" &&
+    new URLSearchParams(location.search).get("marketing") === "1";
+  const isLanding = location.pathname === "/" && (isMarketing || !hasUsed);
 
   return (
     <>
@@ -76,6 +81,9 @@ function AppContent() {
       {/* Hidden dialogs for command palette */}
       <AddContactDialog open={addContactOpen} onOpenChange={setAddContactOpen} triggerless />
       <AddTaskWithContactDialog open={addTaskOpen} onOpenChange={setAddTaskOpen} triggerless />
+      {!isLanding && showFirstTaskBanner && (
+        <FirstTaskBanner onDismiss={dismissFirstTaskBanner} />
+      )}
     </>
   );
 }
