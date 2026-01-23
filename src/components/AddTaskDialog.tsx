@@ -85,8 +85,8 @@ export function AddTaskDialog({ contactId, trigger }: AddTaskDialogProps) {
               rows={3}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+            <div className="space-y-2 min-w-0">
               <Label htmlFor="dueDate">Due Date *</Label>
               <Input
                 id="dueDate"
@@ -96,7 +96,7 @@ export function AddTaskDialog({ contactId, trigger }: AddTaskDialogProps) {
                 required
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0">
               <Label htmlFor="dueTime">Time</Label>
               <Input
                 id="dueTime"
