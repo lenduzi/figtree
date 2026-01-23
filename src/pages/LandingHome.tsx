@@ -16,6 +16,7 @@ import figtreeLogo from "@/assets/figtree-logo.png";
 
 const HAS_USED_KEY = "simplecrm_has_used";
 const FEEDBACK_EMAIL = "lennhahn@gmail.com";
+const FEEDBACK_ENDPOINT = `https://formsubmit.co/ajax/${FEEDBACK_EMAIL}`;
 
 const markHasUsed = () => {
   try {
@@ -36,7 +37,7 @@ export default function LandingHome() {
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [feedbackContact, setFeedbackContact] = useState("");
   const [feedbackName, setFeedbackName] = useState("");
-  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
+  const [sendStatus, setSendStatus] = useState<"idle" | "sending" | "sent" | "failed">("idle");
 
   useEffect(() => {
     if (isMarketing) return;
@@ -76,34 +77,56 @@ export default function LandingHome() {
     return `mailto:${FEEDBACK_EMAIL}?subject=${subject}&body=${body}`;
   }, [feedbackBody]);
 
-  const handleSendFeedback = () => {
-    if (!feedbackMessage.trim()) return;
-    window.location.href = feedbackMailto;
-  };
-
-  const handleCopyFeedback = async () => {
-    if (!feedbackBody.trim() || !navigator?.clipboard?.writeText) {
-      setCopyStatus("failed");
-      return;
-    }
+  const handleSendFeedback = async () => {
+    if (!feedbackMessage.trim() || sendStatus === "sending") return;
+    setSendStatus("sending");
     try {
-      await navigator.clipboard.writeText(feedbackBody);
-      setCopyStatus("copied");
+      const formData = new FormData();
+      formData.append("message", feedbackMessage.trim());
+      if (feedbackName.trim()) formData.append("name", feedbackName.trim());
+      if (feedbackContact.trim()) formData.append("contact", feedbackContact.trim());
+      formData.append("source", "figtree-marketing");
+
+      const response = await fetch(FEEDBACK_ENDPOINT, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Feedback request failed");
+      }
+      setSendStatus("sent");
+      setFeedbackMessage("");
+      setFeedbackName("");
+      setFeedbackContact("");
     } catch {
-      setCopyStatus("failed");
+      setSendStatus("failed");
     }
   };
 
   useEffect(() => {
-    if (copyStatus === "idle") return;
+    if (sendStatus !== "sent") return;
     const timer = window.setTimeout(() => {
-      setCopyStatus("idle");
-    }, 2000);
+      setSendStatus("idle");
+    }, 2500);
     return () => window.clearTimeout(timer);
-  }, [copyStatus]);
+  }, [sendStatus]);
 
   return (
     <div>
+      {isMarketing && (
+        <style>{`
+          @keyframes shoot {
+            0% { transform: translateX(-20vw); opacity: 0; }
+            8% { opacity: 0.9; }
+            16% { opacity: 0; transform: translateX(120vw); }
+            100% { opacity: 0; transform: translateX(120vw); }
+          }
+        `}</style>
+      )}
       <section className="relative bg-background">
         <div className="relative px-6 lg:px-8 xl:px-10 pt-16 lg:pt-20 xl:pt-24 pb-16 lg:pb-20 max-w-5xl 2xl:max-w-6xl mx-auto">
           <div className={`relative z-10 ${isMarketing ? "text-center" : "text-center"}`}>
@@ -257,22 +280,31 @@ export default function LandingHome() {
           <section className="relative py-20 bg-background">
             <div className="pointer-events-none absolute inset-x-0 -top-10 h-16 bg-[linear-gradient(180deg,_hsl(var(--accent)/0.35)_0%,_transparent_100%)] blur-2xl opacity-70" />
             <div className="px-6 lg:px-8 xl:px-10 max-w-4xl mx-auto">
-              <Card className="rounded-[28px] border-border/60 bg-card/95 shadow-[0_16px_40px_rgba(15,23,42,0.12)]">
-                <CardContent className="p-10 md:p-12">
-                  <div className="flex flex-col gap-5 md:flex-row md:items-start">
-                    <Avatar className="h-12 w-12">
-                      <AvatarImage src={figtreeLogo} alt="Figtree" />
-                      <AvatarFallback>F</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="text-base md:text-lg text-foreground leading-relaxed">
-                        I needed a lightweight CRM that stores my contact data and reminds me of To Dos. Building Figtree cost me nothing, so I want you to have it for free, too. Got a feature request? Tell me and I’ll build it :)
-                      </p>
-                      <p className="mt-3 text-sm text-muted-foreground">— Lenny, Chief Figtree Officer</p>
+              <div className="relative">
+                <div
+                  className="pointer-events-none absolute -inset-3 rounded-[36px] bg-[hsl(265_55%_88%)] shadow-[0_20px_60px_rgba(90,50,140,0.18)]"
+                  style={{
+                    transform: "translate(-18px, 18px) rotate(-2.6deg)",
+                    transformOrigin: "center",
+                  }}
+                />
+                <Card className="relative z-10 rounded-[28px] border-border/60 bg-card/95 shadow-[0_16px_40px_rgba(15,23,42,0.12)]">
+                  <CardContent className="p-10 md:p-12">
+                    <div className="flex flex-col gap-5 md:flex-row md:items-start">
+                      <Avatar className="h-12 w-12">
+                        <AvatarImage src={figtreeLogo} alt="Figtree" />
+                        <AvatarFallback>F</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-base md:text-lg text-foreground leading-relaxed">
+                          I needed a lightweight CRM that stores my contact data and reminds me of To Dos. Building Figtree cost me nothing, so I want you to have it for free, too. Got a feature request? Tell me and I’ll build it :)
+                        </p>
+                        <p className="mt-3 text-sm text-muted-foreground">— Lenny, Chief Figtree Officer</p>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           </section>
 
@@ -439,57 +471,112 @@ export default function LandingHome() {
             </div>
           </section>
 
-          <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
-            <DialogContent className="sm:max-w-xl">
-              <DialogHeader>
-                <DialogTitle>Share feedback</DialogTitle>
-                <DialogDescription>
-                  Tell me what you need. I read every message and follow up when I can.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="feedback-message">What should I build next?</Label>
-                  <Textarea
-                    id="feedback-message"
-                    value={feedbackMessage}
-                    onChange={(event) => setFeedbackMessage(event.target.value)}
-                    placeholder="Feature request, workflow pain, or a quick thought..."
-                    className="min-h-[140px]"
-                  />
+          <footer className="relative overflow-hidden">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_hsl(220_35%_24%)_0%,_hsl(225_45%_18%)_45%,_hsl(230_55%_12%)_100%)]" />
+            <div className="absolute inset-0 opacity-40">
+              <div className="absolute inset-0 bg-[radial-gradient(circle,_rgba(255,255,255,0.22)_1px,transparent_1px)] bg-[length:34px_34px]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle,_rgba(255,255,255,0.18)_1px,transparent_1px)] bg-[length:22px_22px] opacity-70" />
+            </div>
+            <div className="absolute inset-0 opacity-60">
+              <span className="absolute left-[10%] top-[18%] h-1 w-1 rounded-full bg-white/60" />
+              <span className="absolute left-[28%] top-[38%] h-0.5 w-0.5 rounded-full bg-white/50" />
+              <span className="absolute left-[55%] top-[22%] h-1.5 w-1.5 rounded-full bg-white/60" />
+              <span className="absolute left-[78%] top-[32%] h-1 w-1 rounded-full bg-white/50" />
+              <span className="absolute left-[40%] top-[58%] h-1 w-1 rounded-full bg-white/40" />
+              <span className="absolute left-[70%] top-[62%] h-0.5 w-0.5 rounded-full bg-white/40" />
+            </div>
+            <div className="absolute -left-32 top-20 h-1 w-44 rotate-[12deg] bg-gradient-to-r from-white/0 via-white/70 to-white/0 opacity-70 animate-[shoot_14s_linear_infinite]" />
+            <div className="absolute -left-44 top-36 h-0.5 w-32 rotate-[12deg] bg-gradient-to-r from-white/0 via-white/60 to-white/0 opacity-50 animate-[shoot_16s_linear_infinite] [animation-delay:6s]" />
+            <div className="relative px-6 lg:px-8 xl:px-10 py-20 lg:py-24 max-w-5xl 2xl:max-w-6xl mx-auto text-white">
+              <p className="text-[clamp(2.5rem,8vw,6rem)] font-semibold tracking-[0.08em] text-white/10">
+                FIGTREE
+              </p>
+              <div className="mt-6 grid gap-6 md:grid-cols-[1.2fr_0.8fr] items-end">
+                <div>
+                  <p className="text-lg text-white/90">A calm CRM for solo founders.</p>
+                  <p className="mt-2 text-sm text-white/60 max-w-md">
+                    Local-first, simple, and built to keep your follow-ups on track.
+                  </p>
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="feedback-name">Name (optional)</Label>
-                  <Input
-                    id="feedback-name"
-                    value={feedbackName}
-                    onChange={(event) => setFeedbackName(event.target.value)}
-                    placeholder="Your name"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="feedback-contact">Best way to reach you (optional)</Label>
-                  <Input
-                    id="feedback-contact"
-                    value={feedbackContact}
-                    onChange={(event) => setFeedbackContact(event.target.value)}
-                    placeholder="Email or phone"
-                  />
+                <div className="md:text-right text-sm text-white/60">
+                  <p>Built by a solo founder.</p>
+                  <p className="mt-1">© {new Date().getFullYear()} Figtree</p>
                 </div>
               </div>
-              <DialogFooter className="gap-2 sm:gap-0">
-                <Button variant="outline" type="button" onClick={handleCopyFeedback}>
-                  {copyStatus === "copied" ? "Copied" : "Copy message"}
-                </Button>
-                <Button onClick={handleSendFeedback} disabled={!feedbackMessage.trim()}>
-                  Send via email
-                </Button>
-              </DialogFooter>
-              {copyStatus === "failed" && (
-                <p className="text-xs text-muted-foreground">
-                  Copy failed — you can still send via email or manually copy from the text above.
-                </p>
-              )}
+            </div>
+          </footer>
+
+          <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
+            <DialogContent className="sm:max-w-xl border-0 bg-transparent p-0 shadow-none">
+              <div className="relative overflow-hidden rounded-[32px] border border-border/60 bg-[linear-gradient(180deg,_hsl(0_0%_99%)_0%,_hsl(220_20%_98%)_100%)] p-8 shadow-[0_18px_45px_rgba(15,23,42,0.18)]">
+                <div className="pointer-events-none absolute -left-6 top-0 h-full w-12 border-r border-border/40 bg-[radial-gradient(circle,_hsl(220_20%_94%)_40%,_transparent_41%)] bg-[length:12px_12px] bg-[position:0_8px]" />
+                <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(180deg,transparent_0px,transparent_26px,hsl(var(--border)/0.25)_27px)] opacity-70" />
+                <div className="pointer-events-none absolute -top-2 right-6 flex h-14 w-14 items-center justify-center rounded-full border-2 border-dashed border-primary/40 text-[11px] font-semibold text-primary/80 rotate-12 bg-background/80">
+                  LOVE
+                </div>
+                <div className="pointer-events-none absolute left-0 right-0 top-16 h-px bg-border/50" />
+                <div className="relative">
+                  <DialogHeader className="space-y-2 text-left">
+                    <DialogTitle>A little love note to Figtree</DialogTitle>
+                    
+                  </DialogHeader>
+                  <div className="mt-6 grid gap-4 text-left">
+                    <div className="grid gap-2">
+                      <Label htmlFor="feedback-message" className="text-sm text-muted-foreground">
+                        Dear Lenny,
+                      </Label>
+                      <Textarea
+                        id="feedback-message"
+                        value={feedbackMessage}
+                        onChange={(event) => setFeedbackMessage(event.target.value)}
+                        placeholder="Write your note here..."
+                        className="min-h-[180px] border-0 bg-transparent p-0 text-base leading-7 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                      />
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="grid gap-1">
+                        <Label htmlFor="feedback-name" className="text-xs text-muted-foreground">
+                          With love,
+                        </Label>
+                        <Input
+                          id="feedback-name"
+                          value={feedbackName}
+                          onChange={(event) => setFeedbackName(event.target.value)}
+                          placeholder="Your name (optional)"
+                          className="border-0 border-b border-border/60 rounded-none bg-transparent px-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                        />
+                      </div>
+                      <div className="grid gap-1">
+                        <Label htmlFor="feedback-contact" className="text-xs text-muted-foreground">
+                          Reply to (optional)
+                        </Label>
+                        <Input
+                          id="feedback-contact"
+                          value={feedbackContact}
+                          onChange={(event) => setFeedbackContact(event.target.value)}
+                          placeholder="Email or phone"
+                          className="border-0 border-b border-border/60 rounded-none bg-transparent px-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter className="mt-6">
+                    <Button onClick={handleSendFeedback} disabled={!feedbackMessage.trim() || sendStatus === "sending"}>
+                      {sendStatus === "sending" ? "Sending..." : "Send feedback"}
+                    </Button>
+                  </DialogFooter>
+                  {sendStatus === "sent" && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Sent — thank you for the note.
+                    </p>
+                  )}
+                  {sendStatus === "failed" && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Couldn’t send right now. Try again in a moment.
+                    </p>
+                  )}
+                </div>
+              </div>
             </DialogContent>
           </Dialog>
         </>
