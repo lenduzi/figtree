@@ -57,7 +57,7 @@ export function TaskItem({
   return (
     <div
       className={cn(
-        'flex items-start gap-3 lg:gap-4 p-3 lg:p-4 rounded-lg border transition-colors',
+        'flex items-start gap-4 p-4 lg:gap-4 lg:p-4 rounded-2xl lg:rounded-lg border bg-background transition-colors shadow-sm lg:shadow-none',
         task.completed && 'opacity-60 bg-muted/50',
         !task.completed && isOverdue && 'border-destructive bg-destructive/10',
         !task.completed && isDueToday && 'border-accent bg-accent/20'
@@ -67,30 +67,31 @@ export function TaskItem({
         variant="ghost"
         size="icon"
         className={cn(
-          'h-6 w-6 lg:h-7 lg:w-7 rounded-full border-2 shrink-0',
+          'h-8 w-8 lg:h-7 lg:w-7 rounded-full border-2 shrink-0 touch-manipulation',
           task.completed ? 'bg-primary border-primary' : 'border-muted-foreground'
         )}
         onClick={() => onToggleComplete(task.id)}
+        aria-label={task.completed ? 'Mark task incomplete' : 'Mark task complete'}
       >
-        {task.completed && <Check className="h-3 w-3 lg:h-4 lg:w-4 text-primary-foreground" />}
+        {task.completed && <Check className="h-4 w-4 lg:h-4 lg:w-4 text-primary-foreground" />}
       </Button>
 
       <div 
         className={cn(
           "flex-1 min-w-0",
-          onTaskClick && "cursor-pointer hover:bg-muted/50 -m-2 p-2 rounded-md transition-colors"
+          onTaskClick && "cursor-pointer hover:bg-muted/50 -m-2 p-2 rounded-lg transition-colors"
         )}
         onClick={() => onTaskClick?.(task)}
       >
         <p className={cn(
-          'font-medium text-sm lg:text-base',
+          'font-semibold text-base lg:text-base tracking-tight',
           task.completed && 'line-through text-muted-foreground'
         )}>
           {task.title}
         </p>
         
         {task.description && (
-          <p className="text-xs lg:text-sm text-muted-foreground mt-1 line-clamp-2">
+          <p className="text-sm lg:text-sm text-muted-foreground mt-1.5 line-clamp-2">
             {task.description}
           </p>
         )}
@@ -98,24 +99,24 @@ export function TaskItem({
         {showContact && contact && (
           <button
             onClick={() => onContactClick?.(contact.id)}
-            className="text-xs lg:text-sm text-primary hover:underline mt-1 block"
+            className="text-sm lg:text-sm text-primary hover:underline mt-2 block"
           >
             {contact.fullName} • {contact.company}
           </button>
         )}
 
-        <div className="flex items-center gap-3 mt-2 text-xs lg:text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2 mt-3 text-xs lg:text-sm text-muted-foreground">
           <span className={cn(
-            'flex items-center gap-1',
-            !task.completed && isOverdue && 'text-destructive-foreground font-medium',
-            !task.completed && isDueToday && 'text-accent-foreground font-medium'
+            'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1',
+            !task.completed && isOverdue && 'border-destructive/40 bg-destructive/10 text-destructive-foreground',
+            !task.completed && isDueToday && 'border-accent/40 bg-accent/15 text-accent-foreground',
+            !isOverdue && !isDueToday && 'border-muted/60 bg-muted/40'
           )}>
             <Calendar className="h-3 w-3 lg:h-4 lg:w-4" />
-            {isOverdue && !task.completed ? 'Overdue: ' : ''}
-            {isDueToday && !task.completed ? 'Today' : format(dueDate, 'MMM d, yyyy')}
+            {isOverdue && !task.completed ? 'Overdue' : isDueToday && !task.completed ? 'Today' : format(dueDate, 'MMM d, yyyy')}
           </span>
           {task.dueTime && (
-            <span className="flex items-center gap-1">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-muted/60 bg-muted/40 px-2.5 py-1">
               <Clock className="h-3 w-3 lg:h-4 lg:w-4" />
               {task.dueTime}
             </span>
@@ -129,7 +130,7 @@ export function TaskItem({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 lg:h-9 lg:w-9 text-muted-foreground hover:text-foreground"
+              className="h-9 w-9 lg:h-9 lg:w-9 text-muted-foreground hover:text-foreground"
             >
               <CalendarClock className="h-4 w-4 lg:h-5 lg:w-5" />
             </Button>

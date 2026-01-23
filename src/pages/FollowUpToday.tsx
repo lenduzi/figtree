@@ -104,16 +104,29 @@ export default function FollowUpToday() {
     <div className="p-6 lg:p-8 xl:p-10 max-w-4xl lg:max-w-5xl 2xl:max-w-6xl mx-auto">
       <div className="mb-8 lg:mb-10">
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl lg:text-4xl font-bold text-foreground">Follow-Up Today</h1>
-            <p className="text-muted-foreground lg:text-lg mt-1">
-              {totalActionItems === 0 
-                ? "You're all caught up! No pending follow-ups."
-                : `${totalActionItems} action item${totalActionItems !== 1 ? 's' : ''} need your attention`
-              }
+          <div className="space-y-1">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground">
+              <span className="lg:hidden">
+                Today{totalActionItems > 0 ? ` (${totalActionItems})` : ''}
+              </span>
+              <span className="hidden lg:inline">Follow-Up Today</span>
+            </h1>
+            <p className="text-muted-foreground lg:text-lg">
+              <span className="lg:hidden">
+                {totalActionItems === 0 ? "All clear for today." : `${totalActionItems} due now`}
+              </span>
+              <span className="hidden lg:inline">
+                {totalActionItems === 0
+                  ? "You're all caught up! No pending follow-ups."
+                  : `${totalActionItems} action item${totalActionItems !== 1 ? 's' : ''} need your attention`
+                }
+              </span>
             </p>
+            {showFirstTaskNudge && (
+              <p className="text-xs text-muted-foreground lg:hidden">Tap + to create your first task</p>
+            )}
           </div>
-          <div className="flex flex-col items-end">
+          <div className="hidden lg:flex flex-col items-end">
             <AddTaskWithContactDialog
               trigger={
                 <Button
@@ -142,12 +155,12 @@ export default function FollowUpToday() {
             )}
           </div>
         </div>
-        <p className="text-xs lg:text-sm text-muted-foreground mt-2">
+        <p className="mt-2 hidden text-xs lg:block lg:text-sm text-muted-foreground">
           Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs lg:text-sm">⌘K</kbd> for Quick Actions
         </p>
       </div>
 
-      <div className="grid gap-6 lg:gap-8 lg:grid-cols-2 items-stretch">
+      <div className="grid gap-4 lg:gap-8 lg:grid-cols-2 items-stretch">
         <Card className="flex flex-col h-full">
           <CardHeader className="pb-3 lg:pb-4 lg:px-6">
             <CardTitle className="flex items-center gap-2 text-foreground text-lg lg:text-xl">
@@ -244,7 +257,9 @@ export default function FollowUpToday() {
               );
             })}
             {comingUpTasks.length === 0 && (
-              <p className="text-center py-6 text-muted-foreground">No tasks due in the next 7 days</p>
+              <p className="text-center py-4 lg:py-6 text-sm lg:text-base text-muted-foreground">
+                No tasks due in the next 7 days
+              </p>
             )}
           </CardContent>
         </Card>
@@ -299,6 +314,30 @@ export default function FollowUpToday() {
         onContactClick={(id) => navigate(`/contacts/${id}`)}
         showContact
       />
+
+      <div className="fixed lg:hidden right-[calc(1.25rem+env(safe-area-inset-right))] bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40">
+        <AddTaskWithContactDialog
+          trigger={
+            <Button
+              aria-label="New Task"
+              onClick={handleNewTaskClick}
+              className={cn(
+                "relative h-12 w-12 rounded-full shadow-lg px-0",
+                showFirstTaskNudge &&
+                  "animate-heartbeat ring-2 ring-primary/25 ring-offset-2 ring-offset-background shadow-[0_0_12px_rgba(59,130,246,0.12)]",
+              )}
+            >
+              {showFirstTaskNudge && (
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute -inset-1.5 rounded-full bg-primary/5 blur-sm"
+                />
+              )}
+              <Plus className="h-5 w-5" />
+            </Button>
+          }
+        />
+      </div>
     </div>
   );
 }

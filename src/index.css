@@ -164,6 +164,22 @@ Gmail-inspired color palette with clean, neutral grays and blue accents.
       animation: none;
     }
   }
+
+  @media (max-width: 639px) {
+    .popover-mobile-sheet {
+      position: fixed !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      top: auto !important;
+      transform: none !important;
+      width: 100% !important;
+      max-height: 70dvh !important;
+      overflow-y: auto !important;
+      border-radius: 1.25rem 1.25rem 0 0 !important;
+      padding-bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
+    }
+  }
 }
 
 @layer base {
