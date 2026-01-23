@@ -19,7 +19,6 @@ import LandingHome from "./pages/LandingHome";
 import Contacts from "./pages/Contacts";
 import Pipeline from "./pages/Pipeline";
 import Planning from "./pages/Planning";
-import Reminders from "./pages/Reminders";
 import Resources from "./pages/Resources";
 import ContactDetail from "./pages/ContactDetail";
 import Settings from "./pages/Settings";
@@ -88,7 +87,6 @@ function AppContent() {
               <Route path="/contacts/:id" element={<ContactDetail />} />
               <Route path="/pipeline" element={<Pipeline />} />
               <Route path="/planning" element={<Planning />} />
-              <Route path="/reminders" element={<Reminders />} />
               <Route path="/resources" element={<Resources />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<NotFound />} />

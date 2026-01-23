@@ -360,8 +360,9 @@ export default function LandingHome() {
                       </Avatar>
                       <div>
                         <p className="text-base md:text-lg text-foreground leading-relaxed">
-                          I needed a lightweight CRM that stores my contact data and reminds me of To Dos. Building Figtree cost me nothing, so I want you to have it for free, too. Got a feature request? Tell me and I’ll build it :)
+                          I needed a simple place to store contact details and remember To Dos. Figtree is the result. Got a feature request? Please let me know!
                         </p>
+                        <p className="mt-2 text-sm text-muted-foreground">PS: Everyone hates subscriptions, so just use it for free :)</p>
                         <p className="mt-3 text-sm text-muted-foreground">— Lenny, Chief Figtree Officer</p>
                       </div>
                     </div>

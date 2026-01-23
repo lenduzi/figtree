@@ -1,4 +1,4 @@
-import { CalendarCheck, Users, Kanban, Bell, Settings, ClipboardList, BookOpen, Info } from 'lucide-react';
+import { CalendarCheck, Users, Kanban, Settings, ClipboardList, BookOpen, Info } from 'lucide-react';
 import figtreeLogo from '@/assets/figtree-logo.png';
 import { NavLink } from '@/components/NavLink';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -22,7 +22,6 @@ const navItems = [
   { title: 'Contacts', url: '/contacts', icon: Users },
   { title: 'Pipeline', url: '/pipeline', icon: Kanban },
   { title: 'Planning', url: '/planning', icon: ClipboardList },
-  { title: 'All Reminders', url: '/reminders', icon: Bell },
   { title: 'Resources', url: '/resources', icon: BookOpen },
 ];
 

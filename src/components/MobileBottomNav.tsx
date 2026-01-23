@@ -16,7 +16,7 @@ const navItems = [
 ];
 
 const isActiveRoute = (pathname: string, to: string) => {
-  if (to === "/app") return pathname === "/app" || pathname === "/" || pathname.startsWith("/reminders");
+  if (to === "/app") return pathname === "/app" || pathname === "/";
   return pathname.startsWith(to);
 };
 
