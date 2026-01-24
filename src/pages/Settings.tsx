@@ -3,6 +3,7 @@ import { ChevronDown } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import figtreeLogo from '@/assets/figtree-logo.png';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   AlertDialog,
@@ -16,6 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { Activity, Contact, DEFAULT_STAGES, ResearchEntry, ResearchList, Stage, Task } from '@/types/crm';
+import { useNavigate } from 'react-router-dom';
 
 const STORAGE_KEYS = {
   contacts: 'simplecrm_contacts',
@@ -98,6 +100,7 @@ const validateBackup = (value: unknown): { ok: true; data: CRMBackup } | { ok: f
 };
 
 export default function Settings() {
+  const navigate = useNavigate();
   const {
     stages,
     contacts,
@@ -188,16 +191,39 @@ export default function Settings() {
     <div className="p-6 max-w-2xl mx-auto">
       <div className="mb-6">
         <h1 className="sr-only sm:not-sr-only text-3xl font-bold text-foreground">Settings</h1>
-        <p className="text-muted-foreground mt-1">Customize your CRM</p>
       </div>
 
-      <Card className="mt-6">
+      <Card>
         <CardHeader>
-          <CardTitle>About SimpleCRM</CardTitle>
+          <div className="flex items-center gap-3">
+            <img src={figtreeLogo} alt="Figtree logo" className="h-9 w-9" />
+            <div>
+              <CardTitle>About Figtree</CardTitle>
+              <CardDescription>Your lightweight CRM for staying on top of follow-ups.</CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          <p>A lightweight personal CRM to manage contacts, track client stages, and never forget follow-ups.</p>
+          <p>A lightweight personal CRM to manage contacts, track stages, and never miss a follow-up.</p>
           <p className="mt-2">All data is stored locally in your browser.</p>
+          <div className="mt-4 flex flex-col sm:flex-row gap-2">
+            <Button disabled>
+              Sign up
+            </Button>
+            <span className="text-xs text-muted-foreground self-center">Coming soon</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6 sm:hidden">
+        <CardHeader>
+          <CardTitle>Learn more</CardTitle>
+          <CardDescription>See how Figtree works, pricing, and privacy.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" onClick={() => navigate('/marketing')} className="w-full">
+            Visit marketing page
+          </Button>
         </CardContent>
       </Card>
 
