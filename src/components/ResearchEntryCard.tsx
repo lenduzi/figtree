@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { ResearchEntry, ResearchPriority, ResearchStatus } from '@/types/crm';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -10,13 +9,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Trash2, UserPlus, ExternalLink } from 'lucide-react';
+import { MoreHorizontal, Trash2, UserPlus, ExternalLink, ChevronDown } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -29,61 +31,35 @@ interface ResearchEntryCardProps {
 export function ResearchEntryCard({ entry, onPromote }: ResearchEntryCardProps) {
   const { updateResearchEntry, deleteResearchEntry, getContactById } = useCRMContext();
   const navigate = useNavigate();
-  const [isEditing, setIsEditing] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState('');
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    company: entry.company || '',
+    poc: entry.poc || '',
+    email: entry.email || '',
+    industry: entry.industry || '',
+  });
 
   const linkedContact = entry.linkedContactId ? getContactById(entry.linkedContactId) : null;
 
-  const handleStartEdit = (field: string, value: string) => {
-    setIsEditing(field);
-    setEditValue(value);
+  const openEdit = () => {
+    setEditForm({
+      company: entry.company || '',
+      poc: entry.poc || '',
+      email: entry.email || '',
+      industry: entry.industry || '',
+    });
+    setEditOpen(true);
   };
 
-  const handleSaveEdit = (field: keyof ResearchEntry) => {
-    updateResearchEntry(entry.id, { [field]: editValue });
-    setIsEditing(null);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent, field: keyof ResearchEntry) => {
-    if (e.key === 'Enter') {
-      handleSaveEdit(field);
-    } else if (e.key === 'Escape') {
-      setIsEditing(null);
-    }
-  };
-
-  const renderEditableText = (
-    field: keyof ResearchEntry,
-    value: string,
-    placeholder: string,
-    className?: string,
-  ) => {
-    if (isEditing === field) {
-      return (
-        <Input
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onBlur={() => handleSaveEdit(field)}
-          onKeyDown={(e) => handleKeyDown(e, field)}
-          autoFocus
-          className="h-9 text-sm"
-        />
-      );
-    }
-
-    return (
-      <button
-        type="button"
-        onClick={() => handleStartEdit(field, value)}
-        className={cn(
-          "w-full text-left rounded-md px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-accent/40",
-          !value && "text-muted-foreground italic",
-          className,
-        )}
-      >
-        {value || placeholder}
-      </button>
-    );
+  const handleSave = () => {
+    updateResearchEntry(entry.id, {
+      company: editForm.company,
+      poc: editForm.poc,
+      email: editForm.email,
+      industry: editForm.industry,
+    });
+    setEditOpen(false);
   };
 
   const statusColors: Record<ResearchStatus, string> = {
@@ -93,79 +69,152 @@ export function ResearchEntryCard({ entry, onPromote }: ResearchEntryCardProps) 
   };
 
   return (
-    <div className="rounded-xl border bg-card p-4 shadow-sm space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          {renderEditableText('company', entry.company, 'Add company', 'text-base font-semibold')}
+    <div className="rounded-xl border bg-card shadow-sm">
+      <button
+        type="button"
+        className="w-full text-left p-4"
+        onClick={() => setIsExpanded((prev) => !prev)}
+        aria-expanded={isExpanded}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-base font-semibold text-foreground truncate">
+              {entry.company || 'Add company'}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1 truncate">
+              {entry.industry || 'No industry'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge className={statusColors[entry.status]}>{entry.status}</Badge>
+            <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", isExpanded && "rotate-180")} />
+          </div>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {entry.status !== 'promoted' && (
-              <DropdownMenuItem onClick={() => onPromote(entry.id)}>
-                <UserPlus className="h-4 w-4 mr-2" />
-                Promote to Contact
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem
-              onClick={() => deleteResearchEntry(entry.id)}
-              className="text-destructive-foreground"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      </button>
 
-      <div className="space-y-1">
-        <p className="text-xs text-muted-foreground">Point of Contact</p>
-        {renderEditableText('poc', entry.poc, 'Add POC')}
-      </div>
-
-      <div className="space-y-1">
-        <p className="text-xs text-muted-foreground">Email</p>
-        {renderEditableText('email', entry.email, 'Add email')}
-      </div>
-
-      <div className="space-y-1">
-        <p className="text-xs text-muted-foreground">Industry</p>
-        {renderEditableText('industry', entry.industry, 'Add industry')}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Select
-          value={entry.priority}
-          onValueChange={(value: ResearchPriority) =>
-            updateResearchEntry(entry.id, { priority: value })
-          }
-        >
-          <SelectTrigger className="h-8 w-28 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="low">Low</SelectItem>
-            <SelectItem value="medium">Medium</SelectItem>
-            <SelectItem value="high">High</SelectItem>
-          </SelectContent>
-        </Select>
-        <Badge className={statusColors[entry.status]}>
+      <div className="px-4 pb-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={entry.priority}
+            onValueChange={(value: ResearchPriority) =>
+              updateResearchEntry(entry.id, { priority: value })
+            }
+          >
+            <SelectTrigger className="h-8 w-28 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="low">Low</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={openEdit}>
+            Edit
+          </Button>
           {entry.status === 'promoted' && linkedContact ? (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs"
               onClick={() => navigate(`/contacts/${linkedContact.id}`)}
-              className="flex items-center gap-1 hover:underline"
             >
-              Linked <ExternalLink className="h-3 w-3" />
-            </button>
-          ) : (
-            entry.status
-          )}
-        </Badge>
+              Linked <ExternalLink className="h-3 w-3 ml-1" />
+            </Button>
+          ) : null}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {entry.status !== 'promoted' && (
+                <DropdownMenuItem onClick={() => onPromote(entry.id)}>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Promote to Contact
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                onClick={() => deleteResearchEntry(entry.id)}
+                className="text-destructive-foreground"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
+
+      {isExpanded && (
+        <div className="border-t border-border px-4 py-3 space-y-2 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">POC</span>
+            <span className="text-foreground">{entry.poc || '—'}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Email</span>
+            <span className="text-foreground">{entry.email || '—'}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Industry</span>
+            <span className="text-foreground">{entry.industry || '—'}</span>
+          </div>
+        </div>
+      )}
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit Entry</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor={`company-${entry.id}`}>Company</Label>
+              <Input
+                id={`company-${entry.id}`}
+                value={editForm.company}
+                onChange={(e) => setEditForm({ ...editForm, company: e.target.value })}
+                placeholder="Company name"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`poc-${entry.id}`}>POC</Label>
+              <Input
+                id={`poc-${entry.id}`}
+                value={editForm.poc}
+                onChange={(e) => setEditForm({ ...editForm, poc: e.target.value })}
+                placeholder="Point of contact"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`email-${entry.id}`}>Email</Label>
+              <Input
+                id={`email-${entry.id}`}
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                placeholder="name@company.com"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`industry-${entry.id}`}>Industry</Label>
+              <Input
+                id={`industry-${entry.id}`}
+                value={editForm.industry}
+                onChange={(e) => setEditForm({ ...editForm, industry: e.target.value })}
+                placeholder="Industry"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
