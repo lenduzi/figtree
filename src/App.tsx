@@ -25,6 +25,7 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+const APP_ENTRY_BANNER_KEY = "simplecrm_app_entry_banner_seen";
 
 function AppContent() {
   const [addContactOpen, setAddContactOpen] = useState(false);
@@ -39,6 +40,7 @@ function AppContent() {
     dismissFirstActionNudge,
   } = useCRMContext();
   const [showLearnMoreNudge, setShowLearnMoreNudge] = useState(false);
+  const [showAppEntryBanner, setShowAppEntryBanner] = useState(false);
   const hasUsed = (() => {
     try {
       return localStorage.getItem("simplecrm_has_used") === "1";
@@ -71,6 +73,19 @@ function AppContent() {
     }, 10000);
     return () => window.clearTimeout(timer);
   }, [firstActionNudgeDismissed, firstActionSeen, isLanding]);
+
+  useEffect(() => {
+    if (isLanding) {
+      setShowAppEntryBanner(false);
+      return;
+    }
+    try {
+      const hasSeen = localStorage.getItem(APP_ENTRY_BANNER_KEY) === "1";
+      setShowAppEntryBanner(!hasSeen);
+    } catch {
+      setShowAppEntryBanner(false);
+    }
+  }, [isLanding]);
 
   return (
     <>
@@ -138,6 +153,32 @@ function AppContent() {
           }}
           icon="ℹ️"
           autoCloseMs={8000}
+        />
+      )}
+      {!isLanding && !showFirstTaskBanner && !showLearnMoreNudge && showAppEntryBanner && (
+        <FirstTaskBanner
+          onDismiss={() => {
+            try {
+              localStorage.setItem(APP_ENTRY_BANNER_KEY, "1");
+            } catch {
+              // ignore storage errors
+            }
+            setShowAppEntryBanner(false);
+          }}
+          title="You’re in the full app now."
+          description="No signup, no strings attached."
+          actionLabel="Add your first task →"
+          onAction={() => {
+            try {
+              localStorage.setItem(APP_ENTRY_BANNER_KEY, "1");
+            } catch {
+              // ignore storage errors
+            }
+            setShowAppEntryBanner(false);
+            setAddTaskOpen(true);
+          }}
+          icon="✅"
+          autoCloseMs={12000}
         />
       )}
     </>
