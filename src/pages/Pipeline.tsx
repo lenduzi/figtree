@@ -109,7 +109,7 @@ export default function Pipeline() {
 
       <div className="flex items-center justify-between mb-6 lg:mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground">Pipeline</h1>
+          <h1 className="sr-only sm:not-sr-only text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground">Pipeline</h1>
           <p className="text-muted-foreground lg:text-lg mt-1 hidden sm:block">
             Drag contacts between stages or click to view details
           </p>

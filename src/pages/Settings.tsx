@@ -221,7 +221,7 @@ export default function Settings() {
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-foreground">Settings</h1>
+        <h1 className="sr-only sm:not-sr-only text-3xl font-bold text-foreground">Settings</h1>
         <p className="text-muted-foreground mt-1">Customize your CRM</p>
       </div>
 

@@ -49,6 +49,17 @@ function AppContent() {
   const marketingParam = new URLSearchParams(location.search).get("marketing") === "1";
   const isMarketing = location.pathname === "/marketing" || (location.pathname === "/" && marketingParam);
   const isLanding = isMarketing || (location.pathname === "/" && !hasUsed);
+  const mobileTitle = (() => {
+    const path = location.pathname;
+    if (path === "/app" || path === "/") return "Tasks";
+    if (path.startsWith("/contacts/")) return "Contact";
+    if (path.startsWith("/contacts")) return "Contacts";
+    if (path.startsWith("/pipeline")) return "Pipeline";
+    if (path.startsWith("/planning")) return "Plan";
+    if (path.startsWith("/resources")) return "Resources";
+    if (path.startsWith("/settings")) return "Settings";
+    return "Figtree";
+  })();
 
   useEffect(() => {
     if (isLanding || firstActionSeen || firstActionNudgeDismissed) {
@@ -72,8 +83,11 @@ function AppContent() {
           {!isLanding && <AppSidebar />}
           <main className={`flex-1 overflow-auto ${isLanding ? '' : 'pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0'}`}>
             {!isLanding && (
-              <header className="h-14 border-b border-border flex items-center justify-between px-4">
+              <header className="h-14 border-b border-border flex items-center px-4 gap-3">
                 <SidebarTrigger className="h-9 w-9 ml-2 hidden md:inline-flex" />
+                <div className="sm:hidden flex-1">
+                  <span className="text-sm font-semibold text-foreground">{mobileTitle}</span>
+                </div>
                 <div className="ml-auto">
                   <ThemeToggle />
                 </div>
