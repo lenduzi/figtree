@@ -20,6 +20,8 @@ import {
 import { Plus, Search, ArrowUpDown } from 'lucide-react';
 import { ResearchEntryRow } from './ResearchEntryRow';
 import { PromoteEntryDialog } from './PromoteEntryDialog';
+import { ResearchEntryCard } from './ResearchEntryCard';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 interface ResearchListSheetProps {
   list: ResearchList;
@@ -36,6 +38,7 @@ export function ResearchListSheet({ list }: ResearchListSheetProps) {
   const [sortField, setSortField] = useState<SortField>('updatedAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [promoteEntry, setPromoteEntry] = useState<ResearchEntry | null>(null);
+  const isMobile = useMediaQuery("(max-width: 639px)");
 
   const entries = useMemo(() => {
     let filtered = getEntriesForList(list.id);
@@ -113,7 +116,7 @@ export function ResearchListSheet({ list }: ResearchListSheetProps) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-16 sm:pb-0">
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -122,12 +125,12 @@ export function ResearchListSheet({ list }: ResearchListSheetProps) {
             placeholder="Search entries..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="pl-9 h-11"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-2">
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as ResearchStatus | 'all')}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="w-full sm:w-32">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -138,7 +141,7 @@ export function ResearchListSheet({ list }: ResearchListSheetProps) {
             </SelectContent>
           </Select>
           <Select value={priorityFilter} onValueChange={(v) => setPriorityFilter(v as ResearchPriority | 'all')}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="w-full sm:w-32">
               <SelectValue placeholder="Priority" />
             </SelectTrigger>
             <SelectContent>
@@ -151,64 +154,85 @@ export function ResearchListSheet({ list }: ResearchListSheetProps) {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="border border-border rounded-lg overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead className="cursor-pointer" onClick={() => toggleSort('company')}>
-                <div className="flex items-center gap-1">
-                  Company
-                  <ArrowUpDown className="h-3 w-3" />
-                </div>
-              </TableHead>
-              <TableHead className="cursor-pointer" onClick={() => toggleSort('poc')}>
-                <div className="flex items-center gap-1">
-                  POC
-                  <ArrowUpDown className="h-3 w-3" />
-                </div>
-              </TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Industry</TableHead>
-              <TableHead className="cursor-pointer" onClick={() => toggleSort('priority')}>
-                <div className="flex items-center gap-1">
-                  Priority
-                  <ArrowUpDown className="h-3 w-3" />
-                </div>
-              </TableHead>
-              <TableHead className="cursor-pointer" onClick={() => toggleSort('status')}>
-                <div className="flex items-center gap-1">
-                  Status
-                  <ArrowUpDown className="h-3 w-3" />
-                </div>
-              </TableHead>
-              <TableHead className="w-12"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {entries.map((entry) => (
-              <ResearchEntryRow
-                key={entry.id}
-                entry={entry}
-                onPromote={handlePromote}
-              />
-            ))}
-          </TableBody>
-        </Table>
+      {isMobile ? (
+        <div className="space-y-3">
+          {entries.map((entry) => (
+            <ResearchEntryCard key={entry.id} entry={entry} onPromote={handlePromote} />
+          ))}
+          {entries.length === 0 && (
+            <div className="p-8 text-center text-muted-foreground border rounded-lg bg-card">
+              {search || statusFilter !== 'all' || priorityFilter !== 'all'
+                ? 'No entries match your filters'
+                : 'No entries yet. Add your first one!'}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="border border-border rounded-lg overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="cursor-pointer" onClick={() => toggleSort('company')}>
+                  <div className="flex items-center gap-1">
+                    Company
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
+                <TableHead className="cursor-pointer" onClick={() => toggleSort('poc')}>
+                  <div className="flex items-center gap-1">
+                    POC
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Industry</TableHead>
+                <TableHead className="cursor-pointer" onClick={() => toggleSort('priority')}>
+                  <div className="flex items-center gap-1">
+                    Priority
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
+                <TableHead className="cursor-pointer" onClick={() => toggleSort('status')}>
+                  <div className="flex items-center gap-1">
+                    Status
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
+                <TableHead className="w-12"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {entries.map((entry) => (
+                <ResearchEntryRow
+                  key={entry.id}
+                  entry={entry}
+                  onPromote={handlePromote}
+                />
+              ))}
+            </TableBody>
+          </Table>
 
-        {entries.length === 0 && (
-          <div className="p-8 text-center text-muted-foreground">
-            {search || statusFilter !== 'all' || priorityFilter !== 'all'
-              ? 'No entries match your filters'
-              : 'No entries yet. Add your first one!'}
-          </div>
-        )}
-      </div>
+          {entries.length === 0 && (
+            <div className="p-8 text-center text-muted-foreground">
+              {search || statusFilter !== 'all' || priorityFilter !== 'all'
+                ? 'No entries match your filters'
+                : 'No entries yet. Add your first one!'}
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Add Row Button */}
-      <Button onClick={handleAddRow} variant="outline" className="w-full">
+      <Button onClick={handleAddRow} variant="outline" className="hidden sm:flex w-full">
         <Plus className="h-4 w-4 mr-2" />
         Add Entry
+      </Button>
+
+      <Button
+        className="sm:hidden fixed right-[calc(1.25rem+env(safe-area-inset-right))] bottom-[calc(4.5rem+env(safe-area-inset-bottom))] h-12 w-12 rounded-full p-0 shadow-lg"
+        onClick={handleAddRow}
+        aria-label="Add Entry"
+      >
+        <Plus className="h-5 w-5" />
       </Button>
 
       {/* Promote Dialog */}
