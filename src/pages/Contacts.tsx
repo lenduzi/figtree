@@ -134,12 +134,10 @@ export default function Contacts() {
         <Button
           type="button"
           size="sm"
-          variant="outline"
-          className={cn(
-            "shrink-0 rounded-full px-4",
-            stageFilter === 'all' && "bg-primary text-primary-foreground border-primary"
-          )}
+          variant={stageFilter === 'all' ? "default" : "outline"}
+          className="shrink-0 rounded-full px-4"
           onClick={() => setStageFilter('all')}
+          aria-pressed={stageFilter === 'all'}
         >
           All
         </Button>
@@ -148,12 +146,10 @@ export default function Contacts() {
             key={stage.id}
             type="button"
             size="sm"
-            variant="outline"
-            className={cn(
-              "shrink-0 rounded-full px-4 whitespace-nowrap",
-              stageFilter === stage.id && "bg-primary text-primary-foreground border-primary"
-            )}
+            variant={stageFilter === stage.id ? "default" : "outline"}
+            className="shrink-0 rounded-full px-4 whitespace-nowrap"
             onClick={() => setStageFilter(stage.id)}
+            aria-pressed={stageFilter === stage.id}
           >
             {stage.name}
           </Button>
