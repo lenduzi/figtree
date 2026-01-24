@@ -1,4 +1,4 @@
-import { BookOpen, CalendarCheck, ClipboardList, Kanban, MoreHorizontal, Settings, Users } from "lucide-react";
+import { BookOpen, CalendarCheck, ClipboardList, Kanban, MoreHorizontal, Settings, Users, LayoutGrid } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { cn } from "@/lib/utils";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -23,7 +23,7 @@ const isActiveRoute = (pathname: string, to: string) => {
 export function MobileBottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
-  const isOthersActive = ["/pipeline", "/planning", "/resources"].some((route) =>
+  const isOthersActive = ["/pipeline", "/planning", "/eisenhower", "/resources"].some((route) =>
     location.pathname.startsWith(route),
   );
 
@@ -73,6 +73,10 @@ export function MobileBottomNav() {
             <DropdownMenuItem onClick={() => navigate("/planning")}>
               <ClipboardList className="h-4 w-4 mr-2" />
               Plan
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/eisenhower")}>
+              <LayoutGrid className="h-4 w-4 mr-2" />
+              Easy Eisenhower
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/resources")}>
               <BookOpen className="h-4 w-4 mr-2" />

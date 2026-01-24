@@ -17,6 +17,16 @@ export interface Task {
   createdAt: string;
 }
 
+export interface EisenhowerItem {
+  id: string;
+  title: string;
+  importance: boolean;
+  urgency: boolean;
+  completed: boolean;
+  linkedTaskId?: string | null;
+  createdAt: string;
+}
+
 export interface Contact {
   id: string;
   fullName: string;

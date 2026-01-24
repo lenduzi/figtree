@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Contact, Task, Stage, Activity, ActivityType, DEFAULT_STAGES, ResearchList, ResearchEntry, ResearchStatus, ResearchPriority } from '@/types/crm';
+import { Contact, Task, Stage, Activity, ActivityType, DEFAULT_STAGES, ResearchList, ResearchEntry, ResearchStatus, ResearchPriority, EisenhowerItem } from '@/types/crm';
 import { addDays, format } from 'date-fns';
 
 const STORAGE_KEYS = {
@@ -9,6 +9,7 @@ const STORAGE_KEYS = {
   activities: 'simplecrm_activities',
   researchLists: 'simplecrm_research_lists',
   researchEntries: 'simplecrm_research_entries',
+  eisenhowerItems: 'simplecrm_eisenhower_items',
 };
 const HAS_USED_KEY = 'simplecrm_has_used';
 const ME_CONTACT_ID_KEY = 'simplecrm_me_contact_id';
@@ -59,6 +60,9 @@ export function useCRM() {
   );
   const [researchEntries, setResearchEntries] = useState<ResearchEntry[]>(() =>
     loadFromStorage(STORAGE_KEYS.researchEntries, [])
+  );
+  const [eisenhowerItems, setEisenhowerItems] = useState<EisenhowerItem[]>(() =>
+    loadFromStorage(STORAGE_KEYS.eisenhowerItems, [])
   );
   const [meContactId, setMeContactId] = useState<string | null>(() => {
     try {
@@ -119,6 +123,10 @@ export function useCRM() {
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.researchEntries, researchEntries);
   }, [researchEntries]);
+
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.eisenhowerItems, eisenhowerItems);
+  }, [eisenhowerItems]);
 
   useEffect(() => {
     if (contacts.length > 0) return;
@@ -280,6 +288,57 @@ export function useCRM() {
       t.id === id ? { ...t, completed: !t.completed } : t
     ));
   }, [tasks, addActivity]);
+
+  useEffect(() => {
+    if (eisenhowerItems.length === 0) return;
+    setEisenhowerItems(prev => {
+      let changed = false;
+      const updated = prev.map(item => {
+        if (!item.linkedTaskId) return item;
+        const linkedTask = tasks.find(t => t.id === item.linkedTaskId);
+        if (!linkedTask) {
+          if (item.linkedTaskId !== null) {
+            changed = true;
+            return { ...item, linkedTaskId: null };
+          }
+          return item;
+        }
+        if (item.completed !== linkedTask.completed) {
+          changed = true;
+          return { ...item, completed: linkedTask.completed };
+        }
+        return item;
+      });
+      return changed ? updated : prev;
+    });
+  }, [tasks, eisenhowerItems.length]);
+
+  // Eisenhower operations
+  const addEisenhowerItem = useCallback((item: Omit<EisenhowerItem, 'id' | 'createdAt'>) => {
+    const newItem: EisenhowerItem = {
+      ...item,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+    };
+    setEisenhowerItems(prev => [...prev, newItem]);
+    markHasUsed();
+    markFirstAction();
+    return newItem;
+  }, [markFirstAction]);
+
+  const updateEisenhowerItem = useCallback((id: string, updates: Partial<EisenhowerItem>) => {
+    setEisenhowerItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item));
+  }, []);
+
+  const deleteEisenhowerItem = useCallback((id: string) => {
+    setEisenhowerItems(prev => prev.filter(item => item.id !== id));
+  }, []);
+
+  const toggleEisenhowerItemComplete = useCallback((id: string) => {
+    setEisenhowerItems(prev => prev.map(item => 
+      item.id === id ? { ...item, completed: !item.completed } : item
+    ));
+  }, []);
 
   const rescheduleTask = useCallback((id: string, newDate: Date) => {
     const formattedDate = format(newDate, 'yyyy-MM-dd');
@@ -449,6 +508,7 @@ export function useCRM() {
     activities,
     researchLists,
     researchEntries,
+    eisenhowerItems,
     addContact,
     updateContact,
     deleteContact,
@@ -459,6 +519,10 @@ export function useCRM() {
     deleteTask,
     toggleTaskComplete,
     rescheduleTask,
+    addEisenhowerItem,
+    updateEisenhowerItem,
+    deleteEisenhowerItem,
+    toggleEisenhowerItemComplete,
     updateStage,
     reorderStages,
     addActivity,
