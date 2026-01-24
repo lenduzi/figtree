@@ -83,10 +83,10 @@ function AppContent() {
           {!isLanding && <AppSidebar />}
           <main className={`flex-1 overflow-auto ${isLanding ? '' : 'pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0'}`}>
             {!isLanding && (
-              <header className="h-14 border-b border-border flex items-center px-4 gap-3">
+              <header className="h-14 border-b border-border flex items-center px-6 md:px-4 gap-3">
                 <SidebarTrigger className="h-9 w-9 ml-2 hidden md:inline-flex" />
                 <div className="sm:hidden flex-1">
-                  <span className="text-sm font-semibold text-foreground">{mobileTitle}</span>
+                  <span className="text-base font-semibold tracking-tight text-primary">{mobileTitle}</span>
                 </div>
                 <div className="ml-auto">
                   <ThemeToggle />
