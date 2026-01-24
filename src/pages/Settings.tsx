@@ -1,8 +1,7 @@
 import { useState, useRef } from 'react';
-import { Edit2, Check, X, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
@@ -101,49 +100,16 @@ const validateBackup = (value: unknown): { ok: true; data: CRMBackup } | { ok: f
 export default function Settings() {
   const {
     stages,
-    updateStage,
-    reorderStages,
     contacts,
     tasks,
     activities,
     researchEntries,
     researchLists,
   } = useCRMContext();
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState('');
   const [dataOpen, setDataOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<CRMBackup | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const sortedStages = [...stages].sort((a, b) => a.order - b.order);
-
-  const handleStartEdit = (id: string, name: string) => {
-    setEditingId(id);
-    setEditValue(name);
-  };
-
-  const handleSaveEdit = () => {
-    if (editingId && editValue.trim()) {
-      updateStage(editingId, { name: editValue.trim() });
-    }
-    setEditingId(null);
-    setEditValue('');
-  };
-
-  const handleCancelEdit = () => {
-    setEditingId(null);
-    setEditValue('');
-  };
-
-  const moveStage = (index: number, direction: 'up' | 'down') => {
-    const newIndex = direction === 'up' ? index - 1 : index + 1;
-    if (newIndex < 0 || newIndex >= sortedStages.length) return;
-
-    const newStages = [...sortedStages];
-    [newStages[index], newStages[newIndex]] = [newStages[newIndex], newStages[index]];
-    reorderStages(newStages);
-  };
 
   const handleExport = () => {
     const backup: CRMBackup = {
@@ -224,80 +190,6 @@ export default function Settings() {
         <h1 className="sr-only sm:not-sr-only text-3xl font-bold text-foreground">Settings</h1>
         <p className="text-muted-foreground mt-1">Customize your CRM</p>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Pipeline Stages</CardTitle>
-          <CardDescription>
-            Rename and reorder your pipeline stages
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {sortedStages.map((stage, index) => (
-              <div
-                key={stage.id}
-                className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg"
-              >
-                <div className="flex flex-col gap-1">
-                  <button
-                    onClick={() => moveStage(index, 'up')}
-                    disabled={index === 0}
-                    className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                  >
-                    ▲
-                  </button>
-                  <button
-                    onClick={() => moveStage(index, 'down')}
-                    disabled={index === sortedStages.length - 1}
-                    className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                  >
-                    ▼
-                  </button>
-                </div>
-                
-                <div
-                  className="w-4 h-4 rounded-full shrink-0"
-                  style={{ backgroundColor: stage.color }}
-                />
-
-                {editingId === stage.id ? (
-                  <div className="flex-1 flex items-center gap-2">
-                    <Input
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      className="h-8"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSaveEdit();
-                        if (e.key === 'Escape') handleCancelEdit();
-                      }}
-                    />
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleSaveEdit}>
-                      <Check className="h-4 w-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleCancelEdit}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <span className="flex-1 font-medium">{stage.name}</span>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8"
-                      onClick={() => handleStartEdit(stage.id, stage.name)}
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
 
       <Card className="mt-6">
         <CardHeader>

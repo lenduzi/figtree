@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Plus, Edit2, ArrowUp, ArrowDown, Check, X } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { ContactCard } from '@/components/ContactCard';
 import { AddContactDialog } from '@/components/AddContactDialog';
@@ -9,6 +9,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import {
   DndContext,
   DragOverlay,
@@ -27,10 +28,13 @@ import { cn } from '@/lib/utils';
 
 export default function Pipeline() {
   const navigate = useNavigate();
-  const { contacts, stages, tasks, moveContactToStage } = useCRMContext();
+  const { contacts, stages, tasks, moveContactToStage, updateStage, reorderStages } = useCRMContext();
   const [activeContact, setActiveContact] = useState<Contact | null>(null);
   const [addContactOpen, setAddContactOpen] = useState(false);
   const [moveContact, setMoveContact] = useState<Contact | null>(null);
+  const [stageEditorOpen, setStageEditorOpen] = useState(false);
+  const [editingStageId, setEditingStageId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
   const isMobile = useMediaQuery("(max-width: 639px)");
 
   const sensors = useSensors(
@@ -74,6 +78,33 @@ export default function Pipeline() {
     }
   };
 
+  const handleStageEditStart = (id: string, name: string) => {
+    setEditingStageId(id);
+    setEditValue(name);
+  };
+
+  const handleStageEditSave = () => {
+    if (editingStageId && editValue.trim()) {
+      updateStage(editingStageId, { name: editValue.trim() });
+    }
+    setEditingStageId(null);
+    setEditValue('');
+  };
+
+  const handleStageEditCancel = () => {
+    setEditingStageId(null);
+    setEditValue('');
+  };
+
+  const moveStage = (index: number, direction: 'up' | 'down') => {
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= sortedStages.length) return;
+
+    const newStages = [...sortedStages];
+    [newStages[index], newStages[newIndex]] = [newStages[newIndex], newStages[index]];
+    reorderStages(newStages);
+  };
+
   return (
     <div className="p-6 lg:p-8 xl:p-10 max-w-6xl 2xl:max-w-7xl mx-auto h-full">
       <AddContactDialog open={addContactOpen} onOpenChange={setAddContactOpen} triggerless />
@@ -106,6 +137,86 @@ export default function Pipeline() {
           </div>
         </DialogContent>
       </Dialog>
+      <Dialog open={stageEditorOpen} onOpenChange={setStageEditorOpen}>
+        <DialogContent className="sm:max-w-md">
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Edit stages</h2>
+              <p className="text-sm text-muted-foreground">Rename or reorder your pipeline stages.</p>
+            </div>
+            <div className="space-y-2">
+              {sortedStages.map((stage, index) => (
+                <div
+                  key={stage.id}
+                  className="flex items-center gap-3 rounded-lg border bg-background/50 p-3"
+                >
+                  <div className="flex flex-col gap-1">
+                    <button
+                      onClick={() => moveStage(index, 'up')}
+                      disabled={index === 0}
+                      className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                      aria-label="Move stage up"
+                    >
+                      <ArrowUp className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => moveStage(index, 'down')}
+                      disabled={index === sortedStages.length - 1}
+                      className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                      aria-label="Move stage down"
+                    >
+                      <ArrowDown className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  <div
+                    className="h-3 w-3 rounded-full shrink-0"
+                    style={{ backgroundColor: stage.color }}
+                  />
+
+                  {editingStageId === stage.id ? (
+                    <div className="flex-1 flex items-center gap-2">
+                      <Input
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        className="h-8"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleStageEditSave();
+                          if (e.key === 'Escape') handleStageEditCancel();
+                        }}
+                      />
+                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleStageEditSave}>
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleStageEditCancel}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="flex-1 font-medium">{stage.name}</span>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        onClick={() => handleStageEditStart(stage.id, stage.name)}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={() => setStageEditorOpen(false)}>
+                Done
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex items-center justify-between mb-6 lg:mb-8">
         <div>
@@ -113,13 +224,26 @@ export default function Pipeline() {
           <p className="text-muted-foreground lg:text-lg mt-1 hidden sm:block">
             Drag contacts between stages or click to view details
           </p>
-          <p className="text-muted-foreground mt-1 sm:hidden">
-            Tap a contact to view details
-          </p>
+          <div className="sm:hidden flex items-center gap-2 mt-1">
+            <p className="text-muted-foreground">Tap a contact to view details</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-primary"
+              onClick={() => setStageEditorOpen(true)}
+            >
+              Edit stages
+            </Button>
+          </div>
         </div>
-        <Button className="hidden sm:inline-flex" onClick={() => setAddContactOpen(true)}>
-          Add Contact
-        </Button>
+        <div className="hidden sm:flex items-center gap-2">
+          <Button variant="outline" onClick={() => setStageEditorOpen(true)}>
+            Edit stages
+          </Button>
+          <Button onClick={() => setAddContactOpen(true)}>
+            Add Contact
+          </Button>
+        </div>
       </div>
 
       {isMobile ? (
