@@ -59,7 +59,7 @@ function AppContent() {
     if (path.startsWith("/contacts")) return "Contacts";
     if (path.startsWith("/pipeline")) return "Pipeline";
     if (path.startsWith("/planning")) return "Plan";
-    if (path.startsWith("/eisenhower")) return "Eisenhower";
+    if (path.startsWith("/eisenhower")) return "Easy Eisenhower";
     if (path.startsWith("/resources")) return "Resources";
     if (path.startsWith("/settings")) return "Settings";
     return "Figtree";

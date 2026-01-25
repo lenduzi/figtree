@@ -129,6 +129,13 @@ export function useCRM() {
   }, [eisenhowerItems]);
 
   useEffect(() => {
+    setEisenhowerItems(prev => {
+      const filtered = prev.filter(item => item.importance || item.urgency);
+      return filtered.length === prev.length ? prev : filtered;
+    });
+  }, []);
+
+  useEffect(() => {
     if (contacts.length > 0) return;
     let hasCreated = false;
     try {

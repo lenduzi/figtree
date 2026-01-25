@@ -6,7 +6,6 @@ import {
   Flame,
   Target,
   Zap,
-  CircleSlash,
   MoreHorizontal,
   Plus,
 } from 'lucide-react';
@@ -44,42 +43,35 @@ const QUADRANTS = [
   {
     id: 'important_urgent',
     title: 'Important & Urgent',
-    description: 'Do now',
+    description: 'Moneymakers – Do now!',
     importance: true,
     urgency: true,
     icon: Flame,
-    className: 'border-rose-200/70 bg-rose-50/60',
-    accent: 'text-rose-700',
-  },
-  {
-    id: 'important_not_urgent',
-    title: 'Important, not Urgent',
-    description: 'Schedule',
-    importance: true,
-    urgency: false,
-    icon: Target,
-    className: 'border-emerald-200/70 bg-emerald-50/60',
-    accent: 'text-emerald-700',
+    className: 'border-rose-200/70 bg-rose-50/60 dark:border-rose-500/40 dark:bg-rose-950/40',
+    accent: 'text-rose-700 dark:text-rose-300',
+    spanClassName: 'md:col-span-1',
   },
   {
     id: 'not_important_urgent',
     title: 'Not Important, Urgent',
-    description: 'Delegate',
+    description: 'Annoying tasks you should do now',
     importance: false,
     urgency: true,
     icon: Zap,
-    className: 'border-sky-200/70 bg-sky-50/60',
-    accent: 'text-sky-700',
+    className: 'border-sky-200/70 bg-sky-50/60 dark:border-sky-400/40 dark:bg-sky-950/35',
+    accent: 'text-sky-700 dark:text-sky-300',
+    spanClassName: 'md:col-span-1',
   },
   {
-    id: 'not_important_not_urgent',
-    title: 'Not Important, not Urgent',
-    description: 'Eliminate',
-    importance: false,
+    id: 'important_not_urgent',
+    title: 'Important, not Urgent',
+    description: 'Long-term strategic items',
+    importance: true,
     urgency: false,
-    icon: CircleSlash,
-    className: 'border-slate-200/70 bg-slate-50/70',
-    accent: 'text-slate-600',
+    icon: Target,
+    className: 'border-emerald-200/70 bg-emerald-50/60 dark:border-emerald-400/40 dark:bg-emerald-950/35',
+    accent: 'text-emerald-700 dark:text-emerald-300',
+    spanClassName: 'md:col-span-2',
   },
 ] as const;
 
@@ -89,9 +81,8 @@ const quadrantById = new Map(QUADRANTS.map((quadrant) => [quadrant.id, quadrant]
 
 const resolveQuadrant = (item: EisenhowerItem): QuadrantId => {
   if (item.importance && item.urgency) return 'important_urgent';
-  if (item.importance && !item.urgency) return 'important_not_urgent';
   if (!item.importance && item.urgency) return 'not_important_urgent';
-  return 'not_important_not_urgent';
+  return 'important_not_urgent';
 };
 
 export default function Eisenhower() {
@@ -111,7 +102,6 @@ export default function Eisenhower() {
     important_urgent: '',
     important_not_urgent: '',
     not_important_urgent: '',
-    not_important_not_urgent: '',
   }));
 
   const [importOpen, setImportOpen] = useState(false);
@@ -135,7 +125,6 @@ export default function Eisenhower() {
       important_urgent: [],
       important_not_urgent: [],
       not_important_urgent: [],
-      not_important_not_urgent: [],
     };
 
     eisenhowerItems.forEach((item) => {
@@ -247,10 +236,12 @@ export default function Eisenhower() {
 
   return (
     <div className="p-6 lg:p-8 xl:p-10 max-w-6xl 2xl:max-w-7xl mx-auto space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl lg:text-4xl font-bold text-foreground">Easy Eisenhower</h1>
-          <p className="text-muted-foreground lg:text-lg mt-1">
+          <h1 className="hidden sm:block text-3xl lg:text-4xl font-bold text-foreground">
+            Easy Eisenhower
+          </h1>
+          <p className="text-muted-foreground lg:text-lg sm:mt-1">
             Personal priority board for focus and clarity.
           </p>
         </div>
@@ -278,7 +269,8 @@ export default function Eisenhower() {
               key={quadrant.id}
               className={cn(
                 'rounded-2xl border p-4 lg:p-5 flex flex-col gap-4 min-h-[320px]',
-                quadrant.className
+                quadrant.className,
+                quadrant.spanClassName
               )}
             >
               <div className="flex items-start justify-between gap-2">
