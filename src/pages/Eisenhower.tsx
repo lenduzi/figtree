@@ -4,6 +4,7 @@ import { format, isPast, isToday, parseISO } from 'date-fns';
 import {
   ArrowUpRight,
   Flame,
+  Trash2,
   Target,
   Zap,
   MoreHorizontal,
@@ -229,6 +230,17 @@ export default function Eisenhower() {
   };
 
   const totalItems = eisenhowerItems.length;
+  const completedItemIds = useMemo(() => {
+    return eisenhowerItems
+      .filter((item) => {
+        if (item.linkedTaskId) {
+          return tasksById.get(item.linkedTaskId)?.completed ?? false;
+        }
+        return item.completed;
+      })
+      .map((item) => item.id);
+  }, [eisenhowerItems, tasksById]);
+  const completedCount = completedItemIds.length;
   const importCount = selectedTaskIds.size;
   const importLabel = importCount
     ? `Import ${importCount} ${importCount === 1 ? 'task' : 'tasks'}`
@@ -246,19 +258,21 @@ export default function Eisenhower() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              completedItemIds.forEach((id) => deleteEisenhowerItem(id));
+            }}
+            disabled={completedCount === 0}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete completed
+          </Button>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             Import Tasks
           </Button>
         </div>
       </div>
-
-      {totalItems === 0 && (
-        <div className="rounded-xl border border-dashed border-muted-foreground/30 bg-muted/20 p-6 text-center">
-          <p className="text-sm lg:text-base text-muted-foreground">
-            Start by adding a task to any quadrant or import CRM tasks.
-          </p>
-        </div>
-      )}
 
       <div className="grid gap-4 lg:gap-6 md:grid-cols-2">
         {QUADRANTS.map((quadrant) => {
