@@ -17,13 +17,16 @@ import {
 import { useCRMContext } from '@/contexts/CRMContext';
 import { Badge } from '@/components/ui/badge';
 
-const navItems = [
+const crmItems = [
   { title: 'Follow-Up Today', url: '/app', icon: CalendarCheck },
   { title: 'Contacts', url: '/contacts', icon: Users },
   { title: 'Pipeline', url: '/pipeline', icon: Kanban },
   { title: 'Planning', url: '/planning', icon: ClipboardList },
-  { title: 'Easy Eisenhower', url: '/eisenhower', icon: LayoutGrid },
   { title: 'Resources', url: '/resources', icon: BookOpen },
+];
+
+const productivityItems = [
+  { title: 'Easy Eisenhower', url: '/eisenhower', icon: LayoutGrid },
 ];
 
 export function AppSidebar() {
@@ -59,7 +62,12 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
+              {!isCollapsed && (
+                <p className="hidden md:block px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground/80">
+                  CRM
+                </p>
+              )}
+              {crmItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild tooltip={isCollapsed ? item.title : undefined}>
                     <NavLink
@@ -81,6 +89,37 @@ export function AppSidebar() {
                         </Badge>
                       )}
                         </>
+                      )}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup className={isCollapsed ? 'mt-auto pt-2' : 'mt-auto pt-4'}>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {!isCollapsed && (
+                <p className="hidden md:block px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground/80">
+                  Productivity
+                </p>
+              )}
+              {productivityItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild tooltip={isCollapsed ? item.title : undefined}>
+                    <NavLink
+                      to={item.url}
+                      end={item.url === '/'}
+                      className={`flex items-center rounded-md transition-colors hover:bg-accent ${
+                        isCollapsed ? 'justify-center p-2' : 'gap-3 px-3 py-2 lg:py-3'
+                      }`}
+                      activeClassName="bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
+                      onClick={() => handleNavClick(item.url)}
+                    >
+                      <item.icon className="h-5 w-5 lg:h-6 lg:w-6 flex-shrink-0" />
+                      {!isCollapsed && (
+                        <span className="flex-1 lg:text-base">{item.title}</span>
                       )}
                     </NavLink>
                   </SidebarMenuButton>
