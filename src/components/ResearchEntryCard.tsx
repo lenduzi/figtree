@@ -100,6 +100,8 @@ export function ResearchEntryCard({
       className={cn(
         "rounded-xl border bg-card shadow-sm",
         highlightPriority && priorityCardClasses[entry.priority],
+        highlightPriority && "priority-card",
+        highlightPriority && `priority-${entry.priority}`,
       )}
     >
       <button

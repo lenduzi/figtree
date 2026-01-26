@@ -121,7 +121,13 @@ export function ResearchEntryRow({
   };
 
   return (
-    <TableRow className={cn(highlightPriority && priorityRowClasses[entry.priority])}>
+    <TableRow
+      className={cn(
+        highlightPriority && priorityRowClasses[entry.priority],
+        highlightPriority && "priority-row",
+        highlightPriority && `priority-${entry.priority}`,
+      )}
+    >
       <TableCell className="font-semibold text-foreground">
         {renderEditableCell('company', entry.company)}
       </TableCell>

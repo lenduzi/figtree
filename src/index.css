@@ -431,6 +431,34 @@ Gmail-inspired color palette with clean, neutral grays and blue accents.
     color: hsl(0 0% 100%);
   }
 
+  .app-theme-solarized .priority-row.priority-medium,
+  .app-theme-solarized .priority-card.priority-medium {
+    background-color: hsl(var(--chart-4) / 0.12);
+  }
+
+  .app-theme-solarized .priority-card.priority-medium {
+    border-color: hsl(var(--chart-4) / 0.28);
+  }
+
+  .app-theme-solarized .priority-row.priority-medium:hover,
+  .app-theme-solarized .priority-card.priority-medium:hover {
+    background-color: hsl(var(--chart-4) / 0.18);
+  }
+
+  .dark .app-theme-solarized .priority-row.priority-medium,
+  .dark .app-theme-solarized .priority-card.priority-medium {
+    background-color: hsl(38 70% 38% / 0.22);
+  }
+
+  .dark .app-theme-solarized .priority-card.priority-medium {
+    border-color: hsl(38 70% 48% / 0.4);
+  }
+
+  .dark .app-theme-solarized .priority-row.priority-medium:hover,
+  .dark .app-theme-solarized .priority-card.priority-medium:hover {
+    background-color: hsl(38 70% 38% / 0.3);
+  }
+
   body {
     @apply bg-background text-foreground;
   }
