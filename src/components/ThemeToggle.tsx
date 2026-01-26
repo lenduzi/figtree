@@ -1,11 +1,16 @@
 import { Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
+import { useAppTheme } from '@/contexts/AppThemeContext';
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
+  const { appTheme, setAppTheme } = useAppTheme();
 
   const toggleTheme = () => {
+    if (appTheme === 'apple') {
+      setAppTheme('default');
+    }
     setTheme(theme === 'dark' ? 'light' : 'dark');
   };
 

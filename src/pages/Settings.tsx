@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import figtreeLogo from '@/assets/figtree-logo.png';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,6 +19,7 @@ import {
 import { toast } from 'sonner';
 import { Activity, Contact, DEFAULT_STAGES, ResearchEntry, ResearchList, Stage, Task } from '@/types/crm';
 import { useNavigate } from 'react-router-dom';
+import { AppTheme, useAppTheme } from '@/contexts/AppThemeContext';
 
 const STORAGE_KEYS = {
   contacts: 'simplecrm_contacts',
@@ -101,6 +103,7 @@ const validateBackup = (value: unknown): { ok: true; data: CRMBackup } | { ok: f
 
 export default function Settings() {
   const navigate = useNavigate();
+  const { appTheme, setAppTheme } = useAppTheme();
   const {
     stages,
     contacts,
@@ -211,6 +214,30 @@ export default function Settings() {
               Sign up
             </Button>
             <span className="text-xs text-muted-foreground self-center">Coming soon</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Appearance</CardTitle>
+          <CardDescription>Choose how the app looks on this device.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-2">
+            <p className="text-sm font-medium text-foreground">Theme</p>
+            <Select value={appTheme} onValueChange={(value) => setAppTheme(value as AppTheme)}>
+              <SelectTrigger className="w-full sm:max-w-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Default (Light/Dark)</SelectItem>
+                <SelectItem value="apple">Apple Glass (Dark + Amber)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              The Apple Glass theme is app-only. Use the top-right toggle to switch light/dark in Default mode.
+            </p>
           </div>
         </CardContent>
       </Card>

@@ -9,6 +9,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { CRMProvider, useCRMContext } from "@/contexts/CRMContext";
+import { AppThemeProvider, useAppTheme } from "@/contexts/AppThemeContext";
 import { CommandPalette } from "@/components/CommandPalette";
 import { AddContactDialog } from "@/components/AddContactDialog";
 import { AddTaskWithContactDialog } from "@/components/AddTaskWithContactDialog";
@@ -33,6 +34,7 @@ function AppContent() {
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const { appTheme } = useAppTheme();
   const {
     showFirstTaskBanner,
     dismissFirstTaskBanner,
@@ -64,6 +66,18 @@ function AppContent() {
     if (path.startsWith("/settings")) return "Settings";
     return "Figtree";
   })();
+
+  useEffect(() => {
+    const body = document.body;
+    const shouldApplyApple = appTheme === "apple" && !isLanding;
+    if (shouldApplyApple) {
+      body.classList.add("app-theme-apple");
+      body.classList.add("dark");
+    } else {
+      body.classList.remove("app-theme-apple");
+      body.classList.remove("dark");
+    }
+  }, [appTheme, isLanding]);
 
   useEffect(() => {
     if (isLanding || firstActionSeen || firstActionNudgeDismissed) {
@@ -191,15 +205,17 @@ function AppContent() {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <CRMProvider>
-            <AppContent />
-          </CRMProvider>
-        </BrowserRouter>
-      </TooltipProvider>
+      <AppThemeProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <CRMProvider>
+              <AppContent />
+            </CRMProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AppThemeProvider>
     </ThemeProvider>
   </QueryClientProvider>
 );
