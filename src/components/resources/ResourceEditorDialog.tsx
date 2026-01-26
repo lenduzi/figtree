@@ -37,6 +37,7 @@ const typeLabels: Record<ResourceType, string> = {
   email: "Email",
   dm: "LinkedIn DM",
   link: "Link",
+  snippet: "Snippet",
 };
 
 export function ResourceEditorDialog({
@@ -59,7 +60,7 @@ export function ResourceEditorDialog({
     if (!open) return;
     setTitle(resource?.title ?? "");
     setSubject(resource?.type === "email" ? resource.subject : "");
-    setBody(resource?.type === "email" || resource?.type === "dm" ? resource.body : "");
+    setBody(resource?.type === "email" || resource?.type === "dm" || resource?.type === "snippet" ? resource.body : "");
     setUrl(resource?.type === "link" ? resource.url : "");
     setNotes(resource?.type === "link" ? resource.notes ?? "" : "");
     setTagsInput(resource?.tags?.join(", ") ?? "");
@@ -69,6 +70,7 @@ export function ResourceEditorDialog({
     if (!title.trim()) return false;
     if (resolvedType === "email") return !!subject.trim() && !!body.trim();
     if (resolvedType === "dm") return !!body.trim();
+    if (resolvedType === "snippet") return !!body.trim();
     if (resolvedType === "link") return !!url.trim();
     return false;
   }, [title, subject, body, url, resolvedType]);
@@ -187,7 +189,13 @@ export function ResourceEditorDialog({
               )}
               {resolvedType !== "link" && (
                 <Textarea
-                  placeholder={resolvedType === "dm" ? "Message" : "Email body"}
+                  placeholder={
+                    resolvedType === "dm"
+                      ? "Message"
+                      : resolvedType === "snippet"
+                        ? "Snippet text"
+                        : "Email body"
+                  }
                   value={body}
                   onChange={(event) => setBody(event.target.value)}
                   className="min-h-[160px]"

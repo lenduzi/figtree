@@ -53,6 +53,7 @@ const typeLabels: Record<ResourceType, string> = {
   email: "Email",
   dm: "DM",
   link: "Link",
+  snippet: "Snippet",
 };
 
 const PLACEHOLDER_REGEX = /{{\s*([a-zA-Z0-9_]+)\s*}}/g;
@@ -256,6 +257,7 @@ export default function Resources() {
             <SelectItem value="email">Email</SelectItem>
             <SelectItem value="dm">DM</SelectItem>
             <SelectItem value="link">Link</SelectItem>
+            <SelectItem value="snippet">Snippet</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -335,6 +337,17 @@ export default function Resources() {
                           Copy Message
                         </Button>
                       )}
+                      {resource.type === "snippet" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="whitespace-nowrap"
+                          onClick={() => runCopyAction(resource.body)}
+                        >
+                          <Copy className="h-4 w-4 mr-2" />
+                          Copy Snippet
+                        </Button>
+                      )}
                       {resource.type === "link" && (
                         <Button
                           size="sm"
@@ -386,6 +399,14 @@ export default function Resources() {
                                   Copy Notes
                                 </DropdownMenuItem>
                               )}
+                              <DropdownMenuSeparator />
+                            </>
+                          )}
+                          {resource.type === "snippet" && (
+                            <>
+                              <DropdownMenuItem onClick={() => runCopyAction(resource.body)}>
+                                Copy Snippet
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                             </>
                           )}
@@ -444,6 +465,15 @@ export default function Resources() {
               }}
             >
               Link
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setNewDialogOpen(false);
+                openEditorForNew("snippet");
+              }}
+            >
+              Snippet
             </Button>
           </div>
         </DialogContent>

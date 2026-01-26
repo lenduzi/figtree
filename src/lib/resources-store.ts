@@ -1,4 +1,4 @@
-export type ResourceType = "email" | "dm" | "link";
+export type ResourceType = "email" | "dm" | "link" | "snippet";
 
 type BaseResource = {
   id: string;
@@ -21,13 +21,18 @@ export type DmResource = BaseResource & {
   body: string;
 };
 
+export type SnippetResource = BaseResource & {
+  type: "snippet";
+  body: string;
+};
+
 export type LinkResource = BaseResource & {
   type: "link";
   url: string;
   notes?: string;
 };
 
-export type Resource = EmailResource | DmResource | LinkResource;
+export type Resource = EmailResource | DmResource | SnippetResource | LinkResource;
 
 const STORAGE_KEY = "simplecrm_resources_v1";
 
