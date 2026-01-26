@@ -223,13 +223,13 @@ export default function LandingHome() {
                     src="/favicon.png"
                     alt=""
                     aria-hidden="true"
-                    className="pointer-events-none absolute -left-10 -top-12 w-24 opacity-35 blur-[1px]"
+                    className="pointer-events-none absolute left-2 -top-12 w-24 opacity-35 blur-[1px] sm:-left-10"
                   />
                   <img
                     src="/landing-logo.png"
                     alt=""
                     aria-hidden="true"
-                    className="pointer-events-none absolute -right-16 -bottom-14 w-48 opacity-25"
+                    className="pointer-events-none absolute right-2 -bottom-14 w-48 opacity-25 sm:-right-16"
                   />
                   <Card className="relative z-10 w-full overflow-hidden border-border/60 bg-card/95 shadow-[0_16px_40px_rgba(15,23,42,0.12)]">
                     <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/40">
@@ -549,8 +549,8 @@ export default function LandingHome() {
               <span className="absolute left-[40%] top-[58%] h-1 w-1 rounded-full bg-white/40" />
               <span className="absolute left-[70%] top-[62%] h-0.5 w-0.5 rounded-full bg-white/40" />
             </div>
-            <div className="absolute -left-32 top-20 h-1 w-44 rotate-[12deg] bg-gradient-to-r from-white/0 via-white/70 to-white/0 opacity-70 animate-[shoot_14s_linear_infinite]" />
-            <div className="absolute -left-44 top-36 h-0.5 w-32 rotate-[12deg] bg-gradient-to-r from-white/0 via-white/60 to-white/0 opacity-50 animate-[shoot_16s_linear_infinite] [animation-delay:6s]" />
+            <div className="absolute left-2 top-20 h-1 w-44 rotate-[12deg] bg-gradient-to-r from-white/0 via-white/70 to-white/0 opacity-70 animate-[shoot_14s_linear_infinite] sm:-left-32" />
+            <div className="absolute left-2 top-36 h-0.5 w-32 rotate-[12deg] bg-gradient-to-r from-white/0 via-white/60 to-white/0 opacity-50 animate-[shoot_16s_linear_infinite] [animation-delay:6s] sm:-left-44" />
             <div className="relative px-6 lg:px-8 xl:px-10 py-20 lg:py-24 max-w-5xl 2xl:max-w-6xl mx-auto text-white">
               <p className="text-[clamp(2.5rem,8vw,6rem)] font-semibold tracking-[0.08em] text-white/10">
                 FIGTREE
@@ -573,7 +573,7 @@ export default function LandingHome() {
           <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
             <DialogContent className="sm:max-w-xl border-0 bg-transparent p-0 shadow-none">
               <div className="relative overflow-hidden rounded-[32px] border border-border/60 bg-[linear-gradient(180deg,_hsl(0_0%_99%)_0%,_hsl(220_20%_98%)_100%)] p-8 shadow-[0_18px_45px_rgba(15,23,42,0.18)]">
-                <div className="pointer-events-none absolute -left-6 top-0 h-full w-12 border-r border-border/40 bg-[radial-gradient(circle,_hsl(220_20%_94%)_40%,_transparent_41%)] bg-[length:12px_12px] bg-[position:0_8px]" />
+                <div className="pointer-events-none absolute left-0 top-0 h-full w-12 border-r border-border/40 bg-[radial-gradient(circle,_hsl(220_20%_94%)_40%,_transparent_41%)] bg-[length:12px_12px] bg-[position:0_8px] sm:-left-6" />
                 <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(180deg,transparent_0px,transparent_26px,hsl(var(--border)/0.25)_27px)] opacity-70" />
                 <div className="pointer-events-none absolute -top-2 right-6 flex h-14 w-14 items-center justify-center rounded-full border-2 border-dashed border-primary/40 text-[11px] font-semibold text-primary/80 rotate-12 bg-background/80">
                   LOVE
