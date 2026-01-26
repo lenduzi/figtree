@@ -22,12 +22,20 @@ import { ResearchListSheet } from '@/components/ResearchListSheet';
 import { ResearchList } from '@/types/crm';
 
 export default function Planning() {
-  const { researchLists, addResearchList, updateResearchList, deleteResearchList, getEntriesForList } = useCRMContext();
+  const {
+    researchLists,
+    addResearchList,
+    updateResearchList,
+    deleteResearchList,
+    getEntriesForList,
+    addResearchEntry,
+  } = useCRMContext();
   const [selectedList, setSelectedList] = useState<ResearchList | null>(null);
   const [newListDialogOpen, setNewListDialogOpen] = useState(false);
   const [newListName, setNewListName] = useState('');
   const [editingList, setEditingList] = useState<ResearchList | null>(null);
   const [editName, setEditName] = useState('');
+  const [autoFocusEntryId, setAutoFocusEntryId] = useState<string | null>(null);
 
   const handleCreateList = () => {
     if (!newListName.trim()) return;
@@ -54,10 +62,17 @@ export default function Planning() {
     }
   };
 
+  const handleAddEntry = () => {
+    if (!selectedList) return;
+    const newEntry = addResearchEntry(selectedList.id, {});
+    setAutoFocusEntryId(newEntry.id);
+  };
+
   // If a list is selected, show the sheet view
   if (selectedList) {
     return (
       <div className="p-6 lg:p-8 xl:p-10 max-w-6xl 2xl:max-w-7xl mx-auto space-y-4">
+      <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -72,7 +87,17 @@ export default function Planning() {
             <p className="text-muted-foreground lg:text-lg mt-1">Research List</p>
           </div>
         </div>
-        <ResearchListSheet list={selectedList} />
+        <Button className="hidden sm:inline-flex" onClick={handleAddEntry}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Entry
+        </Button>
+      </div>
+        <ResearchListSheet
+          list={selectedList}
+          onAddEntry={handleAddEntry}
+          autoFocusEntryId={autoFocusEntryId}
+          onAutoFocusHandled={() => setAutoFocusEntryId(null)}
+        />
       </div>
     );
   }

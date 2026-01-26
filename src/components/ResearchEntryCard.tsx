@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ResearchEntry, ResearchPriority, ResearchStatus } from '@/types/crm';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,9 +26,11 @@ import { cn } from '@/lib/utils';
 interface ResearchEntryCardProps {
   entry: ResearchEntry;
   onPromote: (entryId: string) => void;
+  autoOpenEdit?: boolean;
+  onAutoFocusHandled?: () => void;
 }
 
-export function ResearchEntryCard({ entry, onPromote }: ResearchEntryCardProps) {
+export function ResearchEntryCard({ entry, onPromote, autoOpenEdit, onAutoFocusHandled }: ResearchEntryCardProps) {
   const { updateResearchEntry, deleteResearchEntry, getContactById } = useCRMContext();
   const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -51,6 +53,18 @@ export function ResearchEntryCard({ entry, onPromote }: ResearchEntryCardProps) 
     });
     setEditOpen(true);
   };
+
+  useEffect(() => {
+    if (!autoOpenEdit) return;
+    setEditForm({
+      company: entry.company || '',
+      poc: entry.poc || '',
+      email: entry.email || '',
+      industry: entry.industry || '',
+    });
+    setEditOpen(true);
+    onAutoFocusHandled?.();
+  }, [autoOpenEdit, entry.company, entry.poc, entry.email, entry.industry, onAutoFocusHandled]);
 
   const handleSave = () => {
     updateResearchEntry(entry.id, {
@@ -177,6 +191,7 @@ export function ResearchEntryCard({ entry, onPromote }: ResearchEntryCardProps) 
                 value={editForm.company}
                 onChange={(e) => setEditForm({ ...editForm, company: e.target.value })}
                 placeholder="Company name"
+                autoFocus
               />
             </div>
             <div className="space-y-1">

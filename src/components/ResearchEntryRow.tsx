@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ResearchEntry, ResearchPriority, ResearchStatus } from '@/types/crm';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
@@ -24,9 +24,11 @@ import { useNavigate } from 'react-router-dom';
 interface ResearchEntryRowProps {
   entry: ResearchEntry;
   onPromote: (entryId: string) => void;
+  autoFocusCompany?: boolean;
+  onAutoFocusHandled?: () => void;
 }
 
-export function ResearchEntryRow({ entry, onPromote }: ResearchEntryRowProps) {
+export function ResearchEntryRow({ entry, onPromote, autoFocusCompany, onAutoFocusHandled }: ResearchEntryRowProps) {
   const { updateResearchEntry, deleteResearchEntry, getContactById } = useCRMContext();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState<string | null>(null);
@@ -43,6 +45,13 @@ export function ResearchEntryRow({ entry, onPromote }: ResearchEntryRowProps) {
     updateResearchEntry(entry.id, { [field]: editValue });
     setIsEditing(null);
   };
+
+  useEffect(() => {
+    if (!autoFocusCompany) return;
+    setIsEditing('company');
+    setEditValue(entry.company || '');
+    onAutoFocusHandled?.();
+  }, [autoFocusCompany, entry.company, onAutoFocusHandled]);
 
   const fieldOrder: (keyof ResearchEntry)[] = ['company', 'poc', 'email', 'industry'];
 

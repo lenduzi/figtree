@@ -25,12 +25,15 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 interface ResearchListSheetProps {
   list: ResearchList;
+  onAddEntry?: () => void;
+  autoFocusEntryId?: string | null;
+  onAutoFocusHandled?: () => void;
 }
 
 type SortField = 'company' | 'poc' | 'priority' | 'status' | 'updatedAt';
 type SortDirection = 'asc' | 'desc';
 
-export function ResearchListSheet({ list }: ResearchListSheetProps) {
+export function ResearchListSheet({ list, onAddEntry, autoFocusEntryId, onAutoFocusHandled }: ResearchListSheetProps) {
   const { getEntriesForList, addResearchEntry, researchEntries } = useCRMContext();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<ResearchStatus | 'all'>('all');
@@ -96,6 +99,10 @@ export function ResearchListSheet({ list }: ResearchListSheetProps) {
   }, [list.id, getEntriesForList, search, statusFilter, priorityFilter, sortField, sortDirection, researchEntries]);
 
   const handleAddRow = () => {
+    if (onAddEntry) {
+      onAddEntry();
+      return;
+    }
     addResearchEntry(list.id, {});
   };
 
@@ -157,7 +164,13 @@ export function ResearchListSheet({ list }: ResearchListSheetProps) {
       {isMobile ? (
         <div className="space-y-3">
           {entries.map((entry) => (
-            <ResearchEntryCard key={entry.id} entry={entry} onPromote={handlePromote} />
+            <ResearchEntryCard
+              key={entry.id}
+              entry={entry}
+              onPromote={handlePromote}
+              autoOpenEdit={entry.id === autoFocusEntryId}
+              onAutoFocusHandled={onAutoFocusHandled}
+            />
           ))}
           {entries.length === 0 && (
             <div className="p-8 text-center text-muted-foreground border rounded-lg bg-card">
@@ -207,6 +220,8 @@ export function ResearchListSheet({ list }: ResearchListSheetProps) {
                   key={entry.id}
                   entry={entry}
                   onPromote={handlePromote}
+                  autoFocusCompany={entry.id === autoFocusEntryId}
+                  onAutoFocusHandled={onAutoFocusHandled}
                 />
               ))}
             </TableBody>
@@ -221,11 +236,6 @@ export function ResearchListSheet({ list }: ResearchListSheetProps) {
           )}
         </div>
       )}
-
-      <Button onClick={handleAddRow} variant="outline" className="hidden sm:flex w-full">
-        <Plus className="h-4 w-4 mr-2" />
-        Add Entry
-      </Button>
 
       <Button
         className="sm:hidden fixed right-[calc(1.25rem+env(safe-area-inset-right))] bottom-[calc(4.5rem+env(safe-area-inset-bottom))] h-12 w-12 rounded-full p-0 shadow-lg"
