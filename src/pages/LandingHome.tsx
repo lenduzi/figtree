@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useTheme } from "next-themes";
 import { LandingMorph } from "@/components/LandingMorph";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,8 @@ const markHasUsed = () => {
 export default function LandingHome() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { theme, setTheme } = useTheme();
+  const previousThemeRef = useRef<string | null>(null);
   const isMarketing = useMemo(() => {
     const hasParam = new URLSearchParams(location.search).get("marketing") === "1";
     return location.pathname === "/marketing" || (location.pathname === "/" && hasParam);
@@ -57,6 +60,22 @@ export default function LandingHome() {
       // ignore storage errors
     }
   }, [isMarketing, navigate, shouldRedirectToMarketing]);
+
+  useEffect(() => {
+    if (!isMarketing) {
+      if (previousThemeRef.current) {
+        setTheme(previousThemeRef.current);
+        previousThemeRef.current = null;
+      }
+      return;
+    }
+    if (previousThemeRef.current === null) {
+      previousThemeRef.current = theme ?? "light";
+    }
+    if (theme !== "light") {
+      setTheme("light");
+    }
+  }, [isMarketing, setTheme, theme]);
 
   const handleComplete = () => {
     markHasUsed();

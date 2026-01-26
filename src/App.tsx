@@ -103,7 +103,7 @@ function AppContent() {
     } else {
       body.classList.remove("app-theme-solarized");
     }
-  }, [appTheme, isLanding]);
+  }, [appTheme, isLanding, theme]);
 
   useEffect(() => {
     if (isLanding) return;
