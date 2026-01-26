@@ -49,7 +49,7 @@ export function FirstTaskBanner({
   }, []);
 
   return (
-    <div className="fixed inset-x-0 z-50 pointer-events-none flex justify-center px-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom)+12px)] md:bottom-6 md:pl-[var(--sidebar-width)] md:pr-6">
+    <div className="fixed inset-x-0 z-50 pointer-events-none flex justify-center px-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom)+12px)] md:bottom-6 md:px-6">
       <div
         className={`pointer-events-auto relative w-full max-w-3xl overflow-hidden rounded-3xl border border-primary/30 bg-[linear-gradient(135deg,_hsl(var(--background))_0%,_hsl(var(--accent)/0.6)_60%,_hsl(var(--background))_100%)] px-5 py-4 shadow-[0_18px_50px_rgba(15,23,42,0.18)] backdrop-blur transition-all duration-300 md:px-7 md:py-5 ${
           isClosing ? "translate-y-3 opacity-0" : "translate-y-0 opacity-100"
