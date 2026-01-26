@@ -252,6 +252,100 @@ Gmail-inspired color palette with clean, neutral grays and blue accents.
 
     --radius: 1rem;
   }
+
+  .app-theme-solarized {
+    --background: 44 87% 94%;
+    --foreground: 194 14% 40%;
+
+    --card: 46 42% 88%;
+    --card-foreground: 194 14% 40%;
+
+    --popover: 46 42% 88%;
+    --popover-foreground: 194 14% 40%;
+
+    --primary: 205 69% 49%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 46 42% 88%;
+    --secondary-foreground: 194 14% 40%;
+
+    --muted: 46 42% 88%;
+    --muted-foreground: 196 13% 46%;
+
+    --accent: 205 45% 90%;
+    --accent-foreground: 205 69% 42%;
+
+    --destructive: 1 71% 52%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 180 7% 60%;
+    --input: 180 7% 60%;
+    --ring: 205 69% 49%;
+
+    --sidebar-background: 46 42% 88%;
+    --sidebar-foreground: 194 14% 40%;
+    --sidebar-primary: 205 69% 49%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 205 45% 90%;
+    --sidebar-accent-foreground: 205 69% 42%;
+    --sidebar-border: 180 7% 60%;
+    --sidebar-ring: 205 69% 49%;
+
+    --chart-1: 205 69% 49%;
+    --chart-2: 68 100% 30%;
+    --chart-3: 176 59% 40%;
+    --chart-4: 45 100% 36%;
+    --chart-5: 331 64% 52%;
+
+    --sidebar: 46 42% 88%;
+  }
+
+  .dark .app-theme-solarized {
+    --background: 192 100% 11%;
+    --foreground: 180 7% 60%;
+
+    --card: 192 81% 14%;
+    --card-foreground: 180 7% 60%;
+
+    --popover: 192 81% 14%;
+    --popover-foreground: 180 7% 60%;
+
+    --primary: 205 69% 49%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 192 81% 14%;
+    --secondary-foreground: 180 7% 60%;
+
+    --muted: 192 81% 14%;
+    --muted-foreground: 196 13% 46%;
+
+    --accent: 192 60% 18%;
+    --accent-foreground: 205 69% 49%;
+
+    --destructive: 1 71% 52%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 194 14% 40%;
+    --input: 194 14% 40%;
+    --ring: 205 69% 49%;
+
+    --sidebar-background: 192 81% 14%;
+    --sidebar-foreground: 180 7% 60%;
+    --sidebar-primary: 205 69% 49%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 192 60% 18%;
+    --sidebar-accent-foreground: 205 69% 49%;
+    --sidebar-border: 194 14% 40%;
+    --sidebar-ring: 205 69% 49%;
+
+    --chart-1: 205 69% 49%;
+    --chart-2: 68 100% 30%;
+    --chart-3: 176 59% 40%;
+    --chart-4: 45 100% 36%;
+    --chart-5: 331 64% 52%;
+
+    --sidebar: 192 81% 14%;
+  }
 }
 
 @layer utilities {
@@ -327,6 +421,14 @@ Gmail-inspired color palette with clean, neutral grays and blue accents.
 
   .app-theme-apple .border-border {
     border-color: hsl(var(--border) / 0.6);
+  }
+
+  .app-theme-solarized .text-destructive-foreground {
+    color: hsl(var(--destructive));
+  }
+
+  .app-theme-solarized .bg-destructive {
+    color: hsl(0 0% 100%);
   }
 
   body {

@@ -1,6 +1,6 @@
 import * as React from "react";
 
-export type AppTheme = "default" | "apple";
+export type AppTheme = "default" | "apple" | "solarized";
 
 const APP_THEME_KEY = "simplecrm_app_theme";
 
@@ -14,7 +14,10 @@ const AppThemeContext = React.createContext<AppThemeContextValue | null>(null);
 const getStoredTheme = (): AppTheme => {
   if (typeof window === "undefined") return "default";
   try {
-    return localStorage.getItem(APP_THEME_KEY) === "apple" ? "apple" : "default";
+    const stored = localStorage.getItem(APP_THEME_KEY);
+    if (stored === "apple") return "apple";
+    if (stored === "solarized") return "solarized";
+    return "default";
   } catch {
     return "default";
   }
@@ -35,7 +38,13 @@ export function AppThemeProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
       if (event.key !== APP_THEME_KEY) return;
-      setAppThemeState(event.newValue === "apple" ? "apple" : "default");
+      if (event.newValue === "apple") {
+        setAppThemeState("apple");
+      } else if (event.newValue === "solarized") {
+        setAppThemeState("solarized");
+      } else {
+        setAppThemeState("default");
+      }
     };
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);

@@ -92,10 +92,16 @@ function AppContent() {
   useEffect(() => {
     const body = document.body;
     const shouldApplyApple = appTheme === "apple" && !isLanding;
+    const shouldApplySolarized = appTheme === "solarized" && !isLanding;
     if (shouldApplyApple) {
       body.classList.add("app-theme-apple");
     } else {
       body.classList.remove("app-theme-apple");
+    }
+    if (shouldApplySolarized) {
+      body.classList.add("app-theme-solarized");
+    } else {
+      body.classList.remove("app-theme-solarized");
     }
   }, [appTheme, isLanding]);
 

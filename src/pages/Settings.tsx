@@ -231,12 +231,13 @@ export default function Settings() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="default">Default (Light/Dark)</SelectItem>
-                <SelectItem value="apple">Apple Glass (Dark + Amber)</SelectItem>
+                <SelectItem value="default">Figtree (Light/Dark)</SelectItem>
+                <SelectItem value="apple">Appletree (Light/Dark)</SelectItem>
+                <SelectItem value="solarized">Sandstorm (Solarized Light/Dark)</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              The Apple Glass theme is app-only. Use the top-right toggle to switch light/dark in Default mode.
+              Appletree and Sandstorm are app-only. Use the top-right toggle to switch light/dark within the selected theme.
             </p>
           </div>
         </CardContent>
