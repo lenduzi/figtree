@@ -8,10 +8,8 @@ export function ThemeToggle() {
   const { appTheme, setAppTheme } = useAppTheme();
 
   const toggleTheme = () => {
-    if (appTheme === 'apple') {
-      setAppTheme('default');
-    }
     setTheme(theme === 'dark' ? 'light' : 'dark');
+    setAppTheme(appTheme);
   };
 
   return (
