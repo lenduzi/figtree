@@ -1,15 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
-import { ThemeProvider } from "next-themes";
+import { ThemeProvider, useTheme } from "next-themes";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { CRMProvider, useCRMContext } from "@/contexts/CRMContext";
 import { AppThemeProvider, useAppTheme } from "@/contexts/AppThemeContext";
+import type { AppTheme } from "@/contexts/AppThemeContext";
 import { CommandPalette } from "@/components/CommandPalette";
 import { AddContactDialog } from "@/components/AddContactDialog";
 import { AddTaskWithContactDialog } from "@/components/AddTaskWithContactDialog";
@@ -28,6 +29,25 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 const APP_ENTRY_BANNER_KEY = "simplecrm_app_entry_banner_seen";
+const THEME_MODE_KEY_PREFIX = "simplecrm_theme_mode_";
+
+const getStoredThemeMode = (appTheme: AppTheme): "light" | "dark" | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const value = localStorage.getItem(`${THEME_MODE_KEY_PREFIX}${appTheme}`);
+    return value === "light" || value === "dark" ? value : null;
+  } catch {
+    return null;
+  }
+};
+
+const setStoredThemeMode = (appTheme: AppTheme, mode: "light" | "dark") => {
+  try {
+    localStorage.setItem(`${THEME_MODE_KEY_PREFIX}${appTheme}`, mode);
+  } catch {
+    // ignore storage errors
+  }
+};
 
 function AppContent() {
   const [addContactOpen, setAddContactOpen] = useState(false);
@@ -35,6 +55,8 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
   const { appTheme } = useAppTheme();
+  const { theme, setTheme } = useTheme();
+  const previousAppThemeRef = useRef<AppTheme | null>(null);
   const {
     showFirstTaskBanner,
     dismissFirstTaskBanner,
@@ -68,16 +90,33 @@ function AppContent() {
   })();
 
   useEffect(() => {
-    const body = document.body;
+    const root = document.documentElement;
     const shouldApplyApple = appTheme === "apple" && !isLanding;
     if (shouldApplyApple) {
-      body.classList.add("app-theme-apple");
-      body.classList.add("dark");
+      root.classList.add("app-theme-apple");
     } else {
-      body.classList.remove("app-theme-apple");
-      body.classList.remove("dark");
+      root.classList.remove("app-theme-apple");
     }
   }, [appTheme, isLanding]);
+
+  useEffect(() => {
+    if (isLanding) return;
+    const previous = previousAppThemeRef.current;
+    if (previous !== appTheme) {
+      const storedMode = getStoredThemeMode(appTheme);
+      if (storedMode && storedMode !== theme) {
+        setTheme(storedMode);
+      }
+      previousAppThemeRef.current = appTheme;
+    }
+  }, [appTheme, isLanding, setTheme, theme]);
+
+  useEffect(() => {
+    if (isLanding) return;
+    if (theme === "light" || theme === "dark") {
+      setStoredThemeMode(appTheme, theme);
+    }
+  }, [appTheme, isLanding, theme]);
 
   useEffect(() => {
     if (isLanding || firstActionSeen || firstActionNudgeDismissed) {
