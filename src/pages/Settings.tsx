@@ -1,11 +1,15 @@
-import { useState, useRef } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, MessageCircle } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import figtreeLogo from '@/assets/figtree-logo.png';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +33,8 @@ const STORAGE_KEYS = {
   researchLists: 'simplecrm_research_lists',
   researchEntries: 'simplecrm_research_entries',
 };
+const FEEDBACK_EMAIL = 'lennhahn@gmail.com';
+const FEEDBACK_ENDPOINT = `https://formsubmit.co/ajax/${FEEDBACK_EMAIL}`;
 
 type CRMBackup = {
   schemaVersion: number;
@@ -116,6 +122,71 @@ export default function Settings() {
   const [pendingImport, setPendingImport] = useState<CRMBackup | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackContact, setFeedbackContact] = useState('');
+  const [feedbackName, setFeedbackName] = useState('');
+  const [sendStatus, setSendStatus] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
+
+  const feedbackBody = useMemo(() => {
+    const lines = [];
+    if (feedbackMessage.trim()) {
+      lines.push(`Feedback: ${feedbackMessage.trim()}`);
+    }
+    if (feedbackName.trim()) {
+      lines.push(`Name: ${feedbackName.trim()}`);
+    }
+    if (feedbackContact.trim()) {
+      lines.push(`Contact: ${feedbackContact.trim()}`);
+    }
+    return lines.join('\n');
+  }, [feedbackContact, feedbackMessage, feedbackName]);
+
+  const feedbackMailto = useMemo(() => {
+    const subject = encodeURIComponent('Figtree feedback');
+    const body = encodeURIComponent(
+      feedbackBody || 'Feedback: (write your request here)\nContact: (optional)',
+    );
+    return `mailto:${FEEDBACK_EMAIL}?subject=${subject}&body=${body}`;
+  }, [feedbackBody]);
+
+  const handleSendFeedback = async () => {
+    if (!feedbackMessage.trim() || sendStatus === 'sending') return;
+    setSendStatus('sending');
+    try {
+      const formData = new FormData();
+      formData.append('message', feedbackMessage.trim());
+      if (feedbackName.trim()) formData.append('name', feedbackName.trim());
+      if (feedbackContact.trim()) formData.append('contact', feedbackContact.trim());
+      formData.append('source', 'figtree-settings');
+
+      const response = await fetch(FEEDBACK_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Feedback request failed');
+      }
+      setSendStatus('sent');
+      setFeedbackMessage('');
+      setFeedbackName('');
+      setFeedbackContact('');
+    } catch {
+      setSendStatus('failed');
+    }
+  };
+
+  useEffect(() => {
+    if (sendStatus !== 'sent') return;
+    const timer = window.setTimeout(() => {
+      setSendStatus('idle');
+    }, 2500);
+    return () => window.clearTimeout(timer);
+  }, [sendStatus]);
 
   const handleExport = () => {
     const backup: CRMBackup = {
@@ -243,7 +314,7 @@ export default function Settings() {
         </CardContent>
       </Card>
 
-      <Card className="mt-6 sm:hidden">
+      <Card className="mt-6">
         <CardHeader>
           <CardTitle>Learn more</CardTitle>
           <CardDescription>See how Figtree works, pricing, and privacy.</CardDescription>
@@ -251,6 +322,22 @@ export default function Settings() {
         <CardContent>
           <Button variant="outline" onClick={() => navigate('/marketing')} className="w-full">
             Visit marketing page
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Send feedback</CardTitle>
+          <CardDescription>Share ideas, bugs, and feature requests. We read every note.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <Button onClick={() => setFeedbackOpen(true)} className="w-full sm:w-auto">
+            <MessageCircle className="h-4 w-4" />
+            Open feedback form
+          </Button>
+          <Button variant="outline" asChild className="w-full sm:w-auto">
+            <a href={feedbackMailto}>Email instead</a>
           </Button>
         </CardContent>
       </Card>
@@ -304,6 +391,64 @@ export default function Settings() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Send feedback</DialogTitle>
+            <DialogDescription>
+              Tell us what would make Figtree better. Feature requests and bugs are both welcome.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="settings-feedback-message">Message</Label>
+              <Textarea
+                id="settings-feedback-message"
+                value={feedbackMessage}
+                onChange={(event) => setFeedbackMessage(event.target.value)}
+                placeholder="What should we improve or fix?"
+                className="min-h-[140px]"
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-1">
+                <Label htmlFor="settings-feedback-name" className="text-xs text-muted-foreground">
+                  Name (optional)
+                </Label>
+                <Input
+                  id="settings-feedback-name"
+                  value={feedbackName}
+                  onChange={(event) => setFeedbackName(event.target.value)}
+                  placeholder="Your name"
+                />
+              </div>
+              <div className="grid gap-1">
+                <Label htmlFor="settings-feedback-contact" className="text-xs text-muted-foreground">
+                  Reply email (optional)
+                </Label>
+                <Input
+                  id="settings-feedback-contact"
+                  value={feedbackContact}
+                  onChange={(event) => setFeedbackContact(event.target.value)}
+                  placeholder="Email or phone"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSendFeedback} disabled={!feedbackMessage.trim() || sendStatus === 'sending'}>
+              {sendStatus === 'sending' ? 'Sending...' : 'Send feedback'}
+            </Button>
+          </DialogFooter>
+          {sendStatus === 'sent' && (
+            <p className="text-xs text-muted-foreground">Sent — thank you for the feedback.</p>
+          )}
+          {sendStatus === 'failed' && (
+            <p className="text-xs text-muted-foreground">Couldn’t send right now. Try again in a moment.</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
