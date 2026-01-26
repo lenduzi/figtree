@@ -459,6 +459,16 @@ Gmail-inspired color palette with clean, neutral grays and blue accents.
     background-color: hsl(38 70% 38% / 0.3);
   }
 
+  .app-theme-solarized .contacts-row:hover,
+  .app-theme-solarized .contacts-card:hover {
+    background-color: hsl(var(--background));
+  }
+
+  .dark .app-theme-solarized .contacts-row:hover,
+  .dark .app-theme-solarized .contacts-card:hover {
+    background-color: hsl(var(--primary) / 0.16);
+  }
+
   body {
     @apply bg-background text-foreground;
   }

@@ -174,7 +174,7 @@ export default function Contacts() {
                 <button
                   key={contact.id}
                   onClick={() => navigate(`/contacts/${contact.id}`)}
-                  className="w-full text-left rounded-xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/40"
+                  className="contacts-card w-full text-left rounded-xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/40"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -283,7 +283,7 @@ export default function Contacts() {
                   return (
                     <TableRow
                       key={contact.id}
-                      className="cursor-pointer hover:bg-muted/50"
+                      className="contacts-row cursor-pointer hover:bg-muted/50"
                       onClick={() => navigate(`/contacts/${contact.id}`)}
                     >
                       <TableCell className="font-medium lg:py-4 lg:text-base">
