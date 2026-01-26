@@ -10,6 +10,8 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -41,7 +43,9 @@ export function ResearchListSheet({ list, onAddEntry, autoFocusEntryId, onAutoFo
   const [sortField, setSortField] = useState<SortField>('updatedAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [promoteEntry, setPromoteEntry] = useState<ResearchEntry | null>(null);
+  const [colorByPriority, setColorByPriority] = useState(false);
   const isMobile = useMediaQuery("(max-width: 639px)");
+  const colorToggleId = `priority-color-toggle-${list.id}`;
 
   const entries = useMemo(() => {
     let filtered = getEntriesForList(list.id);
@@ -158,6 +162,22 @@ export function ResearchListSheet({ list, onAddEntry, autoFocusEntryId, onAutoFo
               <SelectItem value="low">Low</SelectItem>
             </SelectContent>
           </Select>
+          <div className="flex items-center justify-between gap-2 rounded-full border border-border/60 bg-card/80 px-3 py-1.5">
+            <Label
+              htmlFor={colorToggleId}
+              className="cursor-pointer select-none text-xs text-muted-foreground"
+            >
+              <span className="hidden sm:inline">Color by priority</span>
+              <span className="sm:hidden">Color</span>
+            </Label>
+            <Switch
+              id={colorToggleId}
+              checked={colorByPriority}
+              onCheckedChange={setColorByPriority}
+              className="scale-90"
+              aria-label="Toggle priority color coding"
+            />
+          </div>
         </div>
       </div>
 
@@ -168,6 +188,7 @@ export function ResearchListSheet({ list, onAddEntry, autoFocusEntryId, onAutoFo
               key={entry.id}
               entry={entry}
               onPromote={handlePromote}
+              highlightPriority={colorByPriority}
               autoOpenEdit={entry.id === autoFocusEntryId}
               onAutoFocusHandled={onAutoFocusHandled}
             />
@@ -220,6 +241,7 @@ export function ResearchListSheet({ list, onAddEntry, autoFocusEntryId, onAutoFo
                   key={entry.id}
                   entry={entry}
                   onPromote={handlePromote}
+                  highlightPriority={colorByPriority}
                   autoFocusCompany={entry.id === autoFocusEntryId}
                   onAutoFocusHandled={onAutoFocusHandled}
                 />

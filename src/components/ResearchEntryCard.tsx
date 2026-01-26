@@ -26,11 +26,18 @@ import { cn } from '@/lib/utils';
 interface ResearchEntryCardProps {
   entry: ResearchEntry;
   onPromote: (entryId: string) => void;
+  highlightPriority?: boolean;
   autoOpenEdit?: boolean;
   onAutoFocusHandled?: () => void;
 }
 
-export function ResearchEntryCard({ entry, onPromote, autoOpenEdit, onAutoFocusHandled }: ResearchEntryCardProps) {
+export function ResearchEntryCard({
+  entry,
+  onPromote,
+  highlightPriority,
+  autoOpenEdit,
+  onAutoFocusHandled,
+}: ResearchEntryCardProps) {
   const { updateResearchEntry, deleteResearchEntry, getContactById } = useCRMContext();
   const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -82,8 +89,19 @@ export function ResearchEntryCard({ entry, onPromote, autoOpenEdit, onAutoFocusH
     promoted: 'bg-primary text-primary-foreground',
   };
 
+  const priorityCardClasses: Record<ResearchPriority, string> = {
+    high: 'bg-emerald-50/70 border-emerald-200/70 dark:bg-emerald-950/35 dark:border-emerald-900/50',
+    medium: 'bg-amber-50/70 border-amber-200/70 dark:bg-amber-950/30 dark:border-amber-900/45',
+    low: 'bg-rose-50/70 border-rose-200/70 dark:bg-rose-950/30 dark:border-rose-900/45',
+  };
+
   return (
-    <div className="rounded-xl border bg-card shadow-sm">
+    <div
+      className={cn(
+        "rounded-xl border bg-card shadow-sm",
+        highlightPriority && priorityCardClasses[entry.priority],
+      )}
+    >
       <button
         type="button"
         className="w-full text-left p-4"

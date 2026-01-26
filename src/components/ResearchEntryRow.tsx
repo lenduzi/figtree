@@ -20,15 +20,23 @@ import {
 import { MoreHorizontal, Trash2, UserPlus, ExternalLink } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { useNavigate } from 'react-router-dom';
+import { cn } from '@/lib/utils';
 
 interface ResearchEntryRowProps {
   entry: ResearchEntry;
   onPromote: (entryId: string) => void;
+  highlightPriority?: boolean;
   autoFocusCompany?: boolean;
   onAutoFocusHandled?: () => void;
 }
 
-export function ResearchEntryRow({ entry, onPromote, autoFocusCompany, onAutoFocusHandled }: ResearchEntryRowProps) {
+export function ResearchEntryRow({
+  entry,
+  onPromote,
+  highlightPriority,
+  autoFocusCompany,
+  onAutoFocusHandled,
+}: ResearchEntryRowProps) {
   const { updateResearchEntry, deleteResearchEntry, getContactById } = useCRMContext();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState<string | null>(null);
@@ -100,10 +108,10 @@ export function ResearchEntryRow({ entry, onPromote, autoFocusCompany, onAutoFoc
     );
   };
 
-  const priorityColors: Record<ResearchPriority, string> = {
-    low: 'bg-muted text-muted-foreground',
-    medium: 'bg-accent text-accent-foreground',
-    high: 'bg-destructive text-destructive-foreground',
+  const priorityRowClasses: Record<ResearchPriority, string> = {
+    high: 'bg-emerald-50/70 hover:bg-emerald-100/70 dark:bg-emerald-950/35 dark:hover:bg-emerald-950/45',
+    medium: 'bg-amber-50/70 hover:bg-amber-100/70 dark:bg-amber-950/30 dark:hover:bg-amber-950/40',
+    low: 'bg-rose-50/70 hover:bg-rose-100/70 dark:bg-rose-950/30 dark:hover:bg-rose-950/40',
   };
 
   const statusColors: Record<ResearchStatus, string> = {
@@ -113,8 +121,8 @@ export function ResearchEntryRow({ entry, onPromote, autoFocusCompany, onAutoFoc
   };
 
   return (
-    <TableRow>
-      <TableCell className="font-medium">
+    <TableRow className={cn(highlightPriority && priorityRowClasses[entry.priority])}>
+      <TableCell className="font-semibold text-foreground">
         {renderEditableCell('company', entry.company)}
       </TableCell>
       <TableCell>{renderEditableCell('poc', entry.poc)}</TableCell>
