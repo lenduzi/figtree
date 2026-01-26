@@ -195,7 +195,7 @@ Gmail-inspired color palette with clean, neutral grays and blue accents.
       sans-serif;
   }
 
-  .app-theme-apple.dark {
+  .dark .app-theme-apple {
     --background: 220 12% 6%;
     --foreground: 210 16% 92%;
 

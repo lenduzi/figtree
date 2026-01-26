@@ -90,12 +90,12 @@ function AppContent() {
   })();
 
   useEffect(() => {
-    const root = document.documentElement;
+    const body = document.body;
     const shouldApplyApple = appTheme === "apple" && !isLanding;
     if (shouldApplyApple) {
-      root.classList.add("app-theme-apple");
+      body.classList.add("app-theme-apple");
     } else {
-      root.classList.remove("app-theme-apple");
+      body.classList.remove("app-theme-apple");
     }
   }, [appTheme, isLanding]);
 
