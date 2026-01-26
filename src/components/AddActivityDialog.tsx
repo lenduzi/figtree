@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Phone, Mail, Users, FileText, PhoneMissed } from 'lucide-react';
+import { format } from 'date-fns';
+import { Phone, Mail, Users, FileText, PhoneMissed, Calendar as CalendarIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -10,6 +11,8 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Calendar as CalendarPicker } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { ActivityType } from '@/types/crm';
 import { cn } from '@/lib/utils';
@@ -31,14 +34,20 @@ export function AddActivityDialog({ contactId }: AddActivityDialogProps) {
   const [open, setOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<ActivityType>('call');
   const [description, setDescription] = useState('');
+  const [activityDate, setActivityDate] = useState(new Date());
+
+  const resetForm = () => {
+    setDescription('');
+    setSelectedType('call');
+    setActivityDate(new Date());
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!description.trim()) return;
 
-    addActivity(contactId, selectedType, description);
-    setDescription('');
-    setSelectedType('call');
+    addActivity(contactId, selectedType, description, activityDate);
+    resetForm();
     setOpen(false);
   };
 
@@ -55,8 +64,23 @@ export function AddActivityDialog({ contactId }: AddActivityDialogProps) {
     addActivity(contactId, type, defaultDescriptions[type]);
   };
 
+  const handleDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+    const nextDate = new Date(activityDate);
+    nextDate.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
+    setActivityDate(nextDate);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) {
+          resetForm();
+        }
+      }}
+    >
       <div className="flex gap-2">
         {activityTypes.slice(0, 4).map(({ type, label, icon: Icon }) => (
           <Button
@@ -113,8 +137,39 @@ export function AddActivityDialog({ contactId }: AddActivityDialogProps) {
             />
           </div>
 
+          <div className="space-y-2">
+            <Label>Date</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start text-left font-normal"
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {format(activityDate, 'MMM d, yyyy')}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarPicker
+                  mode="single"
+                  selected={activityDate}
+                  onSelect={handleDateSelect}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setOpen(false);
+                resetForm();
+              }}
+            >
               Cancel
             </Button>
             <Button type="submit">Log Activity</Button>

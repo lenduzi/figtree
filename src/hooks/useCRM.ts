@@ -172,21 +172,29 @@ export function useCRM() {
   }, [contacts.length, stages]);
 
   // Activity operations
-  const addActivity = useCallback((contactId: string, type: ActivityType, description: string) => {
+  const addActivity = useCallback((contactId: string, type: ActivityType, description: string, timestamp?: Date) => {
+    const resolvedTimestamp = timestamp ? timestamp.toISOString() : new Date().toISOString();
     const newActivity: Activity = {
       id: crypto.randomUUID(),
       contactId,
       type,
       description,
-      timestamp: new Date().toISOString(),
+      timestamp: resolvedTimestamp,
     };
     setActivities(prev => [newActivity, ...prev]);
     
     // Update last interaction date
     setContacts(prev => prev.map(c =>
-      c.id === contactId 
-        ? { ...c, lastInteractionDate: new Date().toISOString(), updatedAt: new Date().toISOString() }
-        : c
+      c.id === contactId ? (() => {
+        const currentLast = c.lastInteractionDate ? new Date(c.lastInteractionDate).getTime() : 0;
+        const nextTime = new Date(resolvedTimestamp).getTime();
+        const shouldUpdateLast = !Number.isNaN(nextTime) && nextTime >= currentLast;
+        return {
+          ...c,
+          lastInteractionDate: shouldUpdateLast ? resolvedTimestamp : c.lastInteractionDate,
+          updatedAt: new Date().toISOString(),
+        };
+      })() : c
     ));
     
     return newActivity;
@@ -197,7 +205,10 @@ export function useCRM() {
   }, []);
 
   const getContactActivities = useCallback((contactId: string) => {
-    return activities.filter(a => a.contactId === contactId);
+    return activities
+      .filter(a => a.contactId === contactId)
+      .slice()
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [activities]);
 
   // Contact operations
