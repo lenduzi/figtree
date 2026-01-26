@@ -54,6 +54,7 @@ function AppContent() {
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const mainRef = useRef<HTMLDivElement | null>(null);
   const { appTheme } = useAppTheme();
   const { theme, setTheme } = useTheme();
   const previousAppThemeRef = useRef<AppTheme | null>(null);
@@ -148,6 +149,13 @@ function AppContent() {
     }
   }, [isLanding]);
 
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    if (isLanding || location.pathname.startsWith("/eisenhower")) {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
+  }, [isLanding, location.pathname, location.search]);
+
   return (
     <>
       <CommandPalette 
@@ -157,7 +165,10 @@ function AppContent() {
       <SidebarProvider>
         <div className="min-h-screen flex w-full">
           {!isLanding && <AppSidebar />}
-          <main className={`flex-1 overflow-auto ${isLanding ? '' : 'pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0'}`}>
+          <main
+            ref={mainRef}
+            className={`flex-1 overflow-auto ${isLanding ? '' : 'pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0'}`}
+          >
             {!isLanding && (
               <header className="h-14 border-b border-border flex items-center px-6 md:px-4 gap-3">
                 <SidebarTrigger className="h-9 w-9 ml-2 hidden md:inline-flex" />
