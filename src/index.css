@@ -135,6 +135,67 @@ Gmail-inspired color palette with clean, neutral grays and blue accents.
   }
 
   .app-theme-apple {
+    --background: 210 20% 97%;
+    --foreground: 220 15% 18%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 15% 18%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 15% 18%;
+
+    --primary: 217 70% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 18% 92%;
+    --secondary-foreground: 220 12% 25%;
+
+    --muted: 210 16% 92%;
+    --muted-foreground: 220 8% 44%;
+
+    --accent: 217 40% 92%;
+    --accent-foreground: 217 45% 32%;
+
+    --destructive: 0 80% 90%;
+    --destructive-foreground: 0 70% 35%;
+
+    --border: 220 14% 86%;
+    --input: 220 14% 86%;
+    --ring: 217 70% 50%;
+
+    --sidebar-background: 210 18% 94%;
+    --sidebar-foreground: 220 12% 26%;
+    --sidebar-primary: 217 70% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 16% 90%;
+    --sidebar-accent-foreground: 217 45% 32%;
+    --sidebar-border: 220 14% 84%;
+    --sidebar-ring: 217 70% 50%;
+
+    --chart-1: 217 70% 50%;
+    --chart-2: 172 55% 40%;
+    --chart-3: 210 60% 48%;
+    --chart-4: 260 55% 52%;
+    --chart-5: 330 65% 52%;
+
+    --sidebar: 210 18% 94%;
+
+    --shadow-2xs: 0 8px 20px hsl(220 30% 65% / 0.18);
+    --shadow-xs: 0 8px 20px hsl(220 30% 65% / 0.18);
+    --shadow-sm: 0 10px 24px hsl(220 30% 60% / 0.2);
+    --shadow: 0 12px 28px hsl(220 30% 55% / 0.22);
+    --shadow-md: 0 14px 32px hsl(220 30% 50% / 0.24);
+    --shadow-lg: 0 18px 38px hsl(220 30% 45% / 0.26);
+    --shadow-xl: 0 22px 46px hsl(220 30% 40% / 0.28);
+    --shadow-2xl: 0 26px 54px hsl(220 30% 38% / 0.3);
+
+    --radius: 1rem;
+
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial,
+      sans-serif;
+  }
+
+  .app-theme-apple.dark {
     --background: 220 12% 6%;
     --foreground: 210 16% 92%;
 
@@ -190,9 +251,6 @@ Gmail-inspired color palette with clean, neutral grays and blue accents.
     --shadow-2xl: 0 28px 60px hsl(220 60% 2% / 0.65);
 
     --radius: 1rem;
-
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial,
-      sans-serif;
   }
 }
 
