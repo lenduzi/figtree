@@ -23,6 +23,7 @@ import Pipeline from "./pages/Pipeline";
 import Planning from "./pages/Planning";
 import Eisenhower from "./pages/Eisenhower";
 import Resources from "./pages/Resources";
+import OutreachOps from "./pages/OutreachOps";
 import ContactDetail from "./pages/ContactDetail";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -83,6 +84,7 @@ function AppContent() {
     if (path.startsWith("/contacts/")) return "Contact";
     if (path.startsWith("/contacts")) return "Contacts";
     if (path.startsWith("/pipeline")) return "Pipeline";
+    if (path.startsWith("/outreach")) return "Outreach";
     if (path.startsWith("/planning")) return "Plan";
     if (path.startsWith("/eisenhower")) return "Easy Eisenhower";
     if (path.startsWith("/resources")) return "Resources";
@@ -187,6 +189,7 @@ function AppContent() {
               <Route path="/contacts" element={<Contacts />} />
               <Route path="/contacts/:id" element={<ContactDetail />} />
               <Route path="/pipeline" element={<Pipeline />} />
+              <Route path="/outreach" element={<OutreachOps />} />
               <Route path="/planning" element={<Planning />} />
               <Route path="/eisenhower" element={<Eisenhower />} />
               <Route path="/resources" element={<Resources />} />

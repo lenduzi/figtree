@@ -121,6 +121,7 @@ export default function Settings() {
   const [dataOpen, setDataOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<CRMBackup | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [clearOutreachOpen, setClearOutreachOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState('');
@@ -214,6 +215,19 @@ export default function Settings() {
     anchor.download = `crm-backup-${date}.json`;
     anchor.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleClearOutreach = () => {
+    try {
+      localStorage.removeItem('simplecrm_outreach_leads_v1');
+      localStorage.removeItem('simplecrm_outreach_actions_v1');
+      localStorage.removeItem('simplecrm_outreach_imports_v1');
+      toast('Outreach data cleared', {
+        description: 'You can re-import your CSV now.',
+      });
+    } catch {
+      toast('Unable to clear outreach data');
+    }
   };
 
   const handleImportClick = () => {
@@ -364,6 +378,9 @@ export default function Settings() {
                 <Button variant="outline" size="sm" onClick={handleImportClick}>
                   Import Backup
                 </Button>
+                <Button variant="destructive" size="sm" onClick={() => setClearOutreachOpen(true)}>
+                  Clear Outreach Data
+                </Button>
               </div>
               <input
                 ref={fileInputRef}
@@ -388,6 +405,28 @@ export default function Settings() {
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setPendingImport(null)}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={applyImport}>Continue</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={clearOutreachOpen} onOpenChange={setClearOutreachOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear outreach data?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes all Outreach Ops leads, actions, and import history from this device.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                handleClearOutreach();
+                setClearOutreachOpen(false);
+              }}
+            >
+              Clear data
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
