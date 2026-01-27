@@ -38,6 +38,7 @@ const typeLabels: Record<ResourceType, string> = {
   dm: "LinkedIn DM",
   link: "Link",
   snippet: "Snippet",
+  doc: "Memo",
 };
 
 export function ResourceEditorDialog({
@@ -49,6 +50,7 @@ export function ResourceEditorDialog({
 }: ResourceEditorDialogProps) {
   const resolvedType = resource?.type ?? type ?? "email";
   const isEmail = resolvedType === "email";
+  const isDoc = resolvedType === "doc";
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -60,7 +62,14 @@ export function ResourceEditorDialog({
     if (!open) return;
     setTitle(resource?.title ?? "");
     setSubject(resource?.type === "email" ? resource.subject : "");
-    setBody(resource?.type === "email" || resource?.type === "dm" || resource?.type === "snippet" ? resource.body : "");
+    setBody(
+      resource?.type === "email" ||
+        resource?.type === "dm" ||
+        resource?.type === "snippet" ||
+        resource?.type === "doc"
+        ? resource.body
+        : ""
+    );
     setUrl(resource?.type === "link" ? resource.url : "");
     setNotes(resource?.type === "link" ? resource.notes ?? "" : "");
     setTagsInput(resource?.tags?.join(", ") ?? "");
@@ -71,6 +80,7 @@ export function ResourceEditorDialog({
     if (resolvedType === "email") return !!subject.trim() && !!body.trim();
     if (resolvedType === "dm") return !!body.trim();
     if (resolvedType === "snippet") return !!body.trim();
+    if (resolvedType === "doc") return !!body.trim();
     if (resolvedType === "link") return !!url.trim();
     return false;
   }, [title, subject, body, url, resolvedType]);
@@ -95,7 +105,11 @@ export function ResourceEditorDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showClose={!isEmail}
-        className={cn("sm:max-w-xl", isEmail && "sm:max-w-2xl p-0 overflow-hidden")}
+        className={cn(
+          "sm:max-w-xl",
+          isEmail && "sm:max-w-2xl p-0 overflow-hidden",
+          isDoc && "p-0 overflow-hidden w-[min(96vw,1100px)] h-[min(82vh,900px)] sm:max-w-5xl"
+        )}
       >
         {isEmail ? (
           <div className="flex flex-col">
@@ -151,6 +165,44 @@ export function ResourceEditorDialog({
                 </span>
                 <Input
                   placeholder="Comma separated tags"
+                  value={tagsInput}
+                  onChange={(event) => setTagsInput(event.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter className="flex flex-col gap-2 border-t border-border bg-muted/30 px-4 py-3 sm:flex-row sm:justify-end">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={!isValid}>
+                Save
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : isDoc ? (
+          <div className="flex h-full flex-col">
+            <DialogHeader className="border-b border-border bg-muted/40 px-4 py-3">
+              <DialogTitle>{resource ? "Edit Memo" : "New Memo"}</DialogTitle>
+              <DialogDescription>
+                Long-form notes and strategy drafts. Keep it lightweight.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-hidden px-4 py-4">
+              <div className="flex h-full flex-col gap-4">
+                <Input
+                  placeholder="Memo title"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  autoFocus
+                />
+                <Textarea
+                  placeholder="Write your memo..."
+                  value={body}
+                  onChange={(event) => setBody(event.target.value)}
+                  className="flex-1 min-h-[320px] resize-none"
+                />
+                <Input
+                  placeholder="Tags (comma separated)"
                   value={tagsInput}
                   onChange={(event) => setTagsInput(event.target.value)}
                 />

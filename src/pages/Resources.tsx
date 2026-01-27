@@ -54,6 +54,7 @@ const typeLabels: Record<ResourceType, string> = {
   dm: "DM",
   link: "Link",
   snippet: "Snippet",
+  doc: "Memo",
 };
 
 const PLACEHOLDER_REGEX = /{{\s*([a-zA-Z0-9_]+)\s*}}/g;
@@ -79,6 +80,12 @@ const extractPlaceholders = (texts: string[]) => {
 
 const replacePlaceholders = (text: string, values: Record<string, string>) =>
   text.replace(PLACEHOLDER_REGEX, (_, key) => values[key] ?? "");
+
+const countWords = (text: string) => {
+  const trimmed = text.trim();
+  if (!trimmed) return 0;
+  return trimmed.split(/\s+/).length;
+};
 
 const copyToClipboard = async (text: string) => {
   try {
@@ -225,7 +232,7 @@ export default function Resources() {
         <div>
           <h1 className="sr-only sm:not-sr-only text-3xl lg:text-4xl font-bold text-foreground">Resources</h1>
           <p className="text-muted-foreground lg:text-lg mt-1">
-            Store reusable outreach templates and links for quick reuse.
+            Store reusable outreach templates, links, and long-form memos.
           </p>
         </div>
         <Button
@@ -258,6 +265,7 @@ export default function Resources() {
             <SelectItem value="dm">DM</SelectItem>
             <SelectItem value="link">Link</SelectItem>
             <SelectItem value="snippet">Snippet</SelectItem>
+            <SelectItem value="doc">Memo</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -268,7 +276,7 @@ export default function Resources() {
             <Sparkles className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium text-foreground mb-2">No resources yet</h3>
             <p className="text-muted-foreground mb-4 max-w-sm">
-              Save your best outreach templates and reference links here for quick reuse.
+              Save your outreach templates, reference links, and long-form memos here for quick reuse.
             </p>
             <Button onClick={() => setNewDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
@@ -280,6 +288,7 @@ export default function Resources() {
         <div className="space-y-4">
           {filteredResources.map((resource) => {
             const updatedText = formatDistanceToNow(new Date(resource.updatedAt), { addSuffix: true });
+            const wordCount = resource.type === "doc" ? countWords(resource.body) : 0;
             return (
               <Card
                 key={resource.id}
@@ -309,7 +318,15 @@ export default function Resources() {
                           </Badge>
                         ))}
                       </div>
-                      <p className="text-xs text-muted-foreground">Edited {updatedText}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Edited {updatedText}
+                        {resource.type === "doc" && wordCount > 0 ? ` • ${wordCount} words` : ""}
+                      </p>
+                      {resource.type === "doc" && (
+                        <p className="text-sm text-muted-foreground max-h-12 overflow-hidden whitespace-pre-wrap">
+                          {resource.body}
+                        </p>
+                      )}
                     </div>
                     <div
                       className="flex items-center gap-2"
@@ -346,6 +363,17 @@ export default function Resources() {
                         >
                           <Copy className="h-4 w-4 mr-2" />
                           Copy Snippet
+                        </Button>
+                      )}
+                      {resource.type === "doc" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="whitespace-nowrap"
+                          onClick={() => runCopyAction(resource.body)}
+                        >
+                          <Copy className="h-4 w-4 mr-2" />
+                          Copy Memo
                         </Button>
                       )}
                       {resource.type === "link" && (
@@ -406,6 +434,14 @@ export default function Resources() {
                             <>
                               <DropdownMenuItem onClick={() => runCopyAction(resource.body)}>
                                 Copy Snippet
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                            </>
+                          )}
+                          {resource.type === "doc" && (
+                            <>
+                              <DropdownMenuItem onClick={() => runCopyAction(resource.body)}>
+                                Copy Memo
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                             </>
@@ -474,6 +510,15 @@ export default function Resources() {
               }}
             >
               Snippet
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setNewDialogOpen(false);
+                openEditorForNew("doc");
+              }}
+            >
+              Memo
             </Button>
           </div>
         </DialogContent>
