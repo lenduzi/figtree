@@ -301,50 +301,50 @@ Gmail-inspired color palette with clean, neutral grays and blue accents.
   }
 
   .dark .app-theme-solarized {
-    --background: 213 100% 16%;
-    --foreground: 219 50% 90%;
+    --background: 228.6 84% 4.9%;
+    --foreground: 0 0% 100%;
 
-    --card: 212 100% 18%;
-    --card-foreground: 219 50% 90%;
+    --card: 222.2 47.4% 11.2%;
+    --card-foreground: 0 0% 100%;
 
-    --popover: 212 100% 18%;
-    --popover-foreground: 219 50% 90%;
+    --popover: 222.2 47.4% 11.2%;
+    --popover-foreground: 0 0% 100%;
 
-    --primary: 213 56% 67%;
-    --primary-foreground: 212 100% 8%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 228.6 84% 4.9%;
 
-    --secondary: 212 100% 18%;
-    --secondary-foreground: 219 50% 90%;
+    --secondary: 222.2 47.4% 11.2%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 212 100% 18%;
-    --muted-foreground: 215 31% 65%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
 
-    --accent: 213 100% 28%;
-    --accent-foreground: 219 50% 90%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 2 100% 67%;
+    --destructive: 2 85% 58%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 208 100% 21%;
-    --input: 208 100% 21%;
-    --ring: 213 56% 67%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 217.2 91.2% 59.8%;
 
-    --sidebar-background: 213 100% 13%;
-    --sidebar-foreground: 219 50% 90%;
-    --sidebar-primary: 213 56% 67%;
-    --sidebar-primary-foreground: 212 100% 8%;
-    --sidebar-accent: 212 100% 22%;
-    --sidebar-accent-foreground: 219 50% 90%;
-    --sidebar-border: 208 100% 21%;
-    --sidebar-ring: 213 56% 67%;
+    --sidebar-background: 222.2 47.4% 11.2%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary-foreground: 228.6 84% 4.9%;
+    --sidebar-accent: 217.2 32.6% 17.5%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 217.2 32.6% 17.5%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
 
-    --chart-1: 213 56% 67%;
-    --chart-2: 87 72% 80%;
-    --chart-3: 180 100% 80%;
-    --chart-4: 48 100% 84%;
-    --chart-5: 282 100% 87%;
+    --chart-1: 217.2 91.2% 59.8%;
+    --chart-2: 199 89% 62%;
+    --chart-3: 160 64% 52%;
+    --chart-4: 45 93% 58%;
+    --chart-5: 282 90% 70%;
 
-    --sidebar: 213 100% 13%;
+    --sidebar: 222.2 47.4% 11.2%;
   }
 }
 
