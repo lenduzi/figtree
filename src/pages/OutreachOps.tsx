@@ -2,17 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import {
   buildWhatsAppLink,
   importOutreachCsv,
-  listOutreachActions,
   listOutreachLeads,
   logOutreachAction,
-  updateOutreachLead,
-  updateOutreachNotes,
   updateOutreachStatus,
 } from "@/lib/outreach-store";
 import {
   OUTREACH_ACTIONS,
   OUTREACH_STATUSES,
-  OutreachActionLog,
   OutreachActionType,
   OutreachBucket,
   OutreachChannel,
@@ -41,7 +37,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import {
@@ -54,7 +49,8 @@ import {
   Phone,
   Search,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
+import { useCRMContext } from "@/contexts/CRMContext";
 
 const STATUS_VARIANTS: Record<OutreachStatus, "default" | "secondary" | "destructive" | "outline"> = {
   New: "outline",
@@ -80,16 +76,6 @@ const CHANNEL_LABELS: Record<OutreachChannel, string> = {
   unknown: "Unknown",
 };
 
-const ACTION_SHORTLIST: OutreachActionType[] = [
-  "Called",
-  "WhatsApp sent",
-  "Left voicemail",
-  "Submitted contact form",
-  "Sent email",
-  "IG DM sent",
-  "Walk-in",
-];
-
 const getLeadDisplayName = (lead: OutreachLead) => lead.venueName || "Untitled lead";
 
 const getDueStatus = (lead: OutreachLead) => {
@@ -111,8 +97,8 @@ const formatDate = (value: string | null) => {
 };
 
 export default function OutreachOps() {
+  const { addContact, addTask, stages } = useCRMContext();
   const [leads, setLeads] = useState<OutreachLead[]>([]);
-  const [actions, setActions] = useState<OutreachActionLog[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | OutreachStatus>("all");
   const [bucketFilter, setBucketFilter] = useState<"all" | OutreachBucket>("all");
@@ -123,9 +109,9 @@ export default function OutreachOps() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [disableDedupe, setDisableDedupe] = useState(false);
   const [statusDraft, setStatusDraft] = useState<OutreachStatus>("New");
-  const [actionDraft, setActionDraft] = useState<OutreachActionType>("Called");
   const [actionNote, setActionNote] = useState("");
-  const [leadNotes, setLeadNotes] = useState("");
+  const [promoteWithTask, setPromoteWithTask] = useState(true);
+  const [promoteDueDate, setPromoteDueDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
 
   const selectedLead = leads.find((lead) => lead.id === selectedLeadId) ?? null;
 
@@ -137,10 +123,8 @@ export default function OutreachOps() {
 
   useEffect(() => {
     if (!selectedLead) return;
-    setActions(listOutreachActions(selectedLead.id));
     setStatusDraft(selectedLead.status);
-    setActionDraft(selectedLead.nextAction ?? "Called");
-    setLeadNotes(selectedLead.notes);
+    setActionNote("");
   }, [selectedLead?.id]);
 
   const filteredLeads = useMemo(() => {
@@ -181,24 +165,41 @@ export default function OutreachOps() {
 
   const handleLogAction = (action?: OutreachActionType) => {
     if (!selectedLead) return;
-    const resolvedAction = action ?? actionDraft;
+    const resolvedAction = action ?? "Called";
     const saved = logOutreachAction(selectedLead.id, resolvedAction, actionNote.trim(), statusDraft);
     if (!saved) return;
     setActionNote("");
     refreshLeads();
-    setActions(listOutreachActions(selectedLead.id));
   };
 
-  const handleStatusSave = () => {
+  const handlePromote = () => {
     if (!selectedLead) return;
-    updateOutreachStatus(selectedLead.id, statusDraft);
-    refreshLeads();
-  };
+    const stageId = stages[0]?.id ?? "lead";
+    const newContact = addContact({
+      fullName: selectedLead.venueName || "New lead",
+      role: "",
+      company: selectedLead.venueName || "",
+      website: selectedLead.websiteUrl || "",
+      email: "",
+      phone: selectedLead.phoneE164 || selectedLead.phoneRaw || "",
+      stageId,
+      notes: selectedLead.notes || "",
+    });
 
-  const handleNotesSave = () => {
-    if (!selectedLead) return;
-    updateOutreachNotes(selectedLead.id, leadNotes);
+    if (promoteWithTask) {
+      addTask({
+        contactId: newContact.id,
+        title: `Follow up with ${selectedLead.venueName || "lead"}`,
+        description: "Promoted from Outreach Ops",
+        dueDate: promoteDueDate || format(new Date(), "yyyy-MM-dd"),
+        hasReminder: true,
+        completed: false,
+      });
+    }
+
+    updateOutreachStatus(selectedLead.id, "Interested");
     refreshLeads();
+    toast({ title: "Promoted to contacts" });
   };
 
   const openExternal = (url: string) => {
@@ -217,11 +218,6 @@ export default function OutreachOps() {
     openExternal(buildWhatsAppLink(selectedLead.phoneE164, "Hi there!"));
   };
 
-  const saveBestChannel = (value: OutreachChannel) => {
-    if (!selectedLead) return;
-    updateOutreachLead(selectedLead.id, { bestChannel: value });
-    refreshLeads();
-  };
 
   return (
     <div className="p-6 lg:p-8 xl:p-10 max-w-5xl lg:max-w-6xl 2xl:max-w-7xl mx-auto space-y-6">
@@ -230,9 +226,9 @@ export default function OutreachOps() {
           <DialogHeader>
             <DialogTitle>Import outreach leads</DialogTitle>
           </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="outreach-import">CSV file</Label>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="outreach-import">CSV file</Label>
               <Input
                 id="outreach-import"
                 type="file"
@@ -243,21 +239,21 @@ export default function OutreachOps() {
                 Expected columns: Venue_Name, City, Address, Phone, Phone_International, Website_URL,
                 Google_Maps_URL, Types, Keywords_Found_By, Priority_Score, Bucket, Best_Channel.
               </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="outreach-disable-dedupe"
-                  checked={disableDedupe}
-                  onCheckedChange={(checked) => setDisableDedupe(checked === true)}
-                />
-                <Label htmlFor="outreach-disable-dedupe" className="text-sm text-muted-foreground">
-                  Disable dedupe (import all rows)
-                </Label>
-              </div>
-              <div className="flex items-center justify-end gap-2">
-                <Button variant="outline" onClick={() => setImportOpen(false)}>
-                  Cancel
-                </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="outreach-disable-dedupe"
+                checked={disableDedupe}
+                onCheckedChange={(checked) => setDisableDedupe(checked === true)}
+              />
+              <Label htmlFor="outreach-disable-dedupe" className="text-sm text-muted-foreground">
+                Disable dedupe (import all rows)
+              </Label>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="outline" onClick={() => setImportOpen(false)}>
+                Cancel
+              </Button>
               <Button onClick={handleImport} disabled={!importFile}>
                 Import CSV
               </Button>
@@ -284,47 +280,9 @@ export default function OutreachOps() {
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant={STATUS_VARIANTS[selectedLead.status]}>{selectedLead.status}</Badge>
                 <Badge variant="outline">Bucket {selectedLead.bucket}</Badge>
-                <Badge variant="secondary">{CHANNEL_LABELS[selectedLead.bestChannel]}</Badge>
                 {selectedLead.nextActionAt && (
                   <Badge variant="outline">Next: {formatDate(selectedLead.nextActionAt)}</Badge>
                 )}
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Status</Label>
-                  <Select value={statusDraft} onValueChange={(value) => setStatusDraft(value as OutreachStatus)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {OUTREACH_STATUSES.map((status) => (
-                        <SelectItem key={status} value={status}>
-                          {status}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button variant="outline" size="sm" onClick={handleStatusSave}>
-                    Save status
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  <Label>Best channel</Label>
-                  <Select value={selectedLead.bestChannel} onValueChange={(value) => saveBestChannel(value as OutreachChannel)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select channel" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(CHANNEL_LABELS).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">Update if you want a different cadence path.</p>
-                </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -347,67 +305,58 @@ export default function OutreachOps() {
               </div>
 
               <div className="space-y-2">
-                <Label>Quick log</Label>
-                <div className="flex flex-wrap gap-2">
-                  {ACTION_SHORTLIST.map((action) => (
-                    <Button key={action} size="sm" variant="secondary" onClick={() => handleLogAction(action)}>
-                      {action}
-                    </Button>
-                  ))}
-                </div>
-                <div className="grid gap-2 sm:grid-cols-[180px_1fr_auto]">
-                  <Select value={actionDraft} onValueChange={(value) => setActionDraft(value as OutreachActionType)}>
+                <Label>Call outcome</Label>
+                <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <Select value={statusDraft} onValueChange={(value) => setStatusDraft(value as OutreachStatus)}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Action" />
+                      <SelectValue placeholder="Select outcome" />
                     </SelectTrigger>
                     <SelectContent>
-                      {OUTREACH_ACTIONS.map((action) => (
-                        <SelectItem key={action} value={action}>
-                          {action}
+                      {OUTREACH_STATUSES.map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {status}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <Input
-                    placeholder="Add a short note (optional)"
-                    value={actionNote}
-                    onChange={(event) => setActionNote(event.target.value)}
-                  />
-                  <Button onClick={() => handleLogAction()}>Log action</Button>
+                  <Button onClick={() => handleLogAction("Called")}>Log call</Button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Logging an action advances the cadence and schedules the next follow-up.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Notes</Label>
-                <Textarea
-                  value={leadNotes}
-                  onChange={(event) => setLeadNotes(event.target.value)}
-                  onBlur={handleNotesSave}
-                  placeholder="Add notes about the venue, decision maker, pricing, etc."
+                <Input
+                  placeholder="Optional note (e.g. asked for info, call back Tuesday)"
+                  value={actionNote}
+                  onChange={(event) => setActionNote(event.target.value)}
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label>Activity</Label>
-                {actions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No actions logged yet.</p>
-                ) : (
-                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                    {actions.map((entry) => (
-                      <div key={entry.id} className="rounded-lg border bg-card p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-medium text-foreground">{entry.action}</span>
-                          <Badge variant="outline">{formatDate(entry.createdAt)}</Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">Status: {entry.statusAfter}</p>
-                        {entry.notes && <p className="text-sm text-muted-foreground mt-2">{entry.notes}</p>}
-                      </div>
-                    ))}
+              <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Promote to Contacts</p>
+                    <p className="text-xs text-muted-foreground">Move this lead into your CRM pipeline.</p>
                   </div>
-                )}
+                  <Button size="sm" onClick={handlePromote}>
+                    Promote
+                  </Button>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 pt-2">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="promote-followup"
+                      checked={promoteWithTask}
+                      onCheckedChange={(checked) => setPromoteWithTask(checked === true)}
+                    />
+                    <Label htmlFor="promote-followup" className="text-sm text-muted-foreground">
+                      Create follow-up task
+                    </Label>
+                  </div>
+                  <Input
+                    type="date"
+                    value={promoteDueDate}
+                    onChange={(event) => setPromoteDueDate(event.target.value)}
+                    className="w-[180px]"
+                    disabled={!promoteWithTask}
+                  />
+                </div>
               </div>
             </div>
           )}
