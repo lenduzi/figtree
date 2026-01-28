@@ -4,6 +4,50 @@
 
 **URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
 
+## Supabase auth + cloud sync (optional)
+
+This app supports email magic-link auth and device sync via Supabase.
+
+1) Create a table + RLS policies in Supabase:
+
+```sql
+create table if not exists public.user_backups (
+  user_id uuid primary key references auth.users on delete cascade,
+  backup jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.user_backups enable row level security;
+
+create policy "Users can read own backup"
+on public.user_backups
+for select
+using (auth.uid() = user_id);
+
+create policy "Users can insert own backup"
+on public.user_backups
+for insert
+with check (auth.uid() = user_id);
+
+create policy "Users can update own backup"
+on public.user_backups
+for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+```
+
+2) Set environment variables (Vite):
+
+```
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+VITE_SUPABASE_REDIRECT_URL=https://www.figtreecrm.com/app
+```
+
+3) Add allowed redirect URLs in Supabase Auth (e.g. `https://www.figtreecrm.com/app` and `http://localhost:5173/app`).
+
+4) Install dependencies: `npm install`.
+
 ## How can I edit this code?
 
 There are several ways of editing your application.

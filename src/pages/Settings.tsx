@@ -21,91 +21,22 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Activity, Contact, DEFAULT_STAGES, ResearchEntry, ResearchList, Stage, Task } from '@/types/crm';
 import { useNavigate } from 'react-router-dom';
 import { AppTheme, useAppTheme } from '@/contexts/AppThemeContext';
-
-const STORAGE_KEYS = {
-  contacts: 'simplecrm_contacts',
-  tasks: 'simplecrm_tasks',
-  stages: 'simplecrm_stages',
-  activities: 'simplecrm_activities',
-  researchLists: 'simplecrm_research_lists',
-  researchEntries: 'simplecrm_research_entries',
-};
+import type { Session } from '@supabase/supabase-js';
+import {
+  applyBackup,
+  buildBackup,
+  CLOUD_BACKUP_TABLE,
+  CLOUD_LAST_PULL_KEY,
+  CLOUD_LAST_SYNC_KEY,
+  CLOUD_SYNC_ENABLED_KEY,
+  type CRMBackup,
+  validateBackup,
+} from '@/lib/backup';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 const FEEDBACK_EMAIL = 'lennhahn@gmail.com';
 const FEEDBACK_ENDPOINT = `https://formsubmit.co/ajax/${FEEDBACK_EMAIL}`;
-
-type CRMBackup = {
-  schemaVersion: number;
-  exportedAt: string;
-  app: string;
-  data: {
-    contacts: Contact[];
-    tasks: Task[];
-    activities: Activity[];
-    researchEntries: ResearchEntry[];
-    settings?: {
-      stages?: Stage[];
-      researchLists?: ResearchList[];
-    };
-  };
-};
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
-
-const validateBackup = (value: unknown): { ok: true; data: CRMBackup } | { ok: false; error: string } => {
-  if (!isRecord(value)) {
-    return { ok: false, error: 'Backup file is not a valid JSON object.' };
-  }
-
-  if (value.schemaVersion !== 1) {
-    return { ok: false, error: 'Unsupported backup version.' };
-  }
-
-  if (value.app !== 'solo-crm') {
-    return { ok: false, error: 'This backup file is not for this app.' };
-  }
-
-  if (typeof value.exportedAt !== 'string') {
-    return { ok: false, error: 'Backup metadata is missing or invalid.' };
-  }
-
-  if (!isRecord(value.data)) {
-    return { ok: false, error: 'Backup data section is missing.' };
-  }
-
-  const data = value.data as Record<string, unknown>;
-
-  if (!Array.isArray(data.contacts)) {
-    return { ok: false, error: 'Contacts data is missing or invalid.' };
-  }
-  if (!Array.isArray(data.tasks)) {
-    return { ok: false, error: 'Tasks data is missing or invalid.' };
-  }
-  if (!Array.isArray(data.activities)) {
-    return { ok: false, error: 'Activities data is missing or invalid.' };
-  }
-  if (!Array.isArray(data.researchEntries)) {
-    return { ok: false, error: 'Research entries data is missing or invalid.' };
-  }
-
-  if (data.settings !== undefined) {
-    if (!isRecord(data.settings)) {
-      return { ok: false, error: 'Settings data is invalid.' };
-    }
-    const settings = data.settings as Record<string, unknown>;
-    if (settings.stages !== undefined && !Array.isArray(settings.stages)) {
-      return { ok: false, error: 'Stages data is invalid.' };
-    }
-    if (settings.researchLists !== undefined && !Array.isArray(settings.researchLists)) {
-      return { ok: false, error: 'Research lists data is invalid.' };
-    }
-  }
-
-  return { ok: true, data: value as CRMBackup };
-};
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -117,6 +48,7 @@ export default function Settings() {
     activities,
     researchEntries,
     researchLists,
+    eisenhowerItems,
   } = useCRMContext();
   const [dataOpen, setDataOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<CRMBackup | null>(null);
@@ -128,6 +60,27 @@ export default function Settings() {
   const [feedbackContact, setFeedbackContact] = useState('');
   const [feedbackName, setFeedbackName] = useState('');
   const [sendStatus, setSendStatus] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authStatus, setAuthStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'restoring' | 'restored' | 'failed'>('idle');
+  const [cloudUpdatedAt, setCloudUpdatedAt] = useState<string | null>(null);
+  const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
+  const [lastSyncAt, setLastSyncAt] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(CLOUD_LAST_SYNC_KEY);
+    } catch {
+      return null;
+    }
+  });
+  const [lastPullAt, setLastPullAt] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(CLOUD_LAST_PULL_KEY);
+    } catch {
+      return null;
+    }
+  });
 
   const feedbackBody = useMemo(() => {
     const lines = [];
@@ -189,23 +142,182 @@ export default function Settings() {
     return () => window.clearTimeout(timer);
   }, [sendStatus]);
 
-  const handleExport = () => {
-    const backup: CRMBackup = {
-      schemaVersion: 1,
-      exportedAt: new Date().toISOString(),
-      app: 'solo-crm',
-      data: {
-        contacts,
-        tasks,
-        activities,
-        researchEntries,
-        settings: {
-          stages,
-          researchLists,
-        },
-      },
+  useEffect(() => {
+    if (!supabase) return;
+    let isMounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!isMounted) return;
+      setSession(data.session);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+    });
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
     };
+  }, []);
 
+  useEffect(() => {
+    if (!session) return;
+    setAuthStatus('idle');
+    setAuthError(null);
+    setAuthEmail('');
+  }, [session]);
+
+  useEffect(() => {
+    if (!supabase || !session) {
+      setCloudUpdatedAt(null);
+      return;
+    }
+    let isMounted = true;
+    const fetchMeta = async () => {
+      const { data, error } = await supabase
+        .from(CLOUD_BACKUP_TABLE)
+        .select('updated_at')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+      if (!isMounted || error) return;
+      setCloudUpdatedAt(data?.updated_at ?? null);
+    };
+    fetchMeta();
+    return () => {
+      isMounted = false;
+    };
+  }, [session]);
+
+  const handleSendMagicLink = async () => {
+    if (!supabase || !isSupabaseConfigured) {
+      toast.error('Supabase is not configured yet.');
+      return;
+    }
+    const trimmedEmail = authEmail.trim();
+    if (!trimmedEmail || authStatus === 'sending') return;
+    setAuthStatus('sending');
+    setAuthError(null);
+    const redirectTo = import.meta.env.VITE_SUPABASE_REDIRECT_URL || `${window.location.origin}/app`;
+    const { error } = await supabase.auth.signInWithOtp({
+      email: trimmedEmail,
+      options: { emailRedirectTo: redirectTo },
+    });
+    if (error) {
+      setAuthStatus('error');
+      setAuthError(error.message);
+      toast.error('Magic link failed', { description: error.message });
+      return;
+    }
+    setAuthStatus('sent');
+    toast('Magic link sent', { description: 'Check your email to finish signing in.' });
+  };
+
+  const handleSignOut = async () => {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setAuthStatus('idle');
+    setAuthError(null);
+    try {
+      localStorage.removeItem(CLOUD_SYNC_ENABLED_KEY);
+      localStorage.removeItem(CLOUD_LAST_SYNC_KEY);
+      localStorage.removeItem(CLOUD_LAST_PULL_KEY);
+    } catch {
+      // ignore storage errors
+    }
+    setLastSyncAt(null);
+    setLastPullAt(null);
+    toast('Signed out');
+  };
+
+  const handleUploadBackup = async () => {
+    if (!supabase || !session) return;
+    setSyncStatus('syncing');
+    const backup = buildBackup({
+      contacts,
+      tasks,
+      activities,
+      researchEntries,
+      stages,
+      researchLists,
+      eisenhowerItems,
+    });
+    const updatedAt = new Date().toISOString();
+    const { error } = await supabase
+      .from(CLOUD_BACKUP_TABLE)
+      .upsert(
+        {
+          user_id: session.user.id,
+          backup,
+          updated_at: updatedAt,
+        },
+        { onConflict: 'user_id' },
+      );
+    if (error) {
+      setSyncStatus('failed');
+      toast.error('Cloud sync failed', { description: error.message });
+      return;
+    }
+    setSyncStatus('synced');
+    setCloudUpdatedAt(updatedAt);
+    setLastSyncAt(updatedAt);
+    try {
+      localStorage.setItem(CLOUD_SYNC_ENABLED_KEY, '1');
+      localStorage.setItem(CLOUD_LAST_SYNC_KEY, updatedAt);
+    } catch {
+      // ignore storage errors
+    }
+  };
+
+  const handleRestoreFromCloud = async () => {
+    if (!supabase || !session) return;
+    setSyncStatus('restoring');
+    const { data, error } = await supabase
+      .from(CLOUD_BACKUP_TABLE)
+      .select('backup, updated_at')
+      .eq('user_id', session.user.id)
+      .maybeSingle();
+    if (error) {
+      setSyncStatus('failed');
+      toast.error('Cloud restore failed', { description: error.message });
+      return;
+    }
+    if (!data?.backup) {
+      setSyncStatus('idle');
+      toast('No cloud backup found yet.');
+      return;
+    }
+    const validation = validateBackup(data.backup);
+    if (!validation.ok) {
+      setSyncStatus('failed');
+      toast.error(validation.error);
+      return;
+    }
+    const result = applyBackup(validation.data);
+    if (!result.ok) {
+      setSyncStatus('failed');
+      toast.error(result.error);
+      return;
+    }
+    const pulledAt = new Date().toISOString();
+    setLastPullAt(pulledAt);
+    try {
+      localStorage.setItem(CLOUD_SYNC_ENABLED_KEY, '1');
+      localStorage.setItem(CLOUD_LAST_PULL_KEY, pulledAt);
+    } catch {
+      // ignore storage errors
+    }
+    setSyncStatus('restored');
+    window.location.reload();
+  };
+
+  const handleExport = () => {
+    const backup = buildBackup({
+      contacts,
+      tasks,
+      activities,
+      researchEntries,
+      stages,
+      researchLists,
+      eisenhowerItems,
+    });
     const json = JSON.stringify(backup, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -256,23 +368,14 @@ export default function Settings() {
 
   const applyImport = () => {
     if (!pendingImport) return;
-    const settings = pendingImport.data.settings ?? {};
-    const stagesToUse = settings.stages ?? DEFAULT_STAGES;
-    const researchListsToUse = settings.researchLists ?? [];
-
-    try {
-      localStorage.setItem(STORAGE_KEYS.contacts, JSON.stringify(pendingImport.data.contacts));
-      localStorage.setItem(STORAGE_KEYS.tasks, JSON.stringify(pendingImport.data.tasks));
-      localStorage.setItem(STORAGE_KEYS.activities, JSON.stringify(pendingImport.data.activities));
-      localStorage.setItem(STORAGE_KEYS.researchEntries, JSON.stringify(pendingImport.data.researchEntries));
-      localStorage.setItem(STORAGE_KEYS.stages, JSON.stringify(stagesToUse));
-      localStorage.setItem(STORAGE_KEYS.researchLists, JSON.stringify(researchListsToUse));
-      setConfirmOpen(false);
-      setPendingImport(null);
-      window.location.reload();
-    } catch {
-      toast.error('Import failed. Please try again with a valid backup file.');
+    const result = applyBackup(pendingImport);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
     }
+    setConfirmOpen(false);
+    setPendingImport(null);
+    window.location.reload();
   };
 
   return (
@@ -294,12 +397,93 @@ export default function Settings() {
         <CardContent className="text-sm text-muted-foreground">
           <p>A lightweight personal CRM to manage contacts, track stages, and never miss a follow-up.</p>
           <p className="mt-2">All data is stored locally in your browser.</p>
-          <div className="mt-4 flex flex-col sm:flex-row gap-2">
-            <Button disabled>
-              Sign up
-            </Button>
-            <span className="text-xs text-muted-foreground self-center">Coming soon</span>
-          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Account</CardTitle>
+          <CardDescription>Sign in to sync your data across devices.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!isSupabaseConfigured && (
+            <p className="text-sm text-muted-foreground">
+              Supabase is not configured. Add your Supabase URL and anon key to enable sign-in.
+            </p>
+          )}
+          {isSupabaseConfigured && !session && (
+            <div className="space-y-3">
+              <div className="grid gap-2">
+                <Label htmlFor="settings-auth-email">Email</Label>
+                <Input
+                  id="settings-auth-email"
+                  type="email"
+                  placeholder="you@company.com"
+                  value={authEmail}
+                  onChange={(event) => setAuthEmail(event.target.value)}
+                />
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button onClick={handleSendMagicLink} disabled={!authEmail.trim() || authStatus === 'sending'}>
+                  {authStatus === 'sending' ? 'Sending...' : 'Send magic link'}
+                </Button>
+              </div>
+              {authStatus === 'sent' && (
+                <p className="text-xs text-muted-foreground">Magic link sent. Check your inbox to finish signing in.</p>
+              )}
+              {authStatus === 'error' && authError && (
+                <p className="text-xs text-destructive">{authError}</p>
+              )}
+            </div>
+          )}
+          {isSupabaseConfigured && session && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Signed in</p>
+                  <p className="text-xs text-muted-foreground">
+                    {session.user.email ?? session.user.phone ?? 'Account'}
+                  </p>
+                </div>
+                <Button variant="outline" onClick={handleSignOut}>
+                  Sign out
+                </Button>
+              </div>
+              <div className="rounded-lg border border-border p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Cloud sync</p>
+                    <p className="text-xs text-muted-foreground">
+                      Latest cloud backup: {cloudUpdatedAt ? new Date(cloudUpdatedAt).toLocaleString() : '—'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Last upload: {lastSyncAt ? new Date(lastSyncAt).toLocaleString() : '—'} · Last restore:{' '}
+                      {lastPullAt ? new Date(lastPullAt).toLocaleString() : '—'}
+                    </p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={handleUploadBackup}
+                      disabled={syncStatus === 'syncing' || syncStatus === 'restoring'}
+                    >
+                      {syncStatus === 'syncing' ? 'Syncing...' : 'Sync to cloud'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setRestoreConfirmOpen(true)}
+                      disabled={syncStatus === 'syncing' || syncStatus === 'restoring'}
+                    >
+                      Restore from cloud
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Sync runs in the background after your first upload or restore. Use restore when setting up a new device.
+                </p>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -405,6 +589,28 @@ export default function Settings() {
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setPendingImport(null)}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={applyImport}>Continue</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={restoreConfirmOpen} onOpenChange={setRestoreConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore from cloud backup?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will replace your current local data with the latest cloud backup.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setRestoreConfirmOpen(false);
+                handleRestoreFromCloud();
+              }}
+            >
+              Restore
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

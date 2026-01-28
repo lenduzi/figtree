@@ -16,6 +16,7 @@ import { AddContactDialog } from "@/components/AddContactDialog";
 import { AddTaskWithContactDialog } from "@/components/AddTaskWithContactDialog";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { FirstTaskBanner } from "@/components/FirstTaskBanner";
+import CloudSync from "@/components/CloudSync";
 import FollowUpToday from "./pages/FollowUpToday";
 import LandingHome from "./pages/LandingHome";
 import Contacts from "./pages/Contacts";
@@ -164,6 +165,7 @@ function AppContent() {
         onAddContact={() => setAddContactOpen(true)} 
         onAddTask={() => setAddTaskOpen(true)}
       />
+      <CloudSync />
       <SidebarProvider>
         <div className="min-h-screen flex w-full">
           {!isLanding && <AppSidebar />}
