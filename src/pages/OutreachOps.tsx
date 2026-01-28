@@ -103,7 +103,7 @@ export default function OutreachOps() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | OutreachStatus>("all");
   const [bucketFilter, setBucketFilter] = useState<"all" | OutreachBucket>("all");
-  const [channelFilter, setChannelFilter] = useState<"all" | OutreachChannel>("all");
+  const [keywordFilter, setKeywordFilter] = useState<string>("all");
   const [dueOnly, setDueOnly] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -144,11 +144,23 @@ export default function OutreachOps() {
         lead.address.toLowerCase().includes(query);
       const matchesStatus = statusFilter === "all" || lead.status === statusFilter;
       const matchesBucket = bucketFilter === "all" || lead.bucket === bucketFilter;
-      const matchesChannel = channelFilter === "all" || lead.bestChannel === channelFilter;
+      const matchesKeyword =
+        keywordFilter === "all" ||
+        lead.keywordsFoundBy.some((keyword) => keyword.toLowerCase() === keywordFilter.toLowerCase());
       const matchesDue = !dueOnly || getDueStatus(lead) === "due";
-      return matchesSearch && matchesStatus && matchesBucket && matchesChannel && matchesDue;
+      return matchesSearch && matchesStatus && matchesBucket && matchesKeyword && matchesDue;
     });
-  }, [leads, search, statusFilter, bucketFilter, channelFilter, dueOnly]);
+  }, [leads, search, statusFilter, bucketFilter, keywordFilter, dueOnly]);
+
+  const keywordOptions = useMemo(() => {
+    const set = new Set<string>();
+    leads.forEach((lead) => {
+      lead.keywordsFoundBy.forEach((keyword) => {
+        if (keyword.trim()) set.add(keyword.trim());
+      });
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [leads]);
 
   const dueLeads = useMemo(() => leads.filter((lead) => getDueStatus(lead) === "due"), [leads]);
   const activeLeads = useMemo(
@@ -486,15 +498,15 @@ export default function OutreachOps() {
               <SelectItem value="C">C</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={channelFilter} onValueChange={(value) => setChannelFilter(value as "all" | OutreachChannel)}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Channel" />
+          <Select value={keywordFilter} onValueChange={setKeywordFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="All keywords" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All channels</SelectItem>
-              {Object.entries(CHANNEL_LABELS).map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
+              <SelectItem value="all">All keywords</SelectItem>
+              {keywordOptions.map((keyword) => (
+                <SelectItem key={keyword} value={keyword}>
+                  {keyword}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -533,7 +545,9 @@ export default function OutreachOps() {
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   <Badge variant="outline">Bucket {lead.bucket}</Badge>
-                  <Badge variant="secondary">{CHANNEL_LABELS[lead.bestChannel]}</Badge>
+                  {lead.keywordsFoundBy[0] && (
+                    <Badge variant="secondary">{lead.keywordsFoundBy[0]}</Badge>
+                  )}
                   {lead.lastActionAt && (
                     <span>Last contacted {formatDate(lead.lastActionAt)}</span>
                   )}
@@ -555,7 +569,7 @@ export default function OutreachOps() {
                   <TableHead>Bucket</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Next Action</TableHead>
-                  <TableHead>Channel</TableHead>
+                  <TableHead>Keyword</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -593,7 +607,11 @@ export default function OutreachOps() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{CHANNEL_LABELS[lead.bestChannel]}</Badge>
+                      {lead.keywordsFoundBy[0] ? (
+                        <Badge variant="secondary">{lead.keywordsFoundBy[0]}</Badge>
+                      ) : (
+                        "—"
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
