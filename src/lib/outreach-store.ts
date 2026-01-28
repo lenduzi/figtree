@@ -336,6 +336,7 @@ export const logOutreachAction = (
     }
   }
 
+  const trimmedNotes = notes.trim();
   const updatedLead: OutreachLead = {
     ...lead,
     status: nextStatus,
@@ -344,6 +345,7 @@ export const logOutreachAction = (
     nextAction,
     nextActionAt,
     cadenceStep: nextStep,
+    notes: trimmedNotes ? trimmedNotes : lead.notes,
     updatedAt: now,
   };
 

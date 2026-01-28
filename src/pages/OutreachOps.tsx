@@ -4,6 +4,7 @@ import {
   importOutreachCsv,
   listOutreachLeads,
   logOutreachAction,
+  updateOutreachLead,
   updateOutreachStatus,
 } from "@/lib/outreach-store";
 import {
@@ -110,6 +111,7 @@ export default function OutreachOps() {
   const [disableDedupe, setDisableDedupe] = useState(false);
   const [statusDraft, setStatusDraft] = useState<OutreachStatus>("New");
   const [actionNote, setActionNote] = useState("");
+  const [leadNotes, setLeadNotes] = useState("");
   const [promoteWithTask, setPromoteWithTask] = useState(true);
   const [promoteDueDate, setPromoteDueDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
 
@@ -125,7 +127,12 @@ export default function OutreachOps() {
     if (!selectedLead) return;
     setStatusDraft(selectedLead.status);
     setActionNote("");
+    setLeadNotes(selectedLead.notes || "");
   }, [selectedLead?.id]);
+  useEffect(() => {
+    if (!selectedLead) return;
+    setLeadNotes(selectedLead.notes || "");
+  }, [selectedLead?.notes]);
 
   const filteredLeads = useMemo(() => {
     return leads.filter((lead) => {
@@ -169,6 +176,13 @@ export default function OutreachOps() {
     const saved = logOutreachAction(selectedLead.id, resolvedAction, actionNote.trim(), statusDraft);
     if (!saved) return;
     setActionNote("");
+    refreshLeads();
+  };
+
+  const handleNotesSave = () => {
+    if (!selectedLead) return;
+    const trimmed = leadNotes.trim();
+    updateOutreachLead(selectedLead.id, { notes: trimmed });
     refreshLeads();
   };
 
@@ -283,6 +297,11 @@ export default function OutreachOps() {
                 {selectedLead.nextActionAt && (
                   <Badge variant="outline">Next: {formatDate(selectedLead.nextActionAt)}</Badge>
                 )}
+                {selectedLead.lastActionAt && (
+                  <Badge variant="secondary">
+                    Last contacted: {formatDate(selectedLead.lastActionAt)}
+                  </Badge>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -325,6 +344,16 @@ export default function OutreachOps() {
                   placeholder="Optional note (e.g. asked for info, call back Tuesday)"
                   value={actionNote}
                   onChange={(event) => setActionNote(event.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Context</Label>
+                <Input
+                  placeholder="Saved info (e.g. DM name, preferences, pricing notes)"
+                  value={leadNotes}
+                  onChange={(event) => setLeadNotes(event.target.value)}
+                  onBlur={handleNotesSave}
                 />
               </div>
 
@@ -505,6 +534,9 @@ export default function OutreachOps() {
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   <Badge variant="outline">Bucket {lead.bucket}</Badge>
                   <Badge variant="secondary">{CHANNEL_LABELS[lead.bestChannel]}</Badge>
+                  {lead.lastActionAt && (
+                    <span>Last contacted {formatDate(lead.lastActionAt)}</span>
+                  )}
                   {lead.nextAction && (
                     <span>
                       {lead.nextAction} · {formatDate(lead.nextActionAt)}
@@ -533,10 +565,16 @@ export default function OutreachOps() {
                     className={cn("cursor-pointer", getDueStatus(lead) === "due" && "bg-accent/40")}
                     onClick={() => setSelectedLeadId(lead.id)}
                   >
-                    <TableCell className="font-medium text-foreground">
-                      {getLeadDisplayName(lead)}
-                      {lead.phoneE164 && <span className="ml-2 text-xs text-muted-foreground">{lead.phoneE164}</span>}
-                    </TableCell>
+                <TableCell className="font-medium text-foreground">
+                      <div className="flex flex-col">
+                        <span>{getLeadDisplayName(lead)}</span>
+                        {lead.lastActionAt && (
+                          <span className="text-xs text-muted-foreground">
+                            Last contacted {formatDate(lead.lastActionAt)}
+                          </span>
+                        )}
+                      </div>
+                </TableCell>
                     <TableCell>{lead.city || "—"}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{lead.bucket}</Badge>
