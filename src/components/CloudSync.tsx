@@ -1,11 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { useCRMContext } from '@/contexts/CRMContext';
-import { buildBackup, CLOUD_BACKUP_TABLE, CLOUD_LAST_SYNC_KEY, CLOUD_SYNC_ENABLED_KEY } from '@/lib/backup';
+import {
+  applyBackup,
+  buildBackup,
+  CLOUD_BACKUP_TABLE,
+  CLOUD_LAST_PULL_KEY,
+  CLOUD_LAST_SYNC_KEY,
+  CLOUD_SYNC_ENABLED_KEY,
+  validateBackup,
+} from '@/lib/backup';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
 const SYNC_DEBOUNCE_MS = 1500;
 const SYNC_INTERVAL_MS = 60000;
+const PULL_POLL_MS = 45000;
 
 export default function CloudSync() {
   const {
@@ -21,6 +30,7 @@ export default function CloudSync() {
   const [tick, setTick] = useState(0);
   const debounceRef = useRef<number | null>(null);
   const lastDataHashRef = useRef<string | null>(null);
+  const pullInFlightRef = useRef(false);
 
   useEffect(() => {
     if (!supabase) return;
@@ -114,6 +124,69 @@ export default function CloudSync() {
       }
     };
   }, [backup, dataHash, session]);
+
+  useEffect(() => {
+    if (!supabase || !session) return;
+    const syncEnabled = (() => {
+      try {
+        return localStorage.getItem(CLOUD_SYNC_ENABLED_KEY) === '1';
+      } catch {
+        return false;
+      }
+    })();
+    if (!syncEnabled) return;
+
+    const getLocalLastActivity = () => {
+      const parse = (value: string | null) => {
+        if (!value) return 0;
+        const time = new Date(value).getTime();
+        return Number.isNaN(time) ? 0 : time;
+      };
+      try {
+        const lastSync = parse(localStorage.getItem(CLOUD_LAST_SYNC_KEY));
+        const lastPull = parse(localStorage.getItem(CLOUD_LAST_PULL_KEY));
+        return Math.max(lastSync, lastPull);
+      } catch {
+        return 0;
+      }
+    };
+
+    const checkForCloudUpdate = async () => {
+      if (pullInFlightRef.current) return;
+      const localLast = getLocalLastActivity();
+      const { data, error } = await supabase
+        .from(CLOUD_BACKUP_TABLE)
+        .select('backup, updated_at')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+      if (error || !data?.updated_at || !data.backup) return;
+      const cloudTime = new Date(data.updated_at).getTime();
+      if (Number.isNaN(cloudTime) || cloudTime <= localLast) return;
+
+      pullInFlightRef.current = true;
+      const validation = validateBackup(data.backup);
+      if (!validation.ok) {
+        pullInFlightRef.current = false;
+        return;
+      }
+      const result = applyBackup(validation.data);
+      if (!result.ok) {
+        pullInFlightRef.current = false;
+        return;
+      }
+      try {
+        localStorage.setItem(CLOUD_LAST_PULL_KEY, data.updated_at);
+        localStorage.setItem(CLOUD_SYNC_ENABLED_KEY, '1');
+      } catch {
+        // ignore storage errors
+      }
+      window.location.reload();
+    };
+
+    checkForCloudUpdate();
+    const interval = window.setInterval(checkForCloudUpdate, PULL_POLL_MS);
+    return () => window.clearInterval(interval);
+  }, [session]);
 
   return null;
 }
