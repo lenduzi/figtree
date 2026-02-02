@@ -77,6 +77,38 @@ const CHANNEL_LABELS: Record<OutreachChannel, string> = {
   unknown: "Unknown",
 };
 
+const OUTREACH_UI_STATE_KEY = "simplecrm_outreach_ui_v1";
+
+type OutreachUiState = {
+  search?: string;
+  statusFilter?: "all" | OutreachStatus;
+  bucketFilter?: "all" | OutreachBucket;
+  keywordFilter?: string;
+  dueOnly?: boolean;
+  selectedLeadId?: string | null;
+};
+
+const BUCKETS: OutreachBucket[] = ["A", "B", "C"];
+
+const loadOutreachUiState = (): OutreachUiState | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(OUTREACH_UI_STATE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as OutreachUiState;
+  } catch {
+    return null;
+  }
+};
+
+const saveOutreachUiState = (state: OutreachUiState) => {
+  try {
+    localStorage.setItem(OUTREACH_UI_STATE_KEY, JSON.stringify(state));
+  } catch {
+    // ignore storage errors
+  }
+};
+
 const getLeadDisplayName = (lead: OutreachLead) => lead.venueName || "Untitled lead";
 
 const getDueStatus = (lead: OutreachLead) => {
@@ -99,13 +131,26 @@ const formatDate = (value: string | null) => {
 
 export default function OutreachOps() {
   const { addContact, addTask, stages } = useCRMContext();
+  const [storedUi] = useState(() => loadOutreachUiState());
   const [leads, setLeads] = useState<OutreachLead[]>([]);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | OutreachStatus>("all");
-  const [bucketFilter, setBucketFilter] = useState<"all" | OutreachBucket>("all");
-  const [keywordFilter, setKeywordFilter] = useState<string>("all");
-  const [dueOnly, setDueOnly] = useState(false);
-  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  const [search, setSearch] = useState(() => storedUi?.search ?? "");
+  const [statusFilter, setStatusFilter] = useState<"all" | OutreachStatus>(() => {
+    if (storedUi?.statusFilter === "all") return "all";
+    if (storedUi?.statusFilter && OUTREACH_STATUSES.includes(storedUi.statusFilter)) {
+      return storedUi.statusFilter;
+    }
+    return "all";
+  });
+  const [bucketFilter, setBucketFilter] = useState<"all" | OutreachBucket>(() => {
+    if (storedUi?.bucketFilter === "all") return "all";
+    if (storedUi?.bucketFilter && BUCKETS.includes(storedUi.bucketFilter)) {
+      return storedUi.bucketFilter;
+    }
+    return "all";
+  });
+  const [keywordFilter, setKeywordFilter] = useState<string>(() => storedUi?.keywordFilter ?? "all");
+  const [dueOnly, setDueOnly] = useState(() => Boolean(storedUi?.dueOnly));
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(() => storedUi?.selectedLeadId ?? null);
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [disableDedupe, setDisableDedupe] = useState(false);
@@ -167,6 +212,29 @@ export default function OutreachOps() {
     () => leads.filter((lead) => !["Won", "No", "Dead/Invalid", "Not Now"].includes(lead.status)),
     [leads],
   );
+
+  useEffect(() => {
+    if (keywordFilter === "all") return;
+    if (keywordOptions.includes(keywordFilter)) return;
+    setKeywordFilter("all");
+  }, [keywordFilter, keywordOptions]);
+
+  useEffect(() => {
+    if (!selectedLeadId) return;
+    if (leads.some((lead) => lead.id === selectedLeadId)) return;
+    setSelectedLeadId(null);
+  }, [leads, selectedLeadId]);
+
+  useEffect(() => {
+    saveOutreachUiState({
+      search,
+      statusFilter,
+      bucketFilter,
+      keywordFilter,
+      dueOnly,
+      selectedLeadId,
+    });
+  }, [search, statusFilter, bucketFilter, keywordFilter, dueOnly, selectedLeadId]);
 
   const handleImport = async () => {
     if (!importFile) return;
