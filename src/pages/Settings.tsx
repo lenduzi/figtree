@@ -61,8 +61,9 @@ export default function Settings() {
   const [feedbackName, setFeedbackName] = useState('');
   const [sendStatus, setSendStatus] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
   const [authEmail, setAuthEmail] = useState('');
-  const [authStatus, setAuthStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [authStatus, setAuthStatus] = useState<'idle' | 'sending' | 'sent' | 'verifying' | 'error'>('idle');
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authCode, setAuthCode] = useState('');
   const [session, setSession] = useState<Session | null>(null);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'restoring' | 'restored' | 'failed'>('idle');
   const [cloudUpdatedAt, setCloudUpdatedAt] = useState<string | null>(null);
@@ -163,6 +164,7 @@ export default function Settings() {
     setAuthStatus('idle');
     setAuthError(null);
     setAuthEmail('');
+    setAuthCode('');
   }, [session]);
 
   useEffect(() => {
@@ -186,28 +188,53 @@ export default function Settings() {
     };
   }, [session]);
 
-  const handleSendMagicLink = async () => {
+  const handleSendCode = async () => {
     if (!supabase || !isSupabaseConfigured) {
       toast.error('Supabase is not configured yet.');
       return;
     }
     const trimmedEmail = authEmail.trim();
-    if (!trimmedEmail || authStatus === 'sending') return;
+    if (!trimmedEmail || authStatus === 'sending' || authStatus === 'verifying') return;
     setAuthStatus('sending');
     setAuthError(null);
-    const redirectTo = import.meta.env.VITE_SUPABASE_REDIRECT_URL || `${window.location.origin}/app`;
+    setAuthCode('');
     const { error } = await supabase.auth.signInWithOtp({
       email: trimmedEmail,
-      options: { emailRedirectTo: redirectTo },
     });
     if (error) {
       setAuthStatus('error');
       setAuthError(error.message);
-      toast.error('Magic link failed', { description: error.message });
+      toast.error('Code request failed', { description: error.message });
       return;
     }
     setAuthStatus('sent');
-    toast('Magic link sent', { description: 'Check your email to finish signing in.' });
+    toast('Code sent', { description: 'Check your email for the 6-digit code.' });
+  };
+
+  const handleVerifyCode = async () => {
+    if (!supabase || !isSupabaseConfigured) {
+      toast.error('Supabase is not configured yet.');
+      return;
+    }
+    const trimmedEmail = authEmail.trim();
+    const trimmedCode = authCode.trim();
+    if (!trimmedEmail || !trimmedCode || authStatus === 'verifying') return;
+    setAuthStatus('verifying');
+    setAuthError(null);
+    const { error } = await supabase.auth.verifyOtp({
+      email: trimmedEmail,
+      token: trimmedCode,
+      type: 'email',
+    });
+    if (error) {
+      setAuthStatus('error');
+      setAuthError(error.message);
+      toast.error('Code verification failed', { description: error.message });
+      return;
+    }
+    setAuthStatus('idle');
+    setAuthCode('');
+    toast('Signed in');
   };
 
   const handleSignOut = async () => {
@@ -424,12 +451,38 @@ export default function Settings() {
                 />
               </div>
               <div className="flex flex-col sm:flex-row gap-2">
-                <Button onClick={handleSendMagicLink} disabled={!authEmail.trim() || authStatus === 'sending'}>
-                  {authStatus === 'sending' ? 'Sending...' : 'Send magic link'}
+                <Button
+                  onClick={handleSendCode}
+                  disabled={!authEmail.trim() || authStatus === 'sending' || authStatus === 'verifying'}
+                >
+                  {authStatus === 'sending' ? 'Sending...' : 'Send code'}
                 </Button>
               </div>
               {authStatus === 'sent' && (
-                <p className="text-xs text-muted-foreground">Magic link sent. Check your inbox to finish signing in.</p>
+                <p className="text-xs text-muted-foreground">Code sent. Check your inbox for the 6-digit code.</p>
+              )}
+              {(authStatus === 'sent' || authCode.trim()) && (
+                <>
+                  <div className="grid gap-2">
+                    <Label htmlFor="settings-auth-code">Code</Label>
+                    <Input
+                      id="settings-auth-code"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      placeholder="123456"
+                      value={authCode}
+                      onChange={(event) => setAuthCode(event.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button
+                      onClick={handleVerifyCode}
+                      disabled={!authEmail.trim() || !authCode.trim() || authStatus === 'verifying'}
+                    >
+                      {authStatus === 'verifying' ? 'Verifying...' : 'Verify code'}
+                    </Button>
+                  </div>
+                </>
               )}
               {authStatus === 'error' && authError && (
                 <p className="text-xs text-destructive">{authError}</p>
