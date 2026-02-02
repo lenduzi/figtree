@@ -8,6 +8,7 @@ import {
   CLOUD_LAST_PULL_KEY,
   CLOUD_LAST_SYNC_KEY,
   CLOUD_SYNC_ENABLED_KEY,
+  OUTREACH_LAST_CHANGE_KEY,
   validateBackup,
 } from '@/lib/backup';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
@@ -145,7 +146,8 @@ export default function CloudSync() {
       try {
         const lastSync = parse(localStorage.getItem(CLOUD_LAST_SYNC_KEY));
         const lastPull = parse(localStorage.getItem(CLOUD_LAST_PULL_KEY));
-        return Math.max(lastSync, lastPull);
+        const lastOutreach = parse(localStorage.getItem(OUTREACH_LAST_CHANGE_KEY));
+        return Math.max(lastSync, lastPull, lastOutreach);
       } catch {
         return 0;
       }

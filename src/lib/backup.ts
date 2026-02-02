@@ -29,6 +29,7 @@ export const CLOUD_BACKUP_TABLE = "user_backups";
 export const CLOUD_LAST_SYNC_KEY = "simplecrm_cloud_last_sync";
 export const CLOUD_LAST_PULL_KEY = "simplecrm_cloud_last_pull";
 export const CLOUD_SYNC_ENABLED_KEY = "simplecrm_cloud_sync_enabled";
+export const OUTREACH_LAST_CHANGE_KEY = "simplecrm_outreach_last_change";
 
 type BackupSettings = {
   stages?: Stage[];

@@ -12,6 +12,7 @@ import {
   OutreachLead,
   OutreachStatus,
 } from "@/types/outreach";
+import { OUTREACH_LAST_CHANGE_KEY } from "@/lib/backup";
 
 const STORAGE_KEYS = {
   leads: "simplecrm_outreach_leads_v1",
@@ -67,6 +68,16 @@ const saveToStorage = <T>(key: string, value: T) => {
   const storage = getStorage();
   if (!storage) return;
   storage.setItem(key, JSON.stringify(value));
+};
+
+const touchOutreachChange = () => {
+  const storage = getStorage();
+  if (!storage) return;
+  try {
+    storage.setItem(OUTREACH_LAST_CHANGE_KEY, new Date().toISOString());
+  } catch {
+    // ignore storage errors
+  }
 };
 
 const generateId = () => {
@@ -227,7 +238,10 @@ const getLeads = (): OutreachLead[] => {
   return safeParse(storage.getItem(STORAGE_KEYS.leads), [] as OutreachLead[]);
 };
 
-const saveLeads = (leads: OutreachLead[]) => saveToStorage(STORAGE_KEYS.leads, leads);
+const saveLeads = (leads: OutreachLead[]) => {
+  saveToStorage(STORAGE_KEYS.leads, leads);
+  touchOutreachChange();
+};
 
 const getActions = (): OutreachActionLog[] => {
   const storage = getStorage();
@@ -235,7 +249,10 @@ const getActions = (): OutreachActionLog[] => {
   return safeParse(storage.getItem(STORAGE_KEYS.actions), [] as OutreachActionLog[]);
 };
 
-const saveActions = (actions: OutreachActionLog[]) => saveToStorage(STORAGE_KEYS.actions, actions);
+const saveActions = (actions: OutreachActionLog[]) => {
+  saveToStorage(STORAGE_KEYS.actions, actions);
+  touchOutreachChange();
+};
 
 const getImports = (): OutreachImportSummary[] => {
   const storage = getStorage();
@@ -243,7 +260,10 @@ const getImports = (): OutreachImportSummary[] => {
   return safeParse(storage.getItem(STORAGE_KEYS.imports), [] as OutreachImportSummary[]);
 };
 
-const saveImports = (imports: OutreachImportSummary[]) => saveToStorage(STORAGE_KEYS.imports, imports);
+const saveImports = (imports: OutreachImportSummary[]) => {
+  saveToStorage(STORAGE_KEYS.imports, imports);
+  touchOutreachChange();
+};
 
 export const listOutreachLeads = (): OutreachLead[] => {
   return [...getLeads()].sort((a, b) => {
