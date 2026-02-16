@@ -400,7 +400,40 @@ const findHeaderIndex = (normalizedHeaders: string[], options: string[]) => {
   return normalizedHeaders.findIndex((header) => optionSet.includes(header));
 };
 
-export const parseCsv = (text: string): string[][] => {
+const detectDelimiter = (text: string) => {
+  let commas = 0;
+  let semicolons = 0;
+  let tabs = 0;
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+
+    if (char === "\"" && nextChar === "\"" && inQuotes) {
+      i += 1;
+      continue;
+    }
+
+    if (char === "\"") {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (!inQuotes) {
+      if (char === ",") commas += 1;
+      if (char === ";") semicolons += 1;
+      if (char === "\t") tabs += 1;
+      if (char === "\n" || char === "\r") break;
+    }
+  }
+
+  if (semicolons > commas && semicolons >= tabs) return ";";
+  if (tabs > commas && tabs > semicolons) return "\t";
+  return ",";
+};
+
+export const parseCsv = (text: string, delimiter = ","): string[][] => {
   const rows: string[][] = [];
   let current: string[] = [];
   let field = "";
@@ -421,7 +454,7 @@ export const parseCsv = (text: string): string[][] => {
       continue;
     }
 
-    if (char === "," && !inQuotes) {
+    if (char === delimiter && !inQuotes) {
       current.push(field);
       field = "";
       continue;
@@ -454,7 +487,8 @@ export const parseCsv = (text: string): string[][] => {
 };
 
 export const parseCsvRecords = (text: string) => {
-  const rows = parseCsv(text);
+  const delimiter = detectDelimiter(text);
+  const rows = parseCsv(text, delimiter);
   if (rows.length === 0) return { headers: [] as string[], records: [] as Record<string, string>[] };
   const headers = rows[0].map((header) => header.trim());
   const normalizedHeaders = normalizeHeaders(headers);
