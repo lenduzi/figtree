@@ -43,6 +43,15 @@ export interface Contact {
   updatedAt: string;
 }
 
+export interface Creator {
+  id: string;
+  name: string;
+  tiktokHandle?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type ActivityType = 'call' | 'call_attempted' | 'email' | 'meeting' | 'note' | 'stage_change' | 'task_completed';
 
 export interface Activity {
@@ -76,6 +85,34 @@ export interface ResearchEntry {
   priority: ResearchPriority;
   status: ResearchStatus;
   linkedContactId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Projects
+export type ProjectStatus = 'Preparing' | 'Active' | 'Delivering' | 'Closed' | 'Archived';
+
+export type VisitStatus = 'Sourcing' | 'Arranging' | 'Scheduled' | 'Posting' | 'Post-Eval' | 'Done';
+
+export interface Project {
+  id: string;
+  clientId: string;
+  status: ProjectStatus;
+  notes: string;
+  links: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectVisit {
+  id: string;
+  projectId: string;
+  location: string;
+  date: string;
+  time?: string;
+  creatorId?: string | null;
+  status: VisitStatus;
+  briefing: string;
   createdAt: string;
   updatedAt: string;
 }

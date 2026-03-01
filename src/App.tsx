@@ -21,7 +21,7 @@ import FollowUpToday from "./pages/FollowUpToday";
 import LandingHome from "./pages/LandingHome";
 import Contacts from "./pages/Contacts";
 import Pipeline from "./pages/Pipeline";
-import Planning from "./pages/Planning";
+import Projects from "./pages/Projects";
 import Eisenhower from "./pages/Eisenhower";
 import Resources from "./pages/Resources";
 import OutreachOps from "./pages/OutreachOps";
@@ -86,7 +86,7 @@ function AppContent() {
     if (path.startsWith("/contacts")) return "Contacts";
     if (path.startsWith("/pipeline")) return "Pipeline";
     if (path.startsWith("/outreach")) return "Outreach";
-    if (path.startsWith("/planning")) return "Plan";
+    if (path.startsWith("/projects") || path.startsWith("/planning")) return "Projects";
     if (path.startsWith("/eisenhower")) return "Easy Eisenhower";
     if (path.startsWith("/resources")) return "Resources";
     if (path.startsWith("/settings")) return "Settings";
@@ -192,7 +192,8 @@ function AppContent() {
               <Route path="/contacts/:id" element={<ContactDetail />} />
               <Route path="/pipeline" element={<Pipeline />} />
               <Route path="/outreach" element={<OutreachOps />} />
-              <Route path="/planning" element={<Planning />} />
+              <Route path="/projects" element={<Projects />} />
+              <Route path="/planning" element={<Projects />} />
               <Route path="/eisenhower" element={<Eisenhower />} />
               <Route path="/resources" element={<Resources />} />
               <Route path="/settings" element={<Settings />} />

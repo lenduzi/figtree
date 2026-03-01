@@ -49,6 +49,9 @@ export default function Settings() {
     researchEntries,
     researchLists,
     eisenhowerItems,
+    projects,
+    projectVisits,
+    creators,
   } = useCRMContext();
   const [dataOpen, setDataOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<CRMBackup | null>(null);
@@ -265,6 +268,9 @@ export default function Settings() {
       stages,
       researchLists,
       eisenhowerItems,
+      projects,
+      projectVisits,
+      creators,
     });
     const updatedAt = new Date().toISOString();
     const { error } = await supabase
@@ -344,6 +350,9 @@ export default function Settings() {
       stages,
       researchLists,
       eisenhowerItems,
+      projects,
+      projectVisits,
+      creators,
     });
     const json = JSON.stringify(backup, null, 2);
     const blob = new Blob([json], { type: 'application/json' });

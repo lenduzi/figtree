@@ -1,4 +1,4 @@
-import { CalendarCheck, Users, Kanban, Settings, ClipboardList, BookOpen, Info, LayoutGrid, Megaphone } from 'lucide-react';
+import { CalendarCheck, Users, Kanban, Settings, MapPin, BookOpen, Info, LayoutGrid, Megaphone } from 'lucide-react';
 import figtreeLogo from '@/assets/figtree-logo.png';
 import { NavLink } from '@/components/NavLink';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -22,7 +22,7 @@ const crmItems = [
   { title: 'Contacts', url: '/contacts', icon: Users },
   { title: 'Pipeline', url: '/pipeline', icon: Kanban },
   { title: 'Outreach Ops', url: '/outreach', icon: Megaphone },
-  { title: 'Planning', url: '/planning', icon: ClipboardList },
+  { title: 'Projects', url: '/projects', icon: MapPin },
   { title: 'Resources', url: '/resources', icon: BookOpen },
 ];
 

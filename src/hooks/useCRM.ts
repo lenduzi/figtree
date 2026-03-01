@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Contact, Task, Stage, Activity, ActivityType, DEFAULT_STAGES, ResearchList, ResearchEntry, ResearchStatus, ResearchPriority, EisenhowerItem } from '@/types/crm';
+import { Contact, Task, Stage, Activity, ActivityType, DEFAULT_STAGES, ResearchList, ResearchEntry, ResearchStatus, ResearchPriority, EisenhowerItem, Project, ProjectVisit, ProjectStatus, VisitStatus, Creator } from '@/types/crm';
 import { addDays, format } from 'date-fns';
 
 const STORAGE_KEYS = {
@@ -10,6 +10,9 @@ const STORAGE_KEYS = {
   researchLists: 'simplecrm_research_lists',
   researchEntries: 'simplecrm_research_entries',
   eisenhowerItems: 'simplecrm_eisenhower_items',
+  projects: 'simplecrm_projects',
+  projectVisits: 'simplecrm_project_visits',
+  creators: 'simplecrm_creators',
 };
 const HAS_USED_KEY = 'simplecrm_has_used';
 const ME_CONTACT_ID_KEY = 'simplecrm_me_contact_id';
@@ -18,6 +21,7 @@ const FIRST_ACTION_KEY = 'simplecrm_first_action_seen';
 const FIRST_ACTION_BANNER_DISMISSED_KEY = 'simplecrm_first_action_banner_dismissed';
 const FIRST_ACTION_NUDGE_DISMISSED_KEY = 'simplecrm_first_action_nudge_dismissed';
 const LEGACY_FIRST_TASK_COMPLETED_KEY = 'simplecrm_first_task_completed';
+const PILOT_AGREED_STAGE_NAME = 'pilot agreed';
 
 function loadFromStorage<T>(key: string, defaultValue: T): T {
   try {
@@ -42,6 +46,9 @@ function markHasUsed() {
   }
 }
 
+const normalizeStageName = (name: string) => name.trim().toLowerCase();
+const isPilotAgreedStageName = (name: string) => normalizeStageName(name) === PILOT_AGREED_STAGE_NAME;
+
 export function useCRM() {
   const [contacts, setContacts] = useState<Contact[]>(() => 
     loadFromStorage(STORAGE_KEYS.contacts, [])
@@ -63,6 +70,25 @@ export function useCRM() {
   );
   const [eisenhowerItems, setEisenhowerItems] = useState<EisenhowerItem[]>(() =>
     loadFromStorage(STORAGE_KEYS.eisenhowerItems, [])
+  );
+  const [projects, setProjects] = useState<Project[]>(() =>
+    loadFromStorage(STORAGE_KEYS.projects, [])
+  );
+  const [projectVisits, setProjectVisits] = useState<ProjectVisit[]>(() => {
+    const stored = loadFromStorage(STORAGE_KEYS.projectVisits, []);
+    return stored.map((visit: any) => {
+      const { creatorIds, notes, ...rest } = visit || {};
+      const creatorFromLegacy = Array.isArray(creatorIds) ? creatorIds[0] ?? null : null;
+      return {
+        ...rest,
+        creatorId: rest.creatorId ?? creatorFromLegacy ?? null,
+        status: (rest.status as VisitStatus) || 'Sourcing',
+        briefing: rest.briefing ?? notes ?? '',
+      } as ProjectVisit;
+    });
+  });
+  const [creators, setCreators] = useState<Creator[]>(() =>
+    loadFromStorage(STORAGE_KEYS.creators, [])
   );
   const [meContactId, setMeContactId] = useState<string | null>(() => {
     try {
@@ -129,6 +155,18 @@ export function useCRM() {
   }, [eisenhowerItems]);
 
   useEffect(() => {
+    saveToStorage(STORAGE_KEYS.projects, projects);
+  }, [projects]);
+
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.projectVisits, projectVisits);
+  }, [projectVisits]);
+
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.creators, creators);
+  }, [creators]);
+
+  useEffect(() => {
     setEisenhowerItems(prev => {
       const filtered = prev.filter(item => item.importance || item.urgency);
       return filtered.length === prev.length ? prev : filtered;
@@ -170,6 +208,63 @@ export function useCRM() {
     setMeContactId(newContact.id);
     setContacts(prev => (prev.length === 0 ? [newContact] : prev));
   }, [contacts.length, stages]);
+
+  const defaultProjectStatus: ProjectStatus = 'Preparing';
+
+  const isPilotAgreedStageId = useCallback((stageId: string) => {
+    const stage = stages.find(s => s.id === stageId);
+    return stage ? isPilotAgreedStageName(stage.name) : false;
+  }, [stages]);
+
+  const ensureProjectForContact = useCallback((contactId: string) => {
+    setProjects(prev => {
+      if (prev.some(project => project.clientId === contactId)) {
+        return prev;
+      }
+      const now = new Date().toISOString();
+      const newProject: Project = {
+        id: crypto.randomUUID(),
+        clientId: contactId,
+        status: defaultProjectStatus,
+        notes: '',
+        links: '',
+        createdAt: now,
+        updatedAt: now,
+      };
+      return [...prev, newProject];
+    });
+  }, [defaultProjectStatus]);
+
+  useEffect(() => {
+    if (contacts.length === 0 || stages.length === 0) return;
+    const pilotStageIds = stages
+      .filter(stage => isPilotAgreedStageName(stage.name))
+      .map(stage => stage.id);
+    if (pilotStageIds.length === 0) return;
+
+    const pilotContacts = contacts.filter(contact => pilotStageIds.includes(contact.stageId));
+    if (pilotContacts.length === 0) return;
+
+    const now = new Date().toISOString();
+    setProjects(prev => {
+      const missingContacts = pilotContacts.filter(
+        contact => !prev.some(project => project.clientId === contact.id),
+      );
+      if (missingContacts.length === 0) return prev;
+      return [
+        ...prev,
+        ...missingContacts.map(contact => ({
+          id: crypto.randomUUID(),
+          clientId: contact.id,
+          status: defaultProjectStatus,
+          notes: '',
+          links: '',
+          createdAt: now,
+          updatedAt: now,
+        })),
+      ];
+    });
+  }, [contacts, stages, defaultProjectStatus]);
 
   // Activity operations
   const addActivity = useCallback((contactId: string, type: ActivityType, description: string, timestamp?: Date) => {
@@ -230,21 +325,38 @@ export function useCRM() {
       updatedAt: new Date().toISOString(),
     };
     setContacts(prev => [...prev, newContact]);
+    if (isPilotAgreedStageId(newContact.stageId)) {
+      ensureProjectForContact(newContact.id);
+    }
     markHasUsed();
     markFirstAction();
     return newContact;
-  }, [markFirstAction]);
+  }, [ensureProjectForContact, isPilotAgreedStageId, markFirstAction]);
 
   const updateContact = useCallback((id: string, updates: Partial<Contact>) => {
+    const current = contacts.find(c => c.id === id);
     setContacts(prev => prev.map(c => 
       c.id === id ? { ...c, ...updates, updatedAt: new Date().toISOString() } : c
     ));
-  }, []);
+    if (
+      updates.stageId &&
+      current &&
+      updates.stageId !== current.stageId &&
+      isPilotAgreedStageId(updates.stageId)
+    ) {
+      ensureProjectForContact(id);
+    }
+  }, [contacts, ensureProjectForContact, isPilotAgreedStageId]);
 
   const deleteContact = useCallback((id: string) => {
     setContacts(prev => prev.filter(c => c.id !== id));
     setTasks(prev => prev.filter(t => t.contactId !== id));
     setActivities(prev => prev.filter(a => a.contactId !== id));
+    const removedProjectIds = projects.filter(project => project.clientId === id).map(project => project.id);
+    if (removedProjectIds.length > 0) {
+      setProjects(prev => prev.filter(project => project.clientId !== id));
+      setProjectVisits(prev => prev.filter(visit => !removedProjectIds.includes(visit.projectId)));
+    }
     if (id === meContactId) {
       try {
         localStorage.removeItem(ME_CONTACT_ID_KEY);
@@ -253,7 +365,7 @@ export function useCRM() {
       }
       setMeContactId(null);
     }
-  }, [meContactId]);
+  }, [meContactId, projects]);
 
   const moveContactToStage = useCallback((contactId: string, newStageId: string) => {
     const contact = contacts.find(c => c.id === contactId);
@@ -372,6 +484,103 @@ export function useCRM() {
 
   const reorderStages = useCallback((newStages: Stage[]) => {
     setStages(newStages.map((s, i) => ({ ...s, order: i })));
+  }, []);
+
+  // Project operations
+  const addProject = useCallback((project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const existing = projects.find(existingProject => existingProject.clientId === project.clientId);
+    if (existing) {
+      return existing;
+    }
+    const now = new Date().toISOString();
+    const newProject: Project = {
+      id: crypto.randomUUID(),
+      clientId: project.clientId,
+      status: project.status || defaultProjectStatus,
+      notes: project.notes || '',
+      links: project.links || '',
+      createdAt: now,
+      updatedAt: now,
+    };
+    setProjects(prev => [...prev, newProject]);
+    markHasUsed();
+    markFirstAction();
+    return newProject;
+  }, [defaultProjectStatus, markFirstAction, projects]);
+
+  const updateProject = useCallback((id: string, updates: Partial<Project>) => {
+    setProjects(prev => prev.map(project =>
+      project.id === id ? { ...project, ...updates, updatedAt: new Date().toISOString() } : project
+    ));
+  }, []);
+
+  const deleteProject = useCallback((id: string) => {
+    setProjects(prev => prev.filter(project => project.id !== id));
+    setProjectVisits(prev => prev.filter(visit => visit.projectId !== id));
+  }, []);
+
+  const addProjectVisit = useCallback((visit: Omit<ProjectVisit, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const now = new Date().toISOString();
+    const newVisit: ProjectVisit = {
+      id: crypto.randomUUID(),
+      projectId: visit.projectId,
+      location: visit.location || '',
+      date: visit.date || '',
+      time: visit.time || '',
+      creatorId: visit.creatorId ?? null,
+      status: visit.status || 'Sourcing',
+      briefing: visit.briefing || '',
+      createdAt: now,
+      updatedAt: now,
+    };
+    setProjectVisits(prev => [...prev, newVisit]);
+    markHasUsed();
+    markFirstAction();
+    return newVisit;
+  }, [markFirstAction]);
+
+  const updateProjectVisit = useCallback((id: string, updates: Partial<ProjectVisit>) => {
+    setProjectVisits(prev => prev.map(visit =>
+      visit.id === id ? { ...visit, ...updates, updatedAt: new Date().toISOString() } : visit
+    ));
+  }, []);
+
+  const deleteProjectVisit = useCallback((id: string) => {
+    setProjectVisits(prev => prev.filter(visit => visit.id !== id));
+  }, []);
+
+  const getProjectVisits = useCallback((projectId: string) => {
+    return projectVisits.filter(visit => visit.projectId === projectId);
+  }, [projectVisits]);
+
+  // Creator operations
+  const addCreator = useCallback((creator: Omit<Creator, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const now = new Date().toISOString();
+    const newCreator: Creator = {
+      id: crypto.randomUUID(),
+      name: creator.name,
+      tiktokHandle: creator.tiktokHandle || '',
+      notes: creator.notes || '',
+      createdAt: now,
+      updatedAt: now,
+    };
+    setCreators(prev => [...prev, newCreator]);
+    markHasUsed();
+    markFirstAction();
+    return newCreator;
+  }, [markFirstAction]);
+
+  const updateCreator = useCallback((id: string, updates: Partial<Creator>) => {
+    setCreators(prev => prev.map(creator =>
+      creator.id === id ? { ...creator, ...updates, updatedAt: new Date().toISOString() } : creator
+    ));
+  }, []);
+
+  const deleteCreator = useCallback((id: string) => {
+    setCreators(prev => prev.filter(creator => creator.id !== id));
+    setProjectVisits(prev => prev.map(visit =>
+      visit.creatorId === id ? { ...visit, creatorId: null, updatedAt: new Date().toISOString() } : visit
+    ));
   }, []);
 
   // Research List operations
@@ -527,6 +736,9 @@ export function useCRM() {
     researchLists,
     researchEntries,
     eisenhowerItems,
+    projects,
+    projectVisits,
+    creators,
     addContact,
     updateContact,
     deleteContact,
@@ -543,6 +755,16 @@ export function useCRM() {
     toggleEisenhowerItemComplete,
     updateStage,
     reorderStages,
+    addProject,
+    updateProject,
+    deleteProject,
+    addProjectVisit,
+    updateProjectVisit,
+    deleteProjectVisit,
+    getProjectVisits,
+    addCreator,
+    updateCreator,
+    deleteCreator,
     addActivity,
     deleteActivity,
     getContactActivities,

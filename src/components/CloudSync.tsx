@@ -5,6 +5,7 @@ import {
   applyBackup,
   buildBackup,
   CLOUD_BACKUP_TABLE,
+  CLOUD_BOOTSTRAP_KEY,
   CLOUD_LAST_PULL_KEY,
   CLOUD_LAST_SYNC_KEY,
   CLOUD_SYNC_ENABLED_KEY,
@@ -26,12 +27,41 @@ export default function CloudSync() {
     researchEntries,
     researchLists,
     eisenhowerItems,
+    projects,
+    projectVisits,
+    creators,
   } = useCRMContext();
   const [session, setSession] = useState<Session | null>(null);
+  const [bootstrapStatus, setBootstrapStatus] = useState<'pending' | 'ready'>('pending');
   const [tick, setTick] = useState(0);
   const debounceRef = useRef<number | null>(null);
   const lastDataHashRef = useRef<string | null>(null);
   const pullInFlightRef = useRef(false);
+
+  const isSyncEnabled = () => {
+    try {
+      return localStorage.getItem(CLOUD_SYNC_ENABLED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  };
+
+  const parseTimestamp = (value: string | null) => {
+    if (!value) return 0;
+    const time = new Date(value).getTime();
+    return Number.isNaN(time) ? 0 : time;
+  };
+
+  const getLocalLastActivity = () => {
+    try {
+      const lastSync = parseTimestamp(localStorage.getItem(CLOUD_LAST_SYNC_KEY));
+      const lastPull = parseTimestamp(localStorage.getItem(CLOUD_LAST_PULL_KEY));
+      const lastOutreach = parseTimestamp(localStorage.getItem(OUTREACH_LAST_CHANGE_KEY));
+      return Math.max(lastSync, lastPull, lastOutreach);
+    } catch {
+      return 0;
+    }
+  };
 
   useEffect(() => {
     if (!supabase) return;
@@ -50,20 +80,85 @@ export default function CloudSync() {
   }, []);
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !session) return;
-    const interval = window.setInterval(() => {
-      const syncEnabled = (() => {
+    if (!supabase || !session) {
+      setBootstrapStatus('ready');
+      return;
+    }
+    if (!isSupabaseConfigured || !isSyncEnabled()) {
+      setBootstrapStatus('ready');
+      return;
+    }
+
+    let isMounted = true;
+    setBootstrapStatus('pending');
+
+    const bootstrap = async () => {
+      const { data, error } = await supabase
+        .from(CLOUD_BACKUP_TABLE)
+        .select('backup, updated_at')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+      if (!isMounted) return;
+      if (error || !data?.updated_at || !data.backup) {
+        setBootstrapStatus('ready');
+        return;
+      }
+
+      const cloudTime = parseTimestamp(data.updated_at);
+      const lastBootstrap = parseTimestamp(localStorage.getItem(CLOUD_BOOTSTRAP_KEY));
+      if (cloudTime !== 0 && lastBootstrap >= cloudTime) {
+        setBootstrapStatus('ready');
+        return;
+      }
+      const localLast = getLocalLastActivity();
+      if (cloudTime !== 0 && localLast >= cloudTime) {
         try {
-          return localStorage.getItem(CLOUD_SYNC_ENABLED_KEY) === '1';
+          localStorage.setItem(CLOUD_BOOTSTRAP_KEY, data.updated_at);
         } catch {
-          return false;
+          // ignore storage errors
         }
-      })();
-      if (!syncEnabled) return;
+        setBootstrapStatus('ready');
+        return;
+      }
+
+      const validation = validateBackup(data.backup);
+      if (!validation.ok) {
+        setBootstrapStatus('ready');
+        return;
+      }
+      const result = applyBackup(validation.data);
+      if (!result.ok) {
+        setBootstrapStatus('ready');
+        return;
+      }
+
+      try {
+        localStorage.setItem(CLOUD_LAST_PULL_KEY, data.updated_at);
+        localStorage.setItem(CLOUD_SYNC_ENABLED_KEY, '1');
+        localStorage.setItem(CLOUD_BOOTSTRAP_KEY, data.updated_at);
+      } catch {
+        // ignore storage errors
+      }
+
+      setBootstrapStatus('ready');
+      window.location.reload();
+    };
+
+    bootstrap();
+    return () => {
+      isMounted = false;
+    };
+  }, [session]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !session) return;
+    if (bootstrapStatus !== 'ready') return;
+    const interval = window.setInterval(() => {
+      if (!isSyncEnabled()) return;
       setTick((prev) => prev + 1);
     }, SYNC_INTERVAL_MS);
     return () => window.clearInterval(interval);
-  }, [session]);
+  }, [session, bootstrapStatus]);
 
   const backup = useMemo(
     () =>
@@ -75,22 +170,19 @@ export default function CloudSync() {
         stages,
         researchLists,
         eisenhowerItems,
+        projects,
+        projectVisits,
+        creators,
       }),
-    [contacts, tasks, activities, researchEntries, stages, researchLists, eisenhowerItems, tick],
+    [contacts, tasks, activities, researchEntries, stages, researchLists, eisenhowerItems, projects, projectVisits, creators, tick],
   );
 
   const dataHash = useMemo(() => JSON.stringify(backup.data), [backup]);
 
   useEffect(() => {
     if (!supabase || !session) return;
-    const syncEnabled = (() => {
-      try {
-        return localStorage.getItem(CLOUD_SYNC_ENABLED_KEY) === '1';
-      } catch {
-        return false;
-      }
-    })();
-    if (!syncEnabled) return;
+    if (bootstrapStatus !== 'ready') return;
+    if (!isSyncEnabled()) return;
     if (dataHash === lastDataHashRef.current) return;
 
     if (debounceRef.current) {
@@ -113,6 +205,7 @@ export default function CloudSync() {
         lastDataHashRef.current = dataHash;
         try {
           localStorage.setItem(CLOUD_LAST_SYNC_KEY, updatedAt);
+          localStorage.setItem(CLOUD_BOOTSTRAP_KEY, updatedAt);
         } catch {
           // ignore storage errors
         }
@@ -124,37 +217,16 @@ export default function CloudSync() {
         window.clearTimeout(debounceRef.current);
       }
     };
-  }, [backup, dataHash, session]);
+  }, [backup, dataHash, session, bootstrapStatus]);
 
   useEffect(() => {
     if (!supabase || !session) return;
-    const syncEnabled = (() => {
-      try {
-        return localStorage.getItem(CLOUD_SYNC_ENABLED_KEY) === '1';
-      } catch {
-        return false;
-      }
-    })();
-    if (!syncEnabled) return;
-
-    const getLocalLastActivity = () => {
-      const parse = (value: string | null) => {
-        if (!value) return 0;
-        const time = new Date(value).getTime();
-        return Number.isNaN(time) ? 0 : time;
-      };
-      try {
-        const lastSync = parse(localStorage.getItem(CLOUD_LAST_SYNC_KEY));
-        const lastPull = parse(localStorage.getItem(CLOUD_LAST_PULL_KEY));
-        const lastOutreach = parse(localStorage.getItem(OUTREACH_LAST_CHANGE_KEY));
-        return Math.max(lastSync, lastPull, lastOutreach);
-      } catch {
-        return 0;
-      }
-    };
+    if (bootstrapStatus !== 'ready') return;
+    if (!isSyncEnabled()) return;
 
     const checkForCloudUpdate = async () => {
       if (pullInFlightRef.current) return;
+      if (dataHash !== lastDataHashRef.current) return;
       const localLast = getLocalLastActivity();
       const { data, error } = await supabase
         .from(CLOUD_BACKUP_TABLE)
@@ -179,6 +251,7 @@ export default function CloudSync() {
       try {
         localStorage.setItem(CLOUD_LAST_PULL_KEY, data.updated_at);
         localStorage.setItem(CLOUD_SYNC_ENABLED_KEY, '1');
+        localStorage.setItem(CLOUD_BOOTSTRAP_KEY, data.updated_at);
       } catch {
         // ignore storage errors
       }
@@ -188,7 +261,7 @@ export default function CloudSync() {
     checkForCloudUpdate();
     const interval = window.setInterval(checkForCloudUpdate, PULL_POLL_MS);
     return () => window.clearInterval(interval);
-  }, [session]);
+  }, [session, dataHash, bootstrapStatus]);
 
   return null;
 }

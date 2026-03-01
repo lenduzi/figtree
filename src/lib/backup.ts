@@ -5,6 +5,9 @@ import {
   Contact,
   DEFAULT_STAGES,
   EisenhowerItem,
+  Project,
+  ProjectVisit,
+  Creator,
   ResearchEntry,
   ResearchList,
   Stage,
@@ -19,6 +22,9 @@ const STORAGE_KEYS = {
   researchLists: "simplecrm_research_lists",
   researchEntries: "simplecrm_research_entries",
   eisenhowerItems: "simplecrm_eisenhower_items",
+  projects: "simplecrm_projects",
+  projectVisits: "simplecrm_project_visits",
+  creators: "simplecrm_creators",
   resources: "simplecrm_resources_v1",
   outreachLeads: "simplecrm_outreach_leads_v1",
   outreachActions: "simplecrm_outreach_actions_v1",
@@ -29,6 +35,7 @@ export const CLOUD_BACKUP_TABLE = "user_backups";
 export const CLOUD_LAST_SYNC_KEY = "simplecrm_cloud_last_sync";
 export const CLOUD_LAST_PULL_KEY = "simplecrm_cloud_last_pull";
 export const CLOUD_SYNC_ENABLED_KEY = "simplecrm_cloud_sync_enabled";
+export const CLOUD_BOOTSTRAP_KEY = "simplecrm_cloud_bootstrap";
 export const OUTREACH_LAST_CHANGE_KEY = "simplecrm_outreach_last_change";
 
 type BackupSettings = {
@@ -51,6 +58,9 @@ export type CRMBackup = {
     tasks: Task[];
     activities: Activity[];
     researchEntries: ResearchEntry[];
+    projects?: Project[];
+    projectVisits?: ProjectVisit[];
+    creators?: Creator[];
     eisenhowerItems?: EisenhowerItem[];
     resources?: Resource[];
     outreach?: OutreachBackup;
@@ -66,6 +76,9 @@ type BackupInput = {
   stages: Stage[];
   researchLists: ResearchList[];
   eisenhowerItems: EisenhowerItem[];
+  projects: Project[];
+  projectVisits: ProjectVisit[];
+  creators: Creator[];
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -106,6 +119,9 @@ export const buildBackup = (input: BackupInput): CRMBackup => {
       tasks: input.tasks,
       activities: input.activities,
       researchEntries: input.researchEntries,
+      projects: input.projects,
+      projectVisits: input.projectVisits,
+      creators: input.creators,
       eisenhowerItems: input.eisenhowerItems,
       resources: extras.resources,
       outreach: extras.outreach,
@@ -153,6 +169,15 @@ export const validateBackup = (
   }
   if (!Array.isArray(data.researchEntries)) {
     return { ok: false, error: "Research entries data is missing or invalid." };
+  }
+  if (data.projects !== undefined && !Array.isArray(data.projects)) {
+    return { ok: false, error: "Projects data is invalid." };
+  }
+  if (data.projectVisits !== undefined && !Array.isArray(data.projectVisits)) {
+    return { ok: false, error: "Project visits data is invalid." };
+  }
+  if (data.creators !== undefined && !Array.isArray(data.creators)) {
+    return { ok: false, error: "Creators data is invalid." };
   }
 
   if (data.eisenhowerItems !== undefined && !Array.isArray(data.eisenhowerItems)) {
@@ -203,6 +228,9 @@ export const applyBackup = (
   const stagesToUse = settings.stages ?? DEFAULT_STAGES;
   const researchListsToUse = settings.researchLists ?? [];
   const existingEisenhower = readJsonFromStorage<EisenhowerItem[]>(STORAGE_KEYS.eisenhowerItems, []);
+  const existingProjects = readJsonFromStorage<Project[]>(STORAGE_KEYS.projects, []);
+  const existingProjectVisits = readJsonFromStorage<ProjectVisit[]>(STORAGE_KEYS.projectVisits, []);
+  const existingCreators = readJsonFromStorage<Creator[]>(STORAGE_KEYS.creators, []);
   const existingResources = readJsonFromStorage<Resource[]>(STORAGE_KEYS.resources, []);
   const existingOutreachLeads = readJsonFromStorage<OutreachLead[]>(STORAGE_KEYS.outreachLeads, []);
   const existingOutreachActions = readJsonFromStorage<OutreachActionLog[]>(STORAGE_KEYS.outreachActions, []);
@@ -210,6 +238,10 @@ export const applyBackup = (
 
   const eisenhowerItemsToUse =
     backup.data.eisenhowerItems ?? (preserveMissingExtras ? existingEisenhower : []);
+  const projectsToUse = backup.data.projects ?? (preserveMissingExtras ? existingProjects : []);
+  const projectVisitsToUse =
+    backup.data.projectVisits ?? (preserveMissingExtras ? existingProjectVisits : []);
+  const creatorsToUse = backup.data.creators ?? (preserveMissingExtras ? existingCreators : []);
   const resourcesToUse = backup.data.resources ?? (preserveMissingExtras ? existingResources : []);
   const outreach = backup.data.outreach ?? {};
   const outreachLeadsToUse = outreach.leads ?? (preserveMissingExtras ? existingOutreachLeads : []);
@@ -221,6 +253,9 @@ export const applyBackup = (
     saveJsonToStorage(STORAGE_KEYS.tasks, backup.data.tasks);
     saveJsonToStorage(STORAGE_KEYS.activities, backup.data.activities);
     saveJsonToStorage(STORAGE_KEYS.researchEntries, backup.data.researchEntries);
+    saveJsonToStorage(STORAGE_KEYS.projects, projectsToUse);
+    saveJsonToStorage(STORAGE_KEYS.projectVisits, projectVisitsToUse);
+    saveJsonToStorage(STORAGE_KEYS.creators, creatorsToUse);
     saveJsonToStorage(STORAGE_KEYS.stages, stagesToUse);
     saveJsonToStorage(STORAGE_KEYS.researchLists, researchListsToUse);
     saveJsonToStorage(STORAGE_KEYS.eisenhowerItems, eisenhowerItemsToUse);
