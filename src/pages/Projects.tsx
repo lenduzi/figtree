@@ -524,6 +524,7 @@ export default function Projects() {
     setProjectLinks(selectedProject.links || '');
   }, [selectedProject?.id]);
 
+
   const clientOptions = useMemo(() => {
     return contacts
       .filter(contact => contact.id !== meContactId)

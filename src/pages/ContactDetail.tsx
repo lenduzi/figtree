@@ -111,6 +111,7 @@ export default function ContactDetail() {
     setNotesTimeout(timeout);
   }, [id, updateContact, notesTimeout]);
 
+
   const handleSaveEdit = () => {
     if (id && editData.fullName.trim()) {
       updateContact(id, editData);
