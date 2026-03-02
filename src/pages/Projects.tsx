@@ -149,7 +149,7 @@ const formatCreatorNames = (creators: Creator[]) =>
   creators.map((creator) => creator.name).join(', ');
 
 const visitNeedsAttention = (visit: ProjectVisit) =>
-  !visit.location?.trim() || !visit.date || !visit.creatorIds?.length || !visit.briefing?.trim();
+  !visit.location?.trim() || !visit.date || !visit.creatorIds?.length;
 
 type ProjectCardMeta = {
   project: Project;
@@ -226,21 +226,27 @@ type DraggableVisitCardProps = {
   visit: ProjectVisit;
   className?: string;
   children: ReactNode;
+  onClick?: () => void;
 };
 
-const DraggableVisitCard = ({ visit, className, children }: DraggableVisitCardProps) => {
+const DraggableVisitCard = ({ visit, className, children, onClick }: DraggableVisitCardProps) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: visit.id,
   });
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : undefined;
+  const handleClick = () => {
+    if (isDragging) return;
+    onClick?.();
+  };
 
   return (
     <Card
       ref={setNodeRef}
       style={style}
       className={cn(className, isDragging && 'opacity-80 shadow-lg')}
+      onClick={handleClick}
       {...attributes}
       {...listeners}
     >
@@ -299,7 +305,8 @@ const KanbanColumn = ({
             <DraggableVisitCard
               key={visit.id}
               visit={visit}
-              className={needsAttention ? 'border-destructive/40' : ''}
+              className={cn('cursor-pointer', needsAttention && 'border-destructive/40')}
+              onClick={() => onEditVisit(visit)}
             >
               <CardContent className="space-y-3 pt-4">
                 <div className="flex items-start justify-between gap-3">
@@ -312,6 +319,7 @@ const KanbanColumn = ({
                           target="_blank"
                           rel="noopener noreferrer"
                           className="hover:text-primary hover:underline"
+                          onClick={(event) => event.stopPropagation()}
                         >
                           {visit.location}
                         </a>
@@ -327,7 +335,12 @@ const KanbanColumn = ({
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={(event) => event.stopPropagation()}
+                      >
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -370,15 +383,18 @@ const KanbanColumn = ({
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-primary hover:underline text-xs"
+                      onClick={(event) => event.stopPropagation()}
                     >
                       @{normalizeTikTokHandle(creators[0].tiktokHandle)}
                     </a>
                   )}
                 </div>
 
-                <p className="text-sm text-muted-foreground line-clamp-3">
-                  {visit.briefing || 'Briefing needed'}
-                </p>
+                {visit.briefing?.trim() && (
+                  <p className="text-sm text-muted-foreground line-clamp-3">
+                    {visit.briefing}
+                  </p>
+                )}
 
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
@@ -386,7 +402,10 @@ const KanbanColumn = ({
                     variant="outline"
                     size="sm"
                     className="h-7 px-2 text-xs"
-                    onClick={() => onEditVisit(visit, 'creator')}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onEditVisit(visit, 'creator');
+                    }}
                   >
                     <UserPlus className="mr-1 h-3.5 w-3.5" />
                     Assign
@@ -396,7 +415,10 @@ const KanbanColumn = ({
                     variant="outline"
                     size="sm"
                     className="h-7 px-2 text-xs"
-                    onClick={() => onEditVisit(visit, 'date')}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onEditVisit(visit, 'date');
+                    }}
                   >
                     <CalendarClock className="mr-1 h-3.5 w-3.5" />
                     Date
@@ -406,7 +428,10 @@ const KanbanColumn = ({
                     variant="outline"
                     size="sm"
                     className="h-7 px-2 text-xs"
-                    onClick={() => onEditVisit(visit, 'briefing')}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onEditVisit(visit, 'briefing');
+                    }}
                   >
                     <FileText className="mr-1 h-3.5 w-3.5" />
                     Brief
@@ -914,7 +939,7 @@ export default function Projects() {
                     <MapPin className="h-10 w-10 text-muted-foreground mb-3" />
                     <h3 className="text-lg font-medium text-foreground">No visits yet</h3>
                     <p className="text-sm text-muted-foreground max-w-sm mt-2">
-                      Add the first visit with location, date, creator(s), and briefing.
+                      Add the first visit with location, creator(s), and optional briefing. Date/time can be added later.
                     </p>
                     <Button className="mt-4" onClick={openAddVisit}>
                       <Plus className="h-4 w-4 mr-2" />
@@ -929,7 +954,11 @@ export default function Projects() {
                     const creators = getVisitCreators(visit, creatorsMap);
                     const needsAttention = visitNeedsAttention(visit);
                     return (
-                      <Card key={visit.id}>
+                      <Card
+                        key={visit.id}
+                        className="cursor-pointer"
+                        onClick={() => openEditVisit(visit)}
+                      >
                       <CardContent className="space-y-3 pt-4">
                           <div className="flex items-start justify-between gap-3">
                             <div className="space-y-1">
@@ -941,6 +970,7 @@ export default function Projects() {
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="hover:text-primary hover:underline"
+                                    onClick={(event) => event.stopPropagation()}
                                   >
                                     {visit.location}
                                   </a>
@@ -956,7 +986,12 @@ export default function Projects() {
                             </div>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={(event) => event.stopPropagation()}
+                                >
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
@@ -990,11 +1025,18 @@ export default function Projects() {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-primary hover:underline text-xs"
+                                onClick={(event) => event.stopPropagation()}
                               >
                                 @{normalizeTikTokHandle(creators[0].tiktokHandle)}
                               </a>
                             )}
                           </div>
+
+                          {visit.briefing?.trim() && (
+                            <p className="text-xs text-muted-foreground line-clamp-2">
+                              {visit.briefing}
+                            </p>
+                          )}
 
                           <div className="flex items-center gap-2">
                             <Badge variant="outline" className={visitStatusStyles[visit.status || 'Sourcing']}>
@@ -1031,7 +1073,7 @@ export default function Projects() {
                   <MapPin className="h-10 w-10 text-muted-foreground mb-3" />
                   <h3 className="text-lg font-medium text-foreground">No visits yet</h3>
                   <p className="text-sm text-muted-foreground max-w-sm mt-2">
-                    Add the first visit with location, date, creator(s), and briefing.
+                    Add the first visit with location, creator(s), and optional briefing. Date/time can be added later.
                   </p>
                   <Button className="mt-4" onClick={openAddVisit}>
                     <Plus className="h-4 w-4 mr-2" />
@@ -1095,9 +1137,11 @@ export default function Projects() {
                             <span>No creators assigned</span>
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground line-clamp-3">
-                          {activeVisit.briefing || 'Briefing needed'}
-                        </p>
+                        {activeVisit.briefing?.trim() && (
+                          <p className="text-sm text-muted-foreground line-clamp-3">
+                            {activeVisit.briefing}
+                          </p>
+                        )}
                       </CardContent>
                     </Card>
                   ) : null}
@@ -1132,23 +1176,26 @@ export default function Projects() {
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
                 <div className="space-y-2">
-                  <Label>Date</Label>
-                  <Input
-                    type="date"
-                    value={visitForm.date}
-                    onChange={(e) => setVisitForm({ ...visitForm, date: e.target.value })}
-                    autoFocus={visitDialogFocus === 'date'}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Time</Label>
-                  <Input
-                    type="time"
-                    value={visitForm.time}
-                    onChange={(e) => setVisitForm({ ...visitForm, time: e.target.value })}
-                  />
-                </div>
+                <Label>Date</Label>
+                <Input
+                  type="date"
+                  value={visitForm.date}
+                  onChange={(e) => setVisitForm({ ...visitForm, date: e.target.value })}
+                  autoFocus={visitDialogFocus === 'date'}
+                />
               </div>
+              <div className="space-y-2">
+                <Label>Time</Label>
+                <Input
+                  type="time"
+                  value={visitForm.time}
+                  onChange={(e) => setVisitForm({ ...visitForm, time: e.target.value })}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Date and time are optional — you can add them once confirmed.
+            </p>
               <div className="space-y-2">
                 <Label>Creators</Label>
                 {creatorOptions.length === 0 ? (
@@ -1232,7 +1279,7 @@ export default function Projects() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Briefing</Label>
+                <Label>Briefing (optional)</Label>
                 <Textarea
                   value={visitForm.briefing}
                   onChange={(e) => setVisitForm({ ...visitForm, briefing: e.target.value })}
@@ -1240,6 +1287,9 @@ export default function Projects() {
                   rows={4}
                   autoFocus={visitDialogFocus === 'briefing'}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Add when you have a clear brief.
+                </p>
               </div>
             </div>
             <DialogFooter>
@@ -1250,9 +1300,7 @@ export default function Projects() {
                 onClick={handleSaveVisit}
                 disabled={
                   !visitForm.location.trim() ||
-                  !visitForm.date ||
-                  visitForm.creatorIds.length === 0 ||
-                  !visitForm.briefing.trim()
+                  visitForm.creatorIds.length === 0
                 }
               >
                 {visitToEdit ? 'Save Visit' : 'Add Visit'}
