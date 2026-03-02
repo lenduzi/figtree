@@ -1319,8 +1319,8 @@ export default function Projects() {
                       }));
                     }}
                   >
-                    <SelectTrigger autoFocus={visitDialogFocus === 'location'}>
-                      <SelectValue placeholder="Select a project location" />
+                    <SelectTrigger autoFocus={visitDialogFocus === 'location'} className="text-left">
+                      <SelectValue className="text-left" placeholder="Select a project location" />
                     </SelectTrigger>
                     <SelectContent>
                       {projectLocations.map((location) => (
