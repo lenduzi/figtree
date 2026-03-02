@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState, useCallback, type ReactNode } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Archive,
   Calendar,
@@ -415,6 +415,7 @@ export default function Projects() {
     deleteCreator,
   } = useCRMContext();
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
@@ -435,6 +436,24 @@ export default function Projects() {
   const [creatorPanelHandle, setCreatorPanelHandle] = useState('');
   const [visitDialogFocus, setVisitDialogFocus] = useState<VisitDialogFocus>(null);
   const [activeVisit, setActiveVisit] = useState<ProjectVisit | null>(null);
+
+  const openProject = useCallback((projectId: string) => {
+    setSelectedProjectId(projectId);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('projectId', projectId);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const clearProjectSelection = useCallback(() => {
+    setSelectedProjectId(null);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('projectId');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -514,9 +533,17 @@ export default function Projects() {
 
   useEffect(() => {
     if (selectedProjectId && !projects.some(project => project.id === selectedProjectId)) {
-      setSelectedProjectId(null);
+      clearProjectSelection();
     }
-  }, [projects, selectedProjectId]);
+  }, [clearProjectSelection, projects, selectedProjectId]);
+
+  useEffect(() => {
+    const projectId = searchParams.get('projectId');
+    if (!projectId || projectId === selectedProjectId) return;
+    if (projects.some(project => project.id === projectId)) {
+      setSelectedProjectId(projectId);
+    }
+  }, [projects, searchParams, selectedProjectId]);
 
   useEffect(() => {
     if (!selectedProject) return;
@@ -550,7 +577,7 @@ export default function Projects() {
     setNewProjectClientId('');
     setNewProjectOpen(false);
     if (project) {
-      setSelectedProjectId(project.id);
+      openProject(project.id);
     }
   };
 
@@ -679,7 +706,7 @@ export default function Projects() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setSelectedProjectId(null)}
+              onClick={clearProjectSelection}
               className="h-9 w-9"
             >
               <ChevronLeft className="h-5 w-5" />
@@ -1260,7 +1287,7 @@ export default function Projects() {
               <Card
                 key={project.id}
                 className="cursor-pointer transition-colors hover:bg-muted/50 hover:border-muted-foreground/20"
-                onClick={() => setSelectedProjectId(project.id)}
+                onClick={() => openProject(project.id)}
               >
                 <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
                   <div>

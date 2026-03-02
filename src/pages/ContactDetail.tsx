@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, Mail, Phone, Trash2, Edit2, Save, Clock, CheckCircle2, ArrowRight, PhoneMissed, Globe, User as UserIcon } from 'lucide-react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { ArrowLeft, Building2, Mail, Phone, Trash2, Edit2, Save, Clock, CheckCircle2, ArrowRight, PhoneMissed, Globe, User as UserIcon, FolderOpen } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { TaskItem } from '@/components/TaskItem';
 import { TaskDetailDialog } from '@/components/TaskDetailDialog';
@@ -59,12 +59,14 @@ export default function ContactDetail() {
     toggleTaskComplete,
     deleteTask,
     rescheduleTask,
+    projects,
   } = useCRMContext();
 
   const contact = getContactById(id || '');
   const stage = contact ? getStageById(contact.stageId) : undefined;
   const contactTasks = getContactTasks(id || '');
   const contactActivities = getContactActivities(id || '');
+  const contactProjects = contact ? projects.filter((project) => project.clientId === contact.id) : [];
 
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({
@@ -288,6 +290,22 @@ export default function ContactDetail() {
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Building2 className="h-4 w-4 lg:h-5 lg:w-5" />
                       {contact.company}
+                    </div>
+                  )}
+                  {contactProjects.length > 0 && (
+                    <div className="flex items-start gap-2 text-muted-foreground">
+                      <FolderOpen className="h-4 w-4 lg:h-5 lg:w-5 mt-0.5" />
+                      <div className="flex flex-col gap-1">
+                        {contactProjects.map((project) => (
+                          <Link
+                            key={project.id}
+                            to={`/projects?projectId=${project.id}`}
+                            className="hover:text-primary"
+                          >
+                            View project ({project.status})
+                          </Link>
+                        ))}
+                      </div>
                     </div>
                   )}
                   {contact.website && (
