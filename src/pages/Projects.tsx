@@ -106,6 +106,20 @@ const visitStatusStyles: Record<VisitStatus, string> = {
   Done: 'bg-emerald-500/10 text-emerald-700',
 };
 
+const PILOT_CHECKLIST_TITLE = 'Pilot call checklist';
+const PILOT_CHECKLIST_TEMPLATE = `${PILOT_CHECKLIST_TITLE}
+- Venue + POC + phone:
+- Free experience (included/excluded):
+- +1 included?:
+- Creator slots:
+- Date windows / blackout:
+- Target audience:
+- Posting requirement (platform + min posts):
+- Posting deadline:
+- On-site contact + check-in:
+- Filming restrictions / no-go:
+`;
+
 const getClientLabel = (contact?: Contact) => {
   if (!contact) return 'Unknown client';
   if (contact.company?.trim()) return contact.company;
@@ -811,6 +825,19 @@ export default function Projects() {
     updateProject(selectedProject.id, { status: 'Preparing' });
   };
 
+  const hasPilotChecklist = projectNotes.includes(PILOT_CHECKLIST_TITLE);
+  const notesRows = Math.max(4, (projectNotes.match(/\n/g)?.length ?? 0) + 1);
+
+  const handleInsertPilotChecklist = () => {
+    if (!selectedProject || hasPilotChecklist) return;
+    const trimmed = projectNotes.trim();
+    const nextNotes = trimmed
+      ? `${trimmed}\n\n${PILOT_CHECKLIST_TEMPLATE}`
+      : PILOT_CHECKLIST_TEMPLATE;
+    setProjectNotes(nextNotes);
+    updateProject(selectedProject.id, { notes: nextNotes });
+  };
+
   if (selectedProject) {
     const client = contactMap.get(selectedProject.clientId);
     const selectedMeta = buildProjectMeta(selectedProject, selectedVisits);
@@ -1036,13 +1063,24 @@ export default function Projects() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Notes</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>Notes</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleInsertPilotChecklist}
+                        disabled={hasPilotChecklist}
+                      >
+                        {hasPilotChecklist ? 'Pilot checklist added' : 'Insert pilot checklist'}
+                      </Button>
+                    </div>
                     <Textarea
                       value={projectNotes}
                       onChange={(e) => setProjectNotes(e.target.value)}
                       onBlur={() => updateProject(selectedProject.id, { notes: projectNotes })}
                       placeholder="Key context for this pilot."
-                      rows={4}
+                      rows={notesRows}
                     />
                   </div>
                 </CardContent>
