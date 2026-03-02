@@ -140,6 +140,8 @@ const getMapsUrl = (location?: string | null) => {
   return trimmed ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(trimmed)}` : '';
 };
 
+const stopCardClick = (event: React.MouseEvent) => event.stopPropagation();
+
 const getVisitCreators = (visit: ProjectVisit, creatorsMap: Map<string, Creator>) =>
   (visit.creatorIds || [])
     .map((creatorId) => creatorsMap.get(creatorId))
@@ -314,15 +316,16 @@ const KanbanColumn = ({
                     <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                       <MapPin className="h-4 w-4 text-muted-foreground" />
                       {visit.location ? (
-                        <a
-                          href={getMapsUrl(visit.location)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="hover:text-primary hover:underline"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          {visit.location}
-                        </a>
+                        <span className="-m-1 inline-flex rounded-md p-1" onClick={stopCardClick}>
+                          <a
+                            href={getMapsUrl(visit.location)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-primary hover:underline"
+                          >
+                            {visit.location}
+                          </a>
+                        </span>
                       ) : (
                         <span>Location TBD</span>
                       )}
@@ -339,7 +342,7 @@ const KanbanColumn = ({
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={(event) => event.stopPropagation()}
+                        onClick={stopCardClick}
                       >
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
@@ -378,15 +381,16 @@ const KanbanColumn = ({
                     <span>No creators assigned</span>
                   )}
                   {creators.length === 1 && creators[0].tiktokHandle && (
-                    <a
-                      href={getTikTokUrl(creators[0].tiktokHandle)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline text-xs"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      @{normalizeTikTokHandle(creators[0].tiktokHandle)}
-                    </a>
+                    <span className="-m-1 inline-flex rounded-md p-1" onClick={stopCardClick}>
+                      <a
+                        href={getTikTokUrl(creators[0].tiktokHandle)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline text-xs"
+                      >
+                        @{normalizeTikTokHandle(creators[0].tiktokHandle)}
+                      </a>
+                    </span>
                   )}
                 </div>
 
@@ -403,7 +407,7 @@ const KanbanColumn = ({
                     size="sm"
                     className="h-7 px-2 text-xs"
                     onClick={(event) => {
-                      event.stopPropagation();
+                      stopCardClick(event);
                       onEditVisit(visit, 'creator');
                     }}
                   >
@@ -416,7 +420,7 @@ const KanbanColumn = ({
                     size="sm"
                     className="h-7 px-2 text-xs"
                     onClick={(event) => {
-                      event.stopPropagation();
+                      stopCardClick(event);
                       onEditVisit(visit, 'date');
                     }}
                   >
@@ -429,7 +433,7 @@ const KanbanColumn = ({
                     size="sm"
                     className="h-7 px-2 text-xs"
                     onClick={(event) => {
-                      event.stopPropagation();
+                      stopCardClick(event);
                       onEditVisit(visit, 'briefing');
                     }}
                   >
@@ -965,15 +969,16 @@ export default function Projects() {
                               <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                                 <MapPin className="h-4 w-4 text-muted-foreground" />
                                 {visit.location ? (
-                                  <a
-                                    href={getMapsUrl(visit.location)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="hover:text-primary hover:underline"
-                                    onClick={(event) => event.stopPropagation()}
-                                  >
-                                    {visit.location}
-                                  </a>
+                                  <span className="-m-1 inline-flex rounded-md p-1" onClick={stopCardClick}>
+                                    <a
+                                      href={getMapsUrl(visit.location)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="hover:text-primary hover:underline"
+                                    >
+                                      {visit.location}
+                                    </a>
+                                  </span>
                                 ) : (
                                   <span>Location TBD</span>
                                 )}
@@ -990,7 +995,7 @@ export default function Projects() {
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8"
-                                  onClick={(event) => event.stopPropagation()}
+                                  onClick={stopCardClick}
                                 >
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
@@ -1020,15 +1025,16 @@ export default function Projects() {
                               <span>No creators assigned</span>
                             )}
                             {creators.length === 1 && creators[0].tiktokHandle && (
-                              <a
-                                href={getTikTokUrl(creators[0].tiktokHandle)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary hover:underline text-xs"
-                                onClick={(event) => event.stopPropagation()}
-                              >
-                                @{normalizeTikTokHandle(creators[0].tiktokHandle)}
-                              </a>
+                              <span className="-m-1 inline-flex rounded-md p-1" onClick={stopCardClick}>
+                                <a
+                                  href={getTikTokUrl(creators[0].tiktokHandle)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-primary hover:underline text-xs"
+                                >
+                                  @{normalizeTikTokHandle(creators[0].tiktokHandle)}
+                                </a>
+                              </span>
                             )}
                           </div>
 
@@ -1108,14 +1114,16 @@ export default function Projects() {
                         <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                           <MapPin className="h-4 w-4 text-muted-foreground" />
                           {activeVisit.location ? (
-                            <a
-                              href={getMapsUrl(activeVisit.location)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="hover:text-primary hover:underline"
-                            >
-                              {activeVisit.location}
-                            </a>
+                            <span className="-m-1 inline-flex rounded-md p-1" onClick={stopCardClick}>
+                              <a
+                                href={getMapsUrl(activeVisit.location)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:text-primary hover:underline"
+                              >
+                                {activeVisit.location}
+                              </a>
+                            </span>
                           ) : (
                             <span>Location TBD</span>
                           )}
