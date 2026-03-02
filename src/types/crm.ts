@@ -100,14 +100,22 @@ export interface Project {
   status: ProjectStatus;
   notes: string;
   links: string;
+  locations: ProjectLocation[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ProjectLocation {
+  id: string;
+  label: string;
+  address: string;
 }
 
 export interface ProjectVisit {
   id: string;
   projectId: string;
   location: string;
+  locationId?: string | null;
   date: string;
   time?: string;
   creatorIds: string[];

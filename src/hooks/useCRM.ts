@@ -71,9 +71,13 @@ export function useCRM() {
   const [eisenhowerItems, setEisenhowerItems] = useState<EisenhowerItem[]>(() =>
     loadFromStorage(STORAGE_KEYS.eisenhowerItems, [])
   );
-  const [projects, setProjects] = useState<Project[]>(() =>
-    loadFromStorage(STORAGE_KEYS.projects, [])
-  );
+  const [projects, setProjects] = useState<Project[]>(() => {
+    const stored = loadFromStorage(STORAGE_KEYS.projects, []);
+    return stored.map((project: any) => ({
+      ...project,
+      locations: Array.isArray(project.locations) ? project.locations : [],
+    }));
+  });
   const [projectVisits, setProjectVisits] = useState<ProjectVisit[]>(() => {
     const stored = loadFromStorage(STORAGE_KEYS.projectVisits, []);
     return stored.map((visit: any) => {
@@ -231,6 +235,7 @@ export function useCRM() {
         status: defaultProjectStatus,
         notes: '',
         links: '',
+        locations: [],
         createdAt: now,
         updatedAt: now,
       };
@@ -262,6 +267,7 @@ export function useCRM() {
           status: defaultProjectStatus,
           notes: '',
           links: '',
+          locations: [],
           createdAt: now,
           updatedAt: now,
         })),
@@ -502,6 +508,7 @@ export function useCRM() {
       status: project.status || defaultProjectStatus,
       notes: project.notes || '',
       links: project.links || '',
+      locations: project.locations || [],
       createdAt: now,
       updatedAt: now,
     };
@@ -528,6 +535,7 @@ export function useCRM() {
       id: crypto.randomUUID(),
       projectId: visit.projectId,
       location: visit.location || '',
+      locationId: visit.locationId ?? null,
       date: visit.date || '',
       time: visit.time || '',
       creatorIds: visit.creatorIds || [],

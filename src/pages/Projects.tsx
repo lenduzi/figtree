@@ -69,7 +69,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { Contact, Project, ProjectStatus, ProjectVisit, VisitStatus, Creator } from '@/types/crm';
+import type { Contact, Project, ProjectLocation, ProjectStatus, ProjectVisit, VisitStatus, Creator } from '@/types/crm';
 import { cn } from '@/lib/utils';
 
 const PROJECT_STATUSES: ProjectStatus[] = [
@@ -150,8 +150,22 @@ const getVisitCreators = (visit: ProjectVisit, creatorsMap: Map<string, Creator>
 const formatCreatorNames = (creators: Creator[]) =>
   creators.map((creator) => creator.name).join(', ');
 
+const getVisitLocationDisplay = (
+  visit: ProjectVisit,
+  locationsMap: Map<string, ProjectLocation>
+) => {
+  if (visit.locationId) {
+    const location = locationsMap.get(visit.locationId);
+    if (location) {
+      return { label: location.label, address: location.address };
+    }
+  }
+  const fallback = visit.location?.trim();
+  return fallback ? { label: fallback, address: fallback } : { label: 'Location TBD', address: '' };
+};
+
 const visitNeedsAttention = (visit: ProjectVisit) =>
-  !visit.location?.trim() || !visit.date || !visit.creatorIds?.length;
+  (!visit.location?.trim() && !visit.locationId) || !visit.date || !visit.creatorIds?.length;
 
 type ProjectCardMeta = {
   project: Project;
@@ -206,6 +220,7 @@ const sortProjects = (a: ProjectCardMeta, b: ProjectCardMeta) => {
 
 type VisitFormState = {
   location: string;
+  locationId: string | null;
   date: string;
   time: string;
   creatorIds: string[];
@@ -217,6 +232,7 @@ type VisitDialogFocus = 'location' | 'date' | 'creator' | 'briefing' | null;
 
 const emptyVisitForm: VisitFormState = {
   location: '',
+  locationId: null,
   date: '',
   time: '',
   creatorIds: [],
@@ -261,6 +277,7 @@ type KanbanColumnProps = {
   status: VisitStatus;
   visits: ProjectVisit[];
   creatorsMap: Map<string, Creator>;
+  locationsMap: Map<string, ProjectLocation>;
   onEditVisit: (visit: ProjectVisit, focus?: Exclude<VisitDialogFocus, null>) => void;
   onDeleteVisit: (visit: ProjectVisit) => void;
   onMoveVisit: (visitId: string, status: VisitStatus) => void;
@@ -270,6 +287,7 @@ const KanbanColumn = ({
   status,
   visits,
   creatorsMap,
+  locationsMap,
   onEditVisit,
   onDeleteVisit,
   onMoveVisit,
@@ -300,6 +318,7 @@ const KanbanColumn = ({
         visits.map((visit) => {
           const visitDate = getVisitDateTime(visit);
           const creators = getVisitCreators(visit, creatorsMap);
+          const locationDisplay = getVisitLocationDisplay(visit, locationsMap);
           const needsAttention = visitNeedsAttention(visit);
           const currentStatus = visit.status || 'Sourcing';
 
@@ -315,15 +334,15 @@ const KanbanColumn = ({
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                       <MapPin className="h-4 w-4 text-muted-foreground" />
-                      {visit.location ? (
+                      {locationDisplay.address ? (
                         <span className="-m-1 inline-flex rounded-md p-1" onClick={stopCardClick}>
                           <a
-                            href={getMapsUrl(visit.location)}
+                            href={getMapsUrl(locationDisplay.address)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="hover:text-primary hover:underline"
                           >
-                            {visit.location}
+                            {locationDisplay.label}
                           </a>
                         </span>
                       ) : (
@@ -492,6 +511,8 @@ export default function Projects() {
   const [creatorPanelHandle, setCreatorPanelHandle] = useState('');
   const [visitDialogFocus, setVisitDialogFocus] = useState<VisitDialogFocus>(null);
   const [activeVisit, setActiveVisit] = useState<ProjectVisit | null>(null);
+  const [newLocationLabel, setNewLocationLabel] = useState('');
+  const [newLocationAddress, setNewLocationAddress] = useState('');
 
   const openProject = useCallback((projectId: string) => {
     setSelectedProjectId(projectId);
@@ -543,6 +564,12 @@ export default function Projects() {
   const selectedProject = selectedProjectId
     ? projects.find(project => project.id === selectedProjectId) || null
     : null;
+
+  const projectLocations = selectedProject?.locations ?? [];
+  const projectLocationsMap = useMemo(
+    () => new Map(projectLocations.map((location) => [location.id, location])),
+    [projectLocations]
+  );
 
   const selectedVisits = useMemo(() => {
     if (!selectedProject) return [];
@@ -622,6 +649,14 @@ export default function Projects() {
     return [...creators].sort((a, b) => a.name.localeCompare(b.name));
   }, [creators]);
 
+  const activeVisitLocation = activeVisit
+    ? getVisitLocationDisplay(activeVisit, projectLocationsMap)
+    : null;
+  const selectedLocation =
+    visitForm.locationId && projectLocationsMap.has(visitForm.locationId)
+      ? projectLocationsMap.get(visitForm.locationId) || null
+      : null;
+
   const handleCreateProject = () => {
     if (!newProjectClientId) return;
     const project = addProject({
@@ -629,12 +664,33 @@ export default function Projects() {
       status: 'Preparing',
       notes: '',
       links: '',
+      locations: [],
     });
     setNewProjectClientId('');
     setNewProjectOpen(false);
     if (project) {
       openProject(project.id);
     }
+  };
+
+  const handleAddLocation = () => {
+    if (!selectedProject) return;
+    const label = newLocationLabel.trim();
+    const address = newLocationAddress.trim();
+    if (!label || !address) return;
+    const nextLocations = [
+      ...projectLocations,
+      { id: crypto.randomUUID(), label, address },
+    ];
+    updateProject(selectedProject.id, { locations: nextLocations });
+    setNewLocationLabel('');
+    setNewLocationAddress('');
+  };
+
+  const handleRemoveLocation = (locationId: string) => {
+    if (!selectedProject) return;
+    const nextLocations = projectLocations.filter((location) => location.id !== locationId);
+    updateProject(selectedProject.id, { locations: nextLocations });
   };
 
   const openAddVisit = () => {
@@ -650,6 +706,7 @@ export default function Projects() {
     setVisitToEdit(visit);
     setVisitForm({
       location: visit.location || '',
+      locationId: visit.locationId ?? null,
       date: visit.date || '',
       time: visit.time || '',
       creatorIds: visit.creatorIds || [],
@@ -667,6 +724,7 @@ export default function Projects() {
     if (visitToEdit) {
       updateProjectVisit(visitToEdit.id, {
         location: visitForm.location.trim(),
+        locationId: visitForm.locationId,
         date: visitForm.date,
         time: visitForm.time,
         creatorIds: visitForm.creatorIds,
@@ -677,6 +735,7 @@ export default function Projects() {
       addProjectVisit({
         projectId: selectedProject.id,
         location: visitForm.location.trim(),
+        locationId: visitForm.locationId,
         date: visitForm.date,
         time: visitForm.time,
         creatorIds: visitForm.creatorIds,
@@ -866,6 +925,69 @@ export default function Projects() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      Locations
+                    </Label>
+                    {projectLocations.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No locations yet.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {projectLocations.map((location) => (
+                          <div
+                            key={location.id}
+                            className="flex items-start justify-between gap-2 rounded-md border border-border/60 p-2"
+                          >
+                            <div className="space-y-0.5">
+                              <p className="text-sm font-medium text-foreground">{location.label}</p>
+                              <a
+                                href={getMapsUrl(location.address)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary hover:underline"
+                              >
+                                {location.address}
+                              </a>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => handleRemoveLocation(location.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="grid gap-2">
+                      <Input
+                        value={newLocationLabel}
+                        onChange={(e) => setNewLocationLabel(e.target.value)}
+                        placeholder="Location name (Berlin)"
+                      />
+                      <Input
+                        value={newLocationAddress}
+                        onChange={(e) => setNewLocationAddress(e.target.value)}
+                        placeholder="Address"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleAddLocation}
+                        disabled={!newLocationLabel.trim() || !newLocationAddress.trim()}
+                      >
+                        Add location
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Locations show up in the visit dropdown for this project.
+                    </p>
+                  </div>
                   <div className="grid grid-cols-2 gap-3 text-sm text-muted-foreground">
                     <div>
                       <p className="text-xs uppercase tracking-wide">Visits</p>
@@ -956,6 +1078,7 @@ export default function Projects() {
                   {selectedVisits.map((visit) => {
                     const visitDate = getVisitDateTime(visit);
                     const creators = getVisitCreators(visit, creatorsMap);
+                    const locationDisplay = getVisitLocationDisplay(visit, projectLocationsMap);
                     const needsAttention = visitNeedsAttention(visit);
                     return (
                       <Card
@@ -968,15 +1091,15 @@ export default function Projects() {
                             <div className="space-y-1">
                               <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                                 <MapPin className="h-4 w-4 text-muted-foreground" />
-                                {visit.location ? (
+                                {locationDisplay.address ? (
                                   <span className="-m-1 inline-flex rounded-md p-1" onClick={stopCardClick}>
                                     <a
-                                      href={getMapsUrl(visit.location)}
+                                      href={getMapsUrl(locationDisplay.address)}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="hover:text-primary hover:underline"
                                     >
-                                      {visit.location}
+                                      {locationDisplay.label}
                                     </a>
                                   </span>
                                 ) : (
@@ -1101,6 +1224,7 @@ export default function Projects() {
                       status={status}
                       visits={visitsByStatus.get(status) || []}
                       creatorsMap={creatorsMap}
+                      locationsMap={projectLocationsMap}
                       onEditVisit={openEditVisit}
                       onDeleteVisit={(visit) => setVisitToDelete(visit)}
                       onMoveVisit={(visitId, nextStatus) => updateProjectVisit(visitId, { status: nextStatus })}
@@ -1113,15 +1237,15 @@ export default function Projects() {
                       <CardContent className="space-y-3 pt-4">
                         <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                           <MapPin className="h-4 w-4 text-muted-foreground" />
-                          {activeVisit.location ? (
+                          {activeVisitLocation?.address ? (
                             <span className="-m-1 inline-flex rounded-md p-1" onClick={stopCardClick}>
                               <a
-                                href={getMapsUrl(activeVisit.location)}
+                                href={getMapsUrl(activeVisitLocation.address)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="hover:text-primary hover:underline"
                               >
-                                {activeVisit.location}
+                                {activeVisitLocation.label}
                               </a>
                             </span>
                           ) : (
@@ -1175,12 +1299,55 @@ export default function Projects() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Location</Label>
-                <Input
-                  value={visitForm.location}
-                  onChange={(e) => setVisitForm({ ...visitForm, location: e.target.value })}
-                  placeholder="City, venue, or address"
-                  autoFocus={visitDialogFocus === 'location'}
-                />
+                {projectLocations.length > 0 && (
+                  <Select
+                    value={
+                      visitForm.locationId && projectLocationsMap.has(visitForm.locationId)
+                        ? visitForm.locationId
+                        : 'custom'
+                    }
+                    onValueChange={(value) => {
+                      if (value === 'custom') {
+                        setVisitForm((prev) => ({ ...prev, locationId: null }));
+                        return;
+                      }
+                      const location = projectLocations.find((entry) => entry.id === value);
+                      setVisitForm((prev) => ({
+                        ...prev,
+                        locationId: value,
+                        location: location?.address || '',
+                      }));
+                    }}
+                  >
+                    <SelectTrigger autoFocus={visitDialogFocus === 'location'}>
+                      <SelectValue placeholder="Select a project location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projectLocations.map((location) => (
+                        <SelectItem key={location.id} value={location.id}>
+                          <div className="flex flex-col">
+                            <span>{location.label}</span>
+                            <span className="text-xs text-muted-foreground">{location.address}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="custom">Custom location…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+                {(!projectLocations.length || !visitForm.locationId) && (
+                  <Input
+                    value={visitForm.location}
+                    onChange={(e) => setVisitForm({ ...visitForm, location: e.target.value })}
+                    placeholder="City, venue, or address"
+                    autoFocus={visitDialogFocus === 'location'}
+                  />
+                )}
+                {selectedLocation && (
+                  <p className="text-xs text-muted-foreground">
+                    Address: {selectedLocation.address}
+                  </p>
+                )}
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
                 <div className="space-y-2">
@@ -1307,7 +1474,7 @@ export default function Projects() {
               <Button
                 onClick={handleSaveVisit}
                 disabled={
-                  !visitForm.location.trim() ||
+                  (!(visitForm.locationId || visitForm.location.trim())) ||
                   visitForm.creatorIds.length === 0
                 }
               >
