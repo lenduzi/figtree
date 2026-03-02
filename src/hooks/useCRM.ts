@@ -77,11 +77,14 @@ export function useCRM() {
   const [projectVisits, setProjectVisits] = useState<ProjectVisit[]>(() => {
     const stored = loadFromStorage(STORAGE_KEYS.projectVisits, []);
     return stored.map((visit: any) => {
-      const { creatorIds, notes, ...rest } = visit || {};
-      const creatorFromLegacy = Array.isArray(creatorIds) ? creatorIds[0] ?? null : null;
+      const { creatorIds, creatorId, notes, ...rest } = visit || {};
+      const normalizedCreatorIds = Array.isArray(creatorIds) ? creatorIds.filter(Boolean) : [];
+      if (creatorId && !normalizedCreatorIds.includes(creatorId)) {
+        normalizedCreatorIds.push(creatorId);
+      }
       return {
         ...rest,
-        creatorId: rest.creatorId ?? creatorFromLegacy ?? null,
+        creatorIds: normalizedCreatorIds,
         status: (rest.status as VisitStatus) || 'Sourcing',
         briefing: rest.briefing ?? notes ?? '',
       } as ProjectVisit;
@@ -527,7 +530,7 @@ export function useCRM() {
       location: visit.location || '',
       date: visit.date || '',
       time: visit.time || '',
-      creatorId: visit.creatorId ?? null,
+      creatorIds: visit.creatorIds || [],
       status: visit.status || 'Sourcing',
       briefing: visit.briefing || '',
       createdAt: now,
@@ -578,9 +581,14 @@ export function useCRM() {
 
   const deleteCreator = useCallback((id: string) => {
     setCreators(prev => prev.filter(creator => creator.id !== id));
-    setProjectVisits(prev => prev.map(visit =>
-      visit.creatorId === id ? { ...visit, creatorId: null, updatedAt: new Date().toISOString() } : visit
-    ));
+    setProjectVisits(prev => prev.map(visit => {
+      if (!visit.creatorIds?.includes(id)) return visit;
+      return {
+        ...visit,
+        creatorIds: visit.creatorIds.filter((creatorId) => creatorId !== id),
+        updatedAt: new Date().toISOString(),
+      };
+    }));
   }, []);
 
   // Research List operations

@@ -110,7 +110,7 @@ export interface ProjectVisit {
   location: string;
   date: string;
   time?: string;
-  creatorId?: string | null;
+  creatorIds: string[];
   status: VisitStatus;
   briefing: string;
   createdAt: string;

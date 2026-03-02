@@ -37,6 +37,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -134,8 +135,21 @@ const getTikTokUrl = (handle?: string | null) => {
   return normalized ? `https://tiktok.com/@${normalized}` : '';
 };
 
+const getMapsUrl = (location?: string | null) => {
+  const trimmed = location?.trim();
+  return trimmed ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(trimmed)}` : '';
+};
+
+const getVisitCreators = (visit: ProjectVisit, creatorsMap: Map<string, Creator>) =>
+  (visit.creatorIds || [])
+    .map((creatorId) => creatorsMap.get(creatorId))
+    .filter((creator): creator is Creator => !!creator);
+
+const formatCreatorNames = (creators: Creator[]) =>
+  creators.map((creator) => creator.name).join(', ');
+
 const visitNeedsAttention = (visit: ProjectVisit) =>
-  !visit.location?.trim() || !visit.date || !visit.creatorId || !visit.briefing?.trim();
+  !visit.location?.trim() || !visit.date || !visit.creatorIds?.length || !visit.briefing?.trim();
 
 type ProjectCardMeta = {
   project: Project;
@@ -156,7 +170,9 @@ const buildProjectMeta = (project: Project, visits: ProjectVisit[]): ProjectCard
   const nextVisitEntry = datedVisits.find((entry) => entry.date >= today) || null;
   const lastVisitEntry = datedVisits.length > 0 ? datedVisits[datedVisits.length - 1] : null;
 
-  const creatorCount = new Set(visits.map((visit) => visit.creatorId).filter(Boolean)).size;
+  const creatorCount = new Set(
+    visits.flatMap((visit) => visit.creatorIds || []).filter(Boolean)
+  ).size;
   const needsAttentionCount = visits.filter(visitNeedsAttention).length;
 
   return {
@@ -190,7 +206,7 @@ type VisitFormState = {
   location: string;
   date: string;
   time: string;
-  creatorId: string;
+  creatorIds: string[];
   briefing: string;
   status: VisitStatus;
 };
@@ -201,7 +217,7 @@ const emptyVisitForm: VisitFormState = {
   location: '',
   date: '',
   time: '',
-  creatorId: '',
+  creatorIds: [],
   briefing: '',
   status: 'Sourcing',
 };
@@ -275,7 +291,7 @@ const KanbanColumn = ({
       ) : (
         visits.map((visit) => {
           const visitDate = getVisitDateTime(visit);
-          const creator = visit.creatorId ? creatorsMap.get(visit.creatorId) : null;
+          const creators = getVisitCreators(visit, creatorsMap);
           const needsAttention = visitNeedsAttention(visit);
           const currentStatus = visit.status || 'Sourcing';
 
@@ -290,7 +306,18 @@ const KanbanColumn = ({
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                       <MapPin className="h-4 w-4 text-muted-foreground" />
-                      {visit.location || 'Location TBD'}
+                      {visit.location ? (
+                        <a
+                          href={getMapsUrl(visit.location)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-primary hover:underline"
+                        >
+                          {visit.location}
+                        </a>
+                      ) : (
+                        <span>Location TBD</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Calendar className="h-4 w-4" />
@@ -332,19 +359,19 @@ const KanbanColumn = ({
 
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Users className="h-4 w-4" />
-                  {creator ? (
-                    <span className="text-foreground">{creator.name}</span>
+                  {creators.length > 0 ? (
+                    <span className="text-foreground">{formatCreatorNames(creators)}</span>
                   ) : (
-                    <span>No creator assigned</span>
+                    <span>No creators assigned</span>
                   )}
-                  {creator?.tiktokHandle && (
+                  {creators.length === 1 && creators[0].tiktokHandle && (
                     <a
-                      href={getTikTokUrl(creator.tiktokHandle)}
+                      href={getTikTokUrl(creators[0].tiktokHandle)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-primary hover:underline text-xs"
                     >
-                      @{normalizeTikTokHandle(creator.tiktokHandle)}
+                      @{normalizeTikTokHandle(creators[0].tiktokHandle)}
                     </a>
                   )}
                 </div>
@@ -596,7 +623,7 @@ export default function Projects() {
       location: visit.location || '',
       date: visit.date || '',
       time: visit.time || '',
-      creatorId: visit.creatorId || '',
+      creatorIds: visit.creatorIds || [],
       briefing: visit.briefing || '',
       status: visit.status || 'Sourcing',
     });
@@ -613,7 +640,7 @@ export default function Projects() {
         location: visitForm.location.trim(),
         date: visitForm.date,
         time: visitForm.time,
-        creatorId: visitForm.creatorId || null,
+        creatorIds: visitForm.creatorIds,
         briefing: visitForm.briefing.trim(),
         status: visitForm.status,
       });
@@ -623,7 +650,7 @@ export default function Projects() {
         location: visitForm.location.trim(),
         date: visitForm.date,
         time: visitForm.time,
-        creatorId: visitForm.creatorId || null,
+        creatorIds: visitForm.creatorIds,
         briefing: visitForm.briefing.trim(),
         status: visitForm.status,
       });
@@ -647,7 +674,10 @@ export default function Projects() {
       tiktokHandle: normalizeTikTokHandle(newCreatorHandle),
       notes: '',
     });
-    setVisitForm((prev) => ({ ...prev, creatorId: newCreator.id }));
+    setVisitForm((prev) => ({
+      ...prev,
+      creatorIds: Array.from(new Set([...(prev.creatorIds || []), newCreator.id])),
+    }));
     setNewCreatorName('');
     setNewCreatorHandle('');
   };
@@ -884,7 +914,7 @@ export default function Projects() {
                     <MapPin className="h-10 w-10 text-muted-foreground mb-3" />
                     <h3 className="text-lg font-medium text-foreground">No visits yet</h3>
                     <p className="text-sm text-muted-foreground max-w-sm mt-2">
-                      Add the first visit with location, date, creator, and briefing.
+                      Add the first visit with location, date, creator(s), and briefing.
                     </p>
                     <Button className="mt-4" onClick={openAddVisit}>
                       <Plus className="h-4 w-4 mr-2" />
@@ -896,7 +926,7 @@ export default function Projects() {
                 <div className="space-y-3">
                   {selectedVisits.map((visit) => {
                     const visitDate = getVisitDateTime(visit);
-                    const creator = visit.creatorId ? creatorsMap.get(visit.creatorId) : null;
+                    const creators = getVisitCreators(visit, creatorsMap);
                     const needsAttention = visitNeedsAttention(visit);
                     return (
                       <Card key={visit.id}>
@@ -905,7 +935,18 @@ export default function Projects() {
                             <div className="space-y-1">
                               <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                                 <MapPin className="h-4 w-4 text-muted-foreground" />
-                                {visit.location || 'Location TBD'}
+                                {visit.location ? (
+                                  <a
+                                    href={getMapsUrl(visit.location)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="hover:text-primary hover:underline"
+                                  >
+                                    {visit.location}
+                                  </a>
+                                ) : (
+                                  <span>Location TBD</span>
+                                )}
                               </div>
                               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                 <Calendar className="h-4 w-4" />
@@ -938,19 +979,19 @@ export default function Projects() {
 
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Users className="h-4 w-4" />
-                            {creator ? (
-                              <span className="text-foreground">{creator.name}</span>
+                            {creators.length > 0 ? (
+                              <span className="text-foreground">{formatCreatorNames(creators)}</span>
                             ) : (
-                              <span>No creator assigned</span>
+                              <span>No creators assigned</span>
                             )}
-                            {creator?.tiktokHandle && (
+                            {creators.length === 1 && creators[0].tiktokHandle && (
                               <a
-                                href={getTikTokUrl(creator.tiktokHandle)}
+                                href={getTikTokUrl(creators[0].tiktokHandle)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-primary hover:underline text-xs"
                               >
-                                @{normalizeTikTokHandle(creator.tiktokHandle)}
+                                @{normalizeTikTokHandle(creators[0].tiktokHandle)}
                               </a>
                             )}
                           </div>
@@ -976,7 +1017,7 @@ export default function Projects() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-semibold text-foreground">Visit Board</h2>
-                <p className="text-sm text-muted-foreground">Each card represents one visit (one creator).</p>
+                <p className="text-sm text-muted-foreground">Each card represents one visit (one or more creators).</p>
               </div>
               <Button variant="outline" onClick={openAddVisit}>
                 <Plus className="h-4 w-4 mr-2" />
@@ -990,7 +1031,7 @@ export default function Projects() {
                   <MapPin className="h-10 w-10 text-muted-foreground mb-3" />
                   <h3 className="text-lg font-medium text-foreground">No visits yet</h3>
                   <p className="text-sm text-muted-foreground max-w-sm mt-2">
-                    Add the first visit with location, date, creator, and briefing.
+                    Add the first visit with location, date, creator(s), and briefing.
                   </p>
                   <Button className="mt-4" onClick={openAddVisit}>
                     <Plus className="h-4 w-4 mr-2" />
@@ -1024,7 +1065,18 @@ export default function Projects() {
                       <CardContent className="space-y-3 pt-4">
                         <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                           <MapPin className="h-4 w-4 text-muted-foreground" />
-                          {activeVisit.location || 'Location TBD'}
+                          {activeVisit.location ? (
+                            <a
+                              href={getMapsUrl(activeVisit.location)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:text-primary hover:underline"
+                            >
+                              {activeVisit.location}
+                            </a>
+                          ) : (
+                            <span>Location TBD</span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Calendar className="h-4 w-4" />
@@ -1035,12 +1087,12 @@ export default function Projects() {
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Users className="h-4 w-4" />
-                          {activeVisit.creatorId ? (
+                          {getVisitCreators(activeVisit, creatorsMap).length > 0 ? (
                             <span className="text-foreground">
-                              {creatorsMap.get(activeVisit.creatorId)?.name || 'Creator'}
+                              {formatCreatorNames(getVisitCreators(activeVisit, creatorsMap))}
                             </span>
                           ) : (
-                            <span>No creator assigned</span>
+                            <span>No creators assigned</span>
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground line-clamp-3">
@@ -1098,25 +1150,43 @@ export default function Projects() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Creator</Label>
+                <Label>Creators</Label>
                 {creatorOptions.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No creators yet. Add one below.</p>
                 ) : (
-                  <Select
-                    value={visitForm.creatorId}
-                    onValueChange={(value) => setVisitForm({ ...visitForm, creatorId: value })}
-                  >
-                    <SelectTrigger autoFocus={visitDialogFocus === 'creator'}>
-                      <SelectValue placeholder="Select creator" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {creatorOptions.map((creator) => (
-                        <SelectItem key={creator.id} value={creator.id}>
-                          {creator.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="rounded-lg border border-border p-3 space-y-2 max-h-40 overflow-y-auto">
+                    {creatorOptions.map((creator, index) => {
+                      const checked = visitForm.creatorIds.includes(creator.id);
+                      return (
+                        <label
+                          key={creator.id}
+                          className="flex items-center gap-2 text-sm text-foreground"
+                        >
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(value) => {
+                              setVisitForm((prev) => {
+                                const next = new Set(prev.creatorIds || []);
+                                if (value) {
+                                  next.add(creator.id);
+                                } else {
+                                  next.delete(creator.id);
+                                }
+                                return { ...prev, creatorIds: Array.from(next) };
+                              });
+                            }}
+                            autoFocus={visitDialogFocus === 'creator' && index === 0}
+                          />
+                          <span>{creator.name}</span>
+                          {creator.tiktokHandle && (
+                            <span className="text-xs text-muted-foreground">
+                              @{normalizeTikTokHandle(creator.tiktokHandle)}
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
                 )}
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <Input
@@ -1181,7 +1251,7 @@ export default function Projects() {
                 disabled={
                   !visitForm.location.trim() ||
                   !visitForm.date ||
-                  !visitForm.creatorId ||
+                  visitForm.creatorIds.length === 0 ||
                   !visitForm.briefing.trim()
                 }
               >
