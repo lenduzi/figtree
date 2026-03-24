@@ -87,6 +87,7 @@ const createDefaultDraft = (): IdeaDraft => ({
   userType: "B2B",
   moscow: "Could",
   roadmap: "Later",
+  status: "active",
   impact: 5,
   confidence: 5,
   effort: 5,
@@ -111,6 +112,8 @@ const IdeaCard = ({
   const iceScore = getIceScore(idea);
   const updatedLabel = formatDistanceToNow(idea.updatedAt, { addSuffix: true });
   const isMust = idea.moscow === "Must";
+  const isDone = idea.status === "done";
+  const isArchived = idea.status === "archived";
   const mustGradient = (() => {
     if (!isMust) return "";
     if (idea.userType === "B2B") {
@@ -138,13 +141,17 @@ const IdeaCard = ({
         "border-border/80 shadow-sm transition-shadow",
         mustShadow,
         mustGradient,
+        isDone && "opacity-80",
+        isArchived && "opacity-70",
         className,
       )}
     >
       <CardContent className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
-            <h3 className="text-base font-semibold text-foreground">{idea.title}</h3>
+            <h3 className={cn("text-base font-semibold text-foreground", (isDone || isArchived) && "line-through decoration-2 decoration-muted-foreground/60")}>
+              {idea.title}
+            </h3>
             {idea.value && (
               <p className="text-sm text-muted-foreground">{idea.value}</p>
             )}
@@ -157,6 +164,24 @@ const IdeaCard = ({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[200px]">
               <DropdownMenuItem onClick={() => onEdit(idea)}>Edit</DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() =>
+                  onQuickUpdate(idea.id, {
+                    status: idea.status === "done" ? "active" : "done",
+                  })
+                }
+              >
+                {idea.status === "done" ? "Mark active" : "Mark done"}
+              </DropdownMenuItem>
+              {idea.status === "archived" ? (
+                <DropdownMenuItem onClick={() => onQuickUpdate(idea.id, { status: "active" })}>
+                  Restore from archive
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onClick={() => onQuickUpdate(idea.id, { status: "archived" })}>
+                  Archive
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               {MOSCOW_TIERS.map((tier) => (
                 <DropdownMenuItem
@@ -186,6 +211,8 @@ const IdeaCard = ({
           </DropdownMenu>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {isDone && <Badge variant="secondary">Done</Badge>}
+          {isArchived && <Badge variant="outline">Archived</Badge>}
           <Badge variant="secondary">{idea.userType}</Badge>
           <Badge variant="outline">{idea.moscow}</Badge>
           <Badge variant="outline">{idea.roadmap}</Badge>
@@ -319,26 +346,66 @@ export default function ProductDev() {
 
   const refreshIdeas = () => setIdeas(listIdeas());
 
+  const activeIdeas = useMemo(
+    () => ideas.filter((idea) => idea.status !== "archived"),
+    [ideas],
+  );
+
+  const archivedIdeas = useMemo(
+    () => ideas.filter((idea) => idea.status === "archived"),
+    [ideas],
+  );
+
   const filteredIdeas = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return ideas.filter((idea) => {
+    return activeIdeas.filter((idea) => {
       if (filterUserType !== "all" && idea.userType !== filterUserType) return false;
       if (filterMoscow !== "all" && idea.moscow !== filterMoscow) return false;
       if (!query) return true;
       const haystack = `${idea.title} ${idea.value} ${idea.notes}`.toLowerCase();
       return haystack.includes(query);
     });
-  }, [ideas, search, filterUserType, filterMoscow]);
+  }, [activeIdeas, search, filterUserType, filterMoscow]);
+
+  const filteredArchivedIdeas = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return archivedIdeas.filter((idea) => {
+      if (filterUserType !== "all" && idea.userType !== filterUserType) return false;
+      if (filterMoscow !== "all" && idea.moscow !== filterMoscow) return false;
+      if (!query) return true;
+      const haystack = `${idea.title} ${idea.value} ${idea.notes}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [archivedIdeas, search, filterUserType, filterMoscow]);
 
   const sortedIdeas = useMemo(() => {
     const items = [...filteredIdeas];
+    const statusWeight = (idea: ProductIdea) => (idea.status === "done" ? 1 : 0);
+    if (sortBy === "ice") {
+      items.sort((a, b) => {
+        const weight = statusWeight(a) - statusWeight(b);
+        if (weight !== 0) return weight;
+        return getIceScore(b) - getIceScore(a);
+      });
+      return items;
+    }
+    items.sort((a, b) => {
+      const weight = statusWeight(a) - statusWeight(b);
+      if (weight !== 0) return weight;
+      return b.updatedAt - a.updatedAt;
+    });
+    return items;
+  }, [filteredIdeas, sortBy]);
+
+  const sortedArchivedIdeas = useMemo(() => {
+    const items = [...filteredArchivedIdeas];
     if (sortBy === "ice") {
       items.sort((a, b) => getIceScore(b) - getIceScore(a));
       return items;
     }
     items.sort((a, b) => b.updatedAt - a.updatedAt);
     return items;
-  }, [filteredIdeas, sortBy]);
+  }, [filteredArchivedIdeas, sortBy]);
 
   const moscowGroups = useMemo(() => {
     const groups: Record<MoscowTier, ProductIdea[]> = {
@@ -350,8 +417,13 @@ export default function ProductDev() {
     filteredIdeas.forEach((idea) => {
       groups[idea.moscow].push(idea);
     });
+    const statusWeight = (idea: ProductIdea) => (idea.status === "done" ? 1 : 0);
     MOSCOW_TIERS.forEach((tier) => {
-      groups[tier].sort((a, b) => getIceScore(b) - getIceScore(a));
+      groups[tier].sort((a, b) => {
+        const weight = statusWeight(a) - statusWeight(b);
+        if (weight !== 0) return weight;
+        return getIceScore(b) - getIceScore(a);
+      });
     });
     return groups;
   }, [filteredIdeas]);
@@ -365,8 +437,13 @@ export default function ProductDev() {
     filteredIdeas.forEach((idea) => {
       groups[idea.roadmap].push(idea);
     });
+    const statusWeight = (idea: ProductIdea) => (idea.status === "done" ? 1 : 0);
     ROADMAP_LANES.forEach((lane) => {
-      groups[lane].sort((a, b) => getIceScore(b) - getIceScore(a));
+      groups[lane].sort((a, b) => {
+        const weight = statusWeight(a) - statusWeight(b);
+        if (weight !== 0) return weight;
+        return getIceScore(b) - getIceScore(a);
+      });
     });
     return groups;
   }, [filteredIdeas]);
@@ -380,6 +457,7 @@ export default function ProductDev() {
       userType: quickUserType,
       moscow: "Could",
       roadmap: "Later",
+      status: "active",
       impact: 5,
       confidence: 5,
       effort: 5,
@@ -403,6 +481,7 @@ export default function ProductDev() {
       userType: idea.userType,
       moscow: idea.moscow,
       roadmap: idea.roadmap,
+      status: idea.status,
       impact: idea.impact,
       confidence: idea.confidence,
       effort: idea.effort,
@@ -555,6 +634,7 @@ export default function ProductDev() {
           <TabsTrigger value="inbox">Inbox</TabsTrigger>
           <TabsTrigger value="prioritize">Prioritize</TabsTrigger>
           <TabsTrigger value="roadmap">Roadmap</TabsTrigger>
+          <TabsTrigger value="archived">Archived</TabsTrigger>
         </TabsList>
         <div className="flex items-center gap-3 rounded-full border border-border/80 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
           <span className={roadmapFirst ? "opacity-60" : "text-foreground"}>Idea input</span>
@@ -727,6 +807,28 @@ export default function ProductDev() {
             ) : null}
           </DragOverlay>
         </DndContext>
+      </TabsContent>
+
+      <TabsContent value="archived" className="space-y-4">
+        {sortedArchivedIdeas.length === 0 ? (
+          <Card className="border-border/80">
+            <CardContent className="py-12 text-center text-sm text-muted-foreground">
+              No archived ideas yet.
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {sortedArchivedIdeas.map((idea) => (
+              <IdeaCard
+                key={idea.id}
+                idea={idea}
+                onEdit={openEditorForEdit}
+                onRequestDelete={setDeleteTarget}
+                onQuickUpdate={handleQuickUpdate}
+              />
+            ))}
+          </div>
+        )}
       </TabsContent>
     </Tabs>
   );

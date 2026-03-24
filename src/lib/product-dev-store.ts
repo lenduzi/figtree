@@ -1,6 +1,7 @@
 export type UserType = "B2B" | "B2C" | "Admin" | "Multi";
 export type MoscowTier = "Must" | "Should" | "Could" | "Won't";
 export type RoadmapLane = "Now" | "Next" | "Later";
+export type IdeaStatus = "active" | "done" | "archived";
 
 export type ProductIdea = {
   id: string;
@@ -9,6 +10,7 @@ export type ProductIdea = {
   userType: UserType;
   moscow: MoscowTier;
   roadmap: RoadmapLane;
+  status: IdeaStatus;
   impact: number;
   confidence: number;
   effort: number;
@@ -51,7 +53,10 @@ const generateId = () => {
 export const listIdeas = (): ProductIdea[] => {
   const storage = getStorage();
   if (!storage) return [];
-  const ideas = safeParse(storage.getItem(STORAGE_KEY));
+  const ideas = safeParse(storage.getItem(STORAGE_KEY)).map((idea) => ({
+    ...idea,
+    status: (idea as ProductIdea).status ?? "active",
+  }));
   return [...ideas].sort((a, b) => b.updatedAt - a.updatedAt);
 };
 
