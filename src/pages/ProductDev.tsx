@@ -72,12 +72,25 @@ const USER_TYPES: UserType[] = ["B2B", "B2C", "Admin", "Multi"];
 const MOSCOW_TIERS: MoscowTier[] = ["Must", "Should", "Could", "Won't"];
 const ROADMAP_LANES: RoadmapLane[] = ["Now", "Next", "Later"];
 const ARCHIVE_NOTE_TEMPLATES = [
-  "Shipped and tested; no breakage",
-  "Not shipped — no longer necessary",
-  "Successful implementation",
-  "Partially shipped; follow-up needed",
-  "Blocked by external dependency",
-];
+  { label: "Successful implementation", tone: "success" },
+  { label: "Partially shipped; follow-up needed", tone: "warning" },
+  { label: "Blocked by external dependency", tone: "danger" },
+  { label: "Not shipped — no longer necessary", tone: "neutral" },
+] as const;
+
+const archiveToneClass = (tone: (typeof ARCHIVE_NOTE_TEMPLATES)[number]["tone"]) => {
+  switch (tone) {
+    case "success":
+      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-200";
+    case "warning":
+      return "border-amber-500/30 bg-amber-500/10 text-amber-700 hover:bg-amber-500/15 dark:text-amber-200";
+    case "danger":
+      return "border-rose-500/30 bg-rose-500/10 text-rose-700 hover:bg-rose-500/15 dark:text-rose-200";
+    case "neutral":
+    default:
+      return "border-slate-400/40 bg-slate-500/10 text-slate-700 hover:bg-slate-500/15 dark:text-slate-200";
+  }
+};
 
 const clampScore = (value: number) => Math.min(10, Math.max(1, value));
 const LAYOUT_KEY = "simplecrm_product_dev_layout";
@@ -1095,13 +1108,17 @@ export default function ProductDev() {
             <div className="flex flex-wrap gap-2">
               {ARCHIVE_NOTE_TEMPLATES.map((template) => (
                 <Button
-                  key={template}
+                  key={template.label}
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setArchiveNote(template)}
+                  onClick={() => setArchiveNote(template.label)}
+                  className={cn(
+                    "h-8 rounded-full px-3 text-xs font-medium whitespace-nowrap",
+                    archiveToneClass(template.tone),
+                  )}
                 >
-                  {template}
+                  {template.label}
                 </Button>
               ))}
             </div>
