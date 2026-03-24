@@ -71,6 +71,13 @@ import { cn } from "@/lib/utils";
 const USER_TYPES: UserType[] = ["B2B", "B2C", "Admin", "Multi"];
 const MOSCOW_TIERS: MoscowTier[] = ["Must", "Should", "Could", "Won't"];
 const ROADMAP_LANES: RoadmapLane[] = ["Now", "Next", "Later"];
+const ARCHIVE_NOTE_TEMPLATES = [
+  "Shipped and tested; no breakage",
+  "Not shipped — no longer necessary",
+  "Successful implementation",
+  "Partially shipped; follow-up needed",
+  "Blocked by external dependency",
+];
 
 const clampScore = (value: number) => Math.min(10, Math.max(1, value));
 const LAYOUT_KEY = "simplecrm_product_dev_layout";
@@ -93,12 +100,14 @@ const createDefaultDraft = (): IdeaDraft => ({
   confidence: 5,
   effort: 5,
   notes: "",
+  archivedNote: "",
 });
 
 type IdeaCardProps = {
   idea: ProductIdea;
   onEdit: (idea: ProductIdea) => void;
   onRequestDelete: (idea: ProductIdea) => void;
+  onRequestArchive: (idea: ProductIdea) => void;
   onQuickUpdate: (id: string, changes: Partial<ProductIdea>) => void;
   className?: string;
 };
@@ -107,6 +116,7 @@ const IdeaCard = ({
   idea,
   onEdit,
   onRequestDelete,
+  onRequestArchive,
   onQuickUpdate,
   className,
 }: IdeaCardProps) => {
@@ -115,6 +125,7 @@ const IdeaCard = ({
   const isMust = idea.moscow === "Must";
   const isDone = idea.status === "done";
   const isArchived = idea.status === "archived";
+  const archiveNote = idea.archivedNote?.trim();
   const mustGradient = (() => {
     if (!isMust) return "";
     if (idea.userType === "B2B") {
@@ -167,11 +178,13 @@ const IdeaCard = ({
                 {idea.status === "done" ? "Mark active" : "Mark done"}
               </DropdownMenuItem>
               {idea.status === "archived" ? (
-                <DropdownMenuItem onClick={() => onQuickUpdate(idea.id, { status: "active" })}>
+                <DropdownMenuItem
+                  onClick={() => onQuickUpdate(idea.id, { status: "active", archivedNote: "" })}
+                >
                   Restore from archive
                 </DropdownMenuItem>
               ) : (
-                <DropdownMenuItem onClick={() => onQuickUpdate(idea.id, { status: "archived" })}>
+                <DropdownMenuItem onClick={() => onRequestArchive(idea)}>
                   Archive
                 </DropdownMenuItem>
               )}
@@ -213,6 +226,11 @@ const IdeaCard = ({
             ICE {iceScore.toFixed(1)}
           </Badge>
         </div>
+        {isArchived && archiveNote ? (
+          <div className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2 text-sm text-foreground/80">
+            {archiveNote}
+          </div>
+        ) : null}
         <p className="text-xs text-muted-foreground">Updated {updatedLabel}</p>
       </CardContent>
     </Card>
@@ -223,6 +241,7 @@ type DraggableIdeaCardProps = {
   idea: ProductIdea;
   onEdit: (idea: ProductIdea) => void;
   onRequestDelete: (idea: ProductIdea) => void;
+  onRequestArchive: (idea: ProductIdea) => void;
   onQuickUpdate: (id: string, changes: Partial<ProductIdea>) => void;
 };
 
@@ -230,6 +249,7 @@ const DraggableIdeaCard = ({
   idea,
   onEdit,
   onRequestDelete,
+  onRequestArchive,
   onQuickUpdate,
 }: DraggableIdeaCardProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -254,6 +274,7 @@ const DraggableIdeaCard = ({
         idea={idea}
         onEdit={onEdit}
         onRequestDelete={onRequestDelete}
+        onRequestArchive={onRequestArchive}
         onQuickUpdate={onQuickUpdate}
       />
     </div>
@@ -310,6 +331,9 @@ export default function ProductDev() {
   const [draft, setDraft] = useState<IdeaDraft>(createDefaultDraft());
 
   const [deleteTarget, setDeleteTarget] = useState<ProductIdea | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<ProductIdea | null>(null);
+  const [archiveNote, setArchiveNote] = useState("");
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [activeIdeaId, setActiveIdeaId] = useState<string | null>(null);
   const [roadmapFirst, setRoadmapFirst] = useState(() => {
     try {
@@ -355,7 +379,7 @@ export default function ProductDev() {
       if (filterUserType !== "all" && idea.userType !== filterUserType) return false;
       if (filterMoscow !== "all" && idea.moscow !== filterMoscow) return false;
       if (!query) return true;
-      const haystack = `${idea.title} ${idea.value} ${idea.notes}`.toLowerCase();
+      const haystack = `${idea.title} ${idea.value} ${idea.notes} ${idea.archivedNote ?? ""}`.toLowerCase();
       return haystack.includes(query);
     });
   }, [activeIdeas, search, filterUserType, filterMoscow]);
@@ -366,7 +390,7 @@ export default function ProductDev() {
       if (filterUserType !== "all" && idea.userType !== filterUserType) return false;
       if (filterMoscow !== "all" && idea.moscow !== filterMoscow) return false;
       if (!query) return true;
-      const haystack = `${idea.title} ${idea.value} ${idea.notes}`.toLowerCase();
+      const haystack = `${idea.title} ${idea.value} ${idea.notes} ${idea.archivedNote ?? ""}`.toLowerCase();
       return haystack.includes(query);
     });
   }, [archivedIdeas, search, filterUserType, filterMoscow]);
@@ -455,6 +479,7 @@ export default function ProductDev() {
       confidence: 5,
       effort: 5,
       notes: "",
+      archivedNote: "",
     });
     setQuickTitle("");
     refreshIdeas();
@@ -479,6 +504,7 @@ export default function ProductDev() {
       confidence: idea.confidence,
       effort: idea.effort,
       notes: idea.notes,
+      archivedNote: idea.archivedNote ?? "",
     });
     setEditorOpen(true);
   };
@@ -486,6 +512,8 @@ export default function ProductDev() {
   const handleSave = () => {
     const title = draft.title.trim();
     if (!title) return;
+    const isArchived = draft.status === "archived";
+    const normalizedArchivedNote = isArchived ? draft.archivedNote.trim() : "";
     const payload: IdeaDraft = {
       ...draft,
       title,
@@ -493,6 +521,7 @@ export default function ProductDev() {
       impact: clampScore(draft.impact),
       confidence: clampScore(draft.confidence),
       effort: clampScore(draft.effort),
+      archivedNote: normalizedArchivedNote,
     };
     if (editingIdea) {
       updateIdea(editingIdea.id, payload);
@@ -512,6 +541,28 @@ export default function ProductDev() {
 
   const handleQuickUpdate = (id: string, changes: Partial<ProductIdea>) => {
     updateIdea(id, changes);
+    refreshIdeas();
+  };
+
+  const openArchiveDialog = (idea: ProductIdea) => {
+    setArchiveTarget(idea);
+    setArchiveNote(idea.archivedNote ?? "");
+    setArchiveDialogOpen(true);
+  };
+
+  const resetArchiveDialog = () => {
+    setArchiveDialogOpen(false);
+    setArchiveTarget(null);
+    setArchiveNote("");
+  };
+
+  const handleArchiveConfirm = () => {
+    if (!archiveTarget) return;
+    updateIdea(archiveTarget.id, {
+      status: "archived",
+      archivedNote: archiveNote.trim(),
+    });
+    resetArchiveDialog();
     refreshIdeas();
   };
 
@@ -733,6 +784,7 @@ export default function ProductDev() {
                 idea={idea}
                 onEdit={openEditorForEdit}
                 onRequestDelete={setDeleteTarget}
+                onRequestArchive={openArchiveDialog}
                 onQuickUpdate={handleQuickUpdate}
               />
             ))}
@@ -767,6 +819,7 @@ export default function ProductDev() {
                       idea={idea}
                       onEdit={openEditorForEdit}
                       onRequestDelete={setDeleteTarget}
+                      onRequestArchive={openArchiveDialog}
                       onQuickUpdate={handleQuickUpdate}
                     />
                   ))
@@ -811,6 +864,7 @@ export default function ProductDev() {
                       idea={idea}
                       onEdit={openEditorForEdit}
                       onRequestDelete={setDeleteTarget}
+                      onRequestArchive={openArchiveDialog}
                       onQuickUpdate={handleQuickUpdate}
                     />
                   ))
@@ -847,6 +901,7 @@ export default function ProductDev() {
                 idea={idea}
                 onEdit={openEditorForEdit}
                 onRequestDelete={setDeleteTarget}
+                onRequestArchive={openArchiveDialog}
                 onQuickUpdate={handleQuickUpdate}
               />
             ))}
@@ -991,6 +1046,17 @@ export default function ProductDev() {
                 className="min-h-[110px]"
               />
             </div>
+            {editingIdea?.status === "archived" ? (
+              <div className="space-y-2 md:col-span-2">
+                <Label>Archive note</Label>
+                <Textarea
+                  value={draft.archivedNote}
+                  onChange={(event) => setDraft((prev) => ({ ...prev, archivedNote: event.target.value }))}
+                  placeholder="Optional context shown in the archive list."
+                  className="min-h-[90px]"
+                />
+              </div>
+            ) : null}
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setEditorOpen(false)}>
@@ -998,6 +1064,54 @@ export default function ProductDev() {
             </Button>
             <Button onClick={handleSave}>
               {editingIdea ? "Save changes" : "Create idea"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={archiveDialogOpen} onOpenChange={(open) => !open && resetArchiveDialog()}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Archive idea</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {archiveTarget ? (
+              <div className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-sm font-medium text-foreground">
+                {archiveTarget.title}
+              </div>
+            ) : null}
+            <div className="space-y-1">
+              <Label>Archive note (optional)</Label>
+              <p className="text-xs text-muted-foreground">
+                Shown in the archived overview for quick context.
+              </p>
+            </div>
+            <Textarea
+              value={archiveNote}
+              onChange={(event) => setArchiveNote(event.target.value)}
+              placeholder="Add a short note for future you."
+              className="min-h-[110px]"
+            />
+            <div className="flex flex-wrap gap-2">
+              {ARCHIVE_NOTE_TEMPLATES.map((template) => (
+                <Button
+                  key={template}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setArchiveNote(template)}
+                >
+                  {template}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={resetArchiveDialog}>
+              Cancel
+            </Button>
+            <Button onClick={handleArchiveConfirm}>
+              Archive
             </Button>
           </DialogFooter>
         </DialogContent>

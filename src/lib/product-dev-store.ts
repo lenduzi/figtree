@@ -15,6 +15,7 @@ export type ProductIdea = {
   confidence: number;
   effort: number;
   notes: string;
+  archivedNote?: string;
   createdAt: number;
   updatedAt: number;
 };
@@ -56,6 +57,7 @@ export const listIdeas = (): ProductIdea[] => {
   const ideas = safeParse(storage.getItem(STORAGE_KEY)).map((idea) => ({
     ...idea,
     status: (idea as ProductIdea).status ?? "active",
+    archivedNote: (idea as ProductIdea).archivedNote ?? "",
   }));
   return [...ideas].sort((a, b) => b.updatedAt - a.updatedAt);
 };
@@ -66,6 +68,7 @@ export const createIdea = (
   const now = Date.now();
   const idea: ProductIdea = {
     ...data,
+    archivedNote: data.archivedNote ?? "",
     id: generateId(),
     createdAt: now,
     updatedAt: now,
