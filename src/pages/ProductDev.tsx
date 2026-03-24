@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
-  Lightbulb,
   MoreHorizontal,
   Plus,
   Sparkles,
@@ -111,14 +110,27 @@ const IdeaCard = ({
 }: IdeaCardProps) => {
   const iceScore = getIceScore(idea);
   const updatedLabel = formatDistanceToNow(idea.updatedAt, { addSuffix: true });
-  const isTopPriority = idea.moscow === "Must" || idea.roadmap === "Now";
+  const isMust = idea.moscow === "Must";
+  const mustGradient = (() => {
+    if (!isMust) return "";
+    if (idea.userType === "B2B") {
+      return "border-blue-200/70 bg-gradient-to-br from-blue-50 via-white to-sky-50 dark:border-blue-500/40 dark:from-blue-950/40 dark:via-slate-950/30 dark:to-blue-900/40";
+    }
+    if (idea.userType === "B2C") {
+      return "border-emerald-200/70 bg-gradient-to-br from-emerald-50 via-white to-lime-50 dark:border-emerald-500/40 dark:from-emerald-950/40 dark:via-slate-950/30 dark:to-emerald-900/40";
+    }
+    if (idea.userType === "Admin") {
+      return "border-violet-200/70 bg-gradient-to-br from-violet-50 via-white to-indigo-50 dark:border-violet-500/40 dark:from-violet-950/40 dark:via-slate-950/30 dark:to-indigo-900/40";
+    }
+    return "border-slate-200/70 bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:border-slate-500/40 dark:from-slate-900/60 dark:via-slate-950/30 dark:to-slate-900/50";
+  })();
 
   return (
     <Card
       className={cn(
         "border-border/80 shadow-sm transition-shadow",
-        isTopPriority &&
-          "border-primary/30 bg-gradient-to-br from-indigo-50 via-white to-sky-50 shadow-[0_10px_30px_rgba(59,130,246,0.12)] dark:border-primary/40 dark:from-slate-900/70 dark:via-slate-950/30 dark:to-slate-900/60",
+        isMust && "shadow-[0_10px_30px_rgba(59,130,246,0.12)]",
+        mustGradient,
         className,
       )}
     >
@@ -531,11 +543,18 @@ export default function ProductDev() {
 
   const roadmapSection = (
     <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-      <TabsList>
-        <TabsTrigger value="inbox">Inbox</TabsTrigger>
-        <TabsTrigger value="prioritize">Prioritize</TabsTrigger>
-        <TabsTrigger value="roadmap">Roadmap</TabsTrigger>
-      </TabsList>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <TabsList>
+          <TabsTrigger value="inbox">Inbox</TabsTrigger>
+          <TabsTrigger value="prioritize">Prioritize</TabsTrigger>
+          <TabsTrigger value="roadmap">Roadmap</TabsTrigger>
+        </TabsList>
+        <div className="flex items-center gap-3 rounded-full border border-border/80 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
+          <span className={roadmapFirst ? "opacity-60" : "text-foreground"}>Idea input</span>
+          <Switch checked={roadmapFirst} onCheckedChange={setRoadmapFirst} />
+          <span className={roadmapFirst ? "text-foreground" : "opacity-60"}>Roadmap</span>
+        </div>
+      </div>
 
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-1 flex-col gap-2 md:flex-row md:items-center">
@@ -707,22 +726,6 @@ export default function ProductDev() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
-            <Lightbulb className="h-6 w-6 text-primary" />
-            Product Dev
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Capture ideas, score them quickly, and turn MoSCoW priorities into a clean roadmap.
-          </p>
-        </div>
-        <div className="flex items-center gap-3 rounded-full border border-border/80 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
-          <span className={roadmapFirst ? "opacity-60" : "text-foreground"}>Idea input</span>
-          <Switch checked={roadmapFirst} onCheckedChange={setRoadmapFirst} />
-          <span className={roadmapFirst ? "text-foreground" : "opacity-60"}>Roadmap</span>
-        </div>
-      </div>
       {roadmapFirst ? (
         <>
           {roadmapSection}
