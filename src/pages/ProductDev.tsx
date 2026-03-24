@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
+  Download,
   MoreHorizontal,
   Plus,
   Sparkles,
@@ -514,6 +515,24 @@ export default function ProductDev() {
     refreshIdeas();
   };
 
+  const handleExport = () => {
+    if (!ideas.length) return;
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      ideas,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const date = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `product-dev-export-${date}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const handleDragStart = (event: DragStartEvent) => {
     const id = event.active?.id;
     if (typeof id === "string") {
@@ -628,10 +647,22 @@ export default function ProductDev() {
           <TabsTrigger value="roadmap">Roadmap</TabsTrigger>
           <TabsTrigger value="archived">Archived</TabsTrigger>
         </TabsList>
-        <div className="flex items-center gap-3 rounded-full border border-border/80 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
-          <span className={roadmapFirst ? "opacity-60" : "text-foreground"}>Idea input</span>
-          <Switch checked={roadmapFirst} onCheckedChange={setRoadmapFirst} />
-          <span className={roadmapFirst ? "text-foreground" : "opacity-60"}>Roadmap</span>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3 rounded-full border border-border/80 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
+            <span className={roadmapFirst ? "opacity-60" : "text-foreground"}>Idea input</span>
+            <Switch checked={roadmapFirst} onCheckedChange={setRoadmapFirst} />
+            <span className={roadmapFirst ? "text-foreground" : "opacity-60"}>Roadmap</span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            disabled={!ideas.length}
+            className="gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Export
+          </Button>
         </div>
       </div>
 
