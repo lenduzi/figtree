@@ -120,16 +120,23 @@ const IdeaCard = ({
       return "border-emerald-200/70 bg-gradient-to-br from-emerald-50/60 via-white to-emerald-100/50 dark:border-emerald-500/40 dark:from-emerald-950/40 dark:via-slate-950/30 dark:to-emerald-900/40";
     }
     if (idea.userType === "Admin") {
-      return "border-violet-200/70 bg-gradient-to-br from-violet-50/60 via-white to-violet-100/50 dark:border-violet-500/40 dark:from-violet-950/40 dark:via-slate-950/30 dark:to-violet-900/40";
+      return "border-violet-300/70 bg-gradient-to-br from-fuchsia-50/60 via-white to-violet-100/60 dark:border-fuchsia-500/40 dark:from-fuchsia-950/40 dark:via-slate-950/30 dark:to-violet-900/40";
     }
     return "border-slate-200/70 bg-gradient-to-br from-slate-50/60 via-white to-slate-100/50 dark:border-slate-500/40 dark:from-slate-900/60 dark:via-slate-950/30 dark:to-slate-900/50";
+  })();
+  const mustShadow = (() => {
+    if (!isMust) return "";
+    if (idea.userType === "B2B") return "shadow-[0_10px_26px_rgba(59,130,246,0.16)]";
+    if (idea.userType === "B2C") return "shadow-[0_10px_26px_rgba(16,185,129,0.16)]";
+    if (idea.userType === "Admin") return "shadow-[0_10px_26px_rgba(168,85,247,0.18)]";
+    return "shadow-[0_10px_26px_rgba(100,116,139,0.12)]";
   })();
 
   return (
     <Card
       className={cn(
         "border-border/80 shadow-sm transition-shadow",
-        isMust && "shadow-[0_10px_30px_rgba(59,130,246,0.12)]",
+        mustShadow,
         mustGradient,
         className,
       )}
