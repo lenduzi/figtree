@@ -114,15 +114,15 @@ const IdeaCard = ({
   const mustGradient = (() => {
     if (!isMust) return "";
     if (idea.userType === "B2B") {
-      return "border-blue-200/70 bg-gradient-to-br from-blue-50 via-white to-sky-50 dark:border-blue-500/40 dark:from-blue-950/40 dark:via-slate-950/30 dark:to-blue-900/40";
+      return "border-blue-200/70 bg-gradient-to-br from-blue-50/60 via-white to-blue-100/50 dark:border-blue-500/40 dark:from-blue-950/40 dark:via-slate-950/30 dark:to-blue-900/40";
     }
     if (idea.userType === "B2C") {
-      return "border-emerald-200/70 bg-gradient-to-br from-emerald-50 via-white to-lime-50 dark:border-emerald-500/40 dark:from-emerald-950/40 dark:via-slate-950/30 dark:to-emerald-900/40";
+      return "border-emerald-200/70 bg-gradient-to-br from-emerald-50/60 via-white to-emerald-100/50 dark:border-emerald-500/40 dark:from-emerald-950/40 dark:via-slate-950/30 dark:to-emerald-900/40";
     }
     if (idea.userType === "Admin") {
-      return "border-violet-200/70 bg-gradient-to-br from-violet-50 via-white to-indigo-50 dark:border-violet-500/40 dark:from-violet-950/40 dark:via-slate-950/30 dark:to-indigo-900/40";
+      return "border-violet-200/70 bg-gradient-to-br from-violet-50/60 via-white to-violet-100/50 dark:border-violet-500/40 dark:from-violet-950/40 dark:via-slate-950/30 dark:to-violet-900/40";
     }
-    return "border-slate-200/70 bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:border-slate-500/40 dark:from-slate-900/60 dark:via-slate-950/30 dark:to-slate-900/50";
+    return "border-slate-200/70 bg-gradient-to-br from-slate-50/60 via-white to-slate-100/50 dark:border-slate-500/40 dark:from-slate-900/60 dark:via-slate-950/30 dark:to-slate-900/50";
   })();
 
   return (
