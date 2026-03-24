@@ -25,6 +25,7 @@ import Projects from "./pages/Projects";
 import Eisenhower from "./pages/Eisenhower";
 import Resources from "./pages/Resources";
 import OutreachOps from "./pages/OutreachOps";
+import ProductDev from "./pages/ProductDev";
 import ContactDetail from "./pages/ContactDetail";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -87,6 +88,7 @@ function AppContent() {
     if (path.startsWith("/pipeline")) return "Pipeline";
     if (path.startsWith("/outreach")) return "Outreach";
     if (path.startsWith("/projects") || path.startsWith("/planning")) return "Projects";
+    if (path.startsWith("/product-dev")) return "Product Dev";
     if (path.startsWith("/eisenhower")) return "Easy Eisenhower";
     if (path.startsWith("/resources")) return "Resources";
     if (path.startsWith("/settings")) return "Settings";
@@ -194,6 +196,7 @@ function AppContent() {
               <Route path="/outreach" element={<OutreachOps />} />
               <Route path="/projects" element={<Projects />} />
               <Route path="/planning" element={<Projects />} />
+              <Route path="/product-dev" element={<ProductDev />} />
               <Route path="/eisenhower" element={<Eisenhower />} />
               <Route path="/resources" element={<Resources />} />
               <Route path="/settings" element={<Settings />} />

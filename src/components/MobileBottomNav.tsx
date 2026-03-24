@@ -1,4 +1,4 @@
-import { BookOpen, CalendarCheck, MapPin, Kanban, MoreHorizontal, Settings, Users, LayoutGrid, Megaphone } from "lucide-react";
+import { BookOpen, CalendarCheck, MapPin, Kanban, MoreHorizontal, Settings, Users, LayoutGrid, Megaphone, Lightbulb } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { cn } from "@/lib/utils";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -23,7 +23,7 @@ const isActiveRoute = (pathname: string, to: string) => {
 export function MobileBottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
-  const isOthersActive = ["/pipeline", "/outreach", "/projects", "/planning", "/eisenhower", "/resources"].some((route) =>
+  const isOthersActive = ["/pipeline", "/outreach", "/projects", "/planning", "/product-dev", "/eisenhower", "/resources"].some((route) =>
     location.pathname.startsWith(route),
   );
 
@@ -77,6 +77,10 @@ export function MobileBottomNav() {
             <DropdownMenuItem onClick={() => navigate("/projects")}>
               <MapPin className="h-4 w-4 mr-2" />
               Projects
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/product-dev")}>
+              <Lightbulb className="h-4 w-4 mr-2" />
+              Product Dev
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/eisenhower")}>
               <LayoutGrid className="h-4 w-4 mr-2" />

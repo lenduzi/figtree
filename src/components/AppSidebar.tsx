@@ -1,4 +1,4 @@
-import { CalendarCheck, Users, Kanban, Settings, MapPin, BookOpen, Info, LayoutGrid, Megaphone } from 'lucide-react';
+import { CalendarCheck, Users, Kanban, Settings, MapPin, BookOpen, Info, LayoutGrid, Megaphone, Lightbulb } from 'lucide-react';
 import figtreeLogo from '@/assets/figtree-logo.png';
 import { NavLink } from '@/components/NavLink';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -28,6 +28,10 @@ const crmItems = [
 
 const productivityItems = [
   { title: 'Easy Eisenhower', url: '/eisenhower', icon: LayoutGrid },
+];
+
+const productItems = [
+  { title: 'Product Dev', url: '/product-dev', icon: Lightbulb },
 ];
 
 export function AppSidebar() {
@@ -99,6 +103,37 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup className={isCollapsed ? 'mt-auto pt-2' : 'mt-auto pt-4'}>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {!isCollapsed && (
+                <p className="hidden md:block px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground/80">
+                  Product
+                </p>
+              )}
+              {productItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild tooltip={isCollapsed ? item.title : undefined}>
+                    <NavLink
+                      to={item.url}
+                      end={item.url === '/'}
+                      className={`flex items-center rounded-md transition-colors hover:bg-accent ${
+                        isCollapsed ? 'justify-center p-2' : 'gap-3 px-3 py-2 lg:py-3'
+                      }`}
+                      activeClassName="bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
+                      onClick={() => handleNavClick(item.url)}
+                    >
+                      <item.icon className="h-5 w-5 lg:h-6 lg:w-6 flex-shrink-0" />
+                      {!isCollapsed && (
+                        <span className="flex-1 lg:text-base">{item.title}</span>
+                      )}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup className={isCollapsed ? 'mt-2' : 'mt-4'}>
           <SidebarGroupContent>
             <SidebarMenu>
               {!isCollapsed && (
