@@ -471,46 +471,62 @@ export default function ProductDev() {
             Capture ideas, score them quickly, and turn MoSCoW priorities into a clean roadmap.
           </p>
         </div>
-        <Button onClick={openEditorForNew} className="w-fit">
-          <Plus className="mr-2 h-4 w-4" />
-          New idea
-        </Button>
       </div>
 
-      <Card className="border-border/80">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Quick add</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3 md:flex-row md:items-center">
-          <Input
-            value={quickTitle}
-            onChange={(event) => setQuickTitle(event.target.value)}
-            placeholder="Feature idea, problem, or improvement…"
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                handleQuickAdd();
-              }
-            }}
-          />
-          <Select value={quickUserType} onValueChange={(value) => setQuickUserType(value as UserType)}>
-            <SelectTrigger className="md:w-[140px]">
-              <SelectValue placeholder="User type" />
-            </SelectTrigger>
-            <SelectContent>
-              {USER_TYPES.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {type}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button onClick={handleQuickAdd} className="md:w-[130px]">
-            <Sparkles className="mr-2 h-4 w-4" />
-            Add idea
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="border-border/80 md:col-span-2">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Quick add</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 md:flex-row md:items-center">
+            <Input
+              value={quickTitle}
+              onChange={(event) => setQuickTitle(event.target.value)}
+              placeholder="Feature idea, problem, or improvement…"
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  handleQuickAdd();
+                }
+              }}
+            />
+            <Select value={quickUserType} onValueChange={(value) => setQuickUserType(value as UserType)}>
+              <SelectTrigger className="md:w-[140px]">
+                <SelectValue placeholder="User type" />
+              </SelectTrigger>
+              <SelectContent>
+                {USER_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              onClick={handleQuickAdd}
+              className="md:w-[150px] border border-blue-200/70 bg-gradient-to-b from-blue-50 to-blue-100 text-blue-600 shadow-[0_10px_22px_rgba(59,130,246,0.15)] hover:from-blue-100 hover:to-blue-200"
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              Add idea
+            </Button>
+          </CardContent>
+        </Card>
+        <Card className="h-full border-border/80 bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+          <CardContent className="flex h-full flex-col items-center justify-center gap-3 p-6">
+            <span className="text-xs font-semibold uppercase tracking-[0.28em] text-blue-600/70">
+              Detailed idea
+            </span>
+            <Button
+              onClick={openEditorForNew}
+              className="h-12 w-full rounded-xl px-6 text-base font-semibold text-white shadow-[0_12px_26px_rgba(59,130,246,0.3)] bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 hover:from-blue-600 hover:via-blue-600 hover:to-indigo-700"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              New idea
+            </Button>
+            <span className="text-xs text-muted-foreground">Full context, ICE, MoSCoW.</span>
+          </CardContent>
+        </Card>
+      </div>
 
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">
         <TabsList>
