@@ -1142,7 +1142,9 @@ export default function ProductDev() {
                       ) : (
                         <span className="text-muted-foreground">No notes yet.</span>
                       )}
-                      {previewStructuredNotes && previewStructuredNotes.general.length > 0 ? (
+                      {previewStructuredNotes &&
+                      previewStructuredNotes.sections.length > 0 &&
+                      previewStructuredNotes.general.length > 0 ? (
                         <div className="space-y-1">
                           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                             Additional notes
