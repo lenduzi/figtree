@@ -1,4 +1,5 @@
 import type { Resource } from "@/lib/resources-store";
+import type { ProductIdea } from "@/lib/product-dev-store";
 import type { OutreachActionLog, OutreachImportSummary, OutreachLead } from "@/types/outreach";
 import {
   Activity,
@@ -29,6 +30,7 @@ const STORAGE_KEYS = {
   outreachLeads: "simplecrm_outreach_leads_v1",
   outreachActions: "simplecrm_outreach_actions_v1",
   outreachImports: "simplecrm_outreach_imports_v1",
+  productDev: "simplecrm_product_dev_v1",
 };
 
 export const CLOUD_BACKUP_TABLE = "user_backups";
@@ -63,6 +65,7 @@ export type CRMBackup = {
     creators?: Creator[];
     eisenhowerItems?: EisenhowerItem[];
     resources?: Resource[];
+    productDev?: ProductIdea[];
     outreach?: OutreachBackup;
     settings?: BackupSettings;
   };
@@ -101,6 +104,7 @@ const saveJsonToStorage = <T,>(key: string, value: T) => {
 
 const readLocalExtras = () => ({
   resources: readJsonFromStorage<Resource[]>(STORAGE_KEYS.resources, []),
+  productDev: readJsonFromStorage<ProductIdea[]>(STORAGE_KEYS.productDev, []),
   outreach: {
     leads: readJsonFromStorage<OutreachLead[]>(STORAGE_KEYS.outreachLeads, []),
     actions: readJsonFromStorage<OutreachActionLog[]>(STORAGE_KEYS.outreachActions, []),
@@ -124,6 +128,7 @@ export const buildBackup = (input: BackupInput): CRMBackup => {
       creators: input.creators,
       eisenhowerItems: input.eisenhowerItems,
       resources: extras.resources,
+      productDev: extras.productDev,
       outreach: extras.outreach,
       settings: {
         stages: input.stages,
@@ -186,6 +191,9 @@ export const validateBackup = (
   if (data.resources !== undefined && !Array.isArray(data.resources)) {
     return { ok: false, error: "Resources data is invalid." };
   }
+  if (data.productDev !== undefined && !Array.isArray(data.productDev)) {
+    return { ok: false, error: "Product dev data is invalid." };
+  }
 
   if (data.outreach !== undefined) {
     if (!isRecord(data.outreach)) {
@@ -232,6 +240,7 @@ export const applyBackup = (
   const existingProjectVisits = readJsonFromStorage<ProjectVisit[]>(STORAGE_KEYS.projectVisits, []);
   const existingCreators = readJsonFromStorage<Creator[]>(STORAGE_KEYS.creators, []);
   const existingResources = readJsonFromStorage<Resource[]>(STORAGE_KEYS.resources, []);
+  const existingProductDev = readJsonFromStorage<ProductIdea[]>(STORAGE_KEYS.productDev, []);
   const existingOutreachLeads = readJsonFromStorage<OutreachLead[]>(STORAGE_KEYS.outreachLeads, []);
   const existingOutreachActions = readJsonFromStorage<OutreachActionLog[]>(STORAGE_KEYS.outreachActions, []);
   const existingOutreachImports = readJsonFromStorage<OutreachImportSummary[]>(STORAGE_KEYS.outreachImports, []);
@@ -243,6 +252,7 @@ export const applyBackup = (
     backup.data.projectVisits ?? (preserveMissingExtras ? existingProjectVisits : []);
   const creatorsToUse = backup.data.creators ?? (preserveMissingExtras ? existingCreators : []);
   const resourcesToUse = backup.data.resources ?? (preserveMissingExtras ? existingResources : []);
+  const productDevToUse = backup.data.productDev ?? (preserveMissingExtras ? existingProductDev : []);
   const outreach = backup.data.outreach ?? {};
   const outreachLeadsToUse = outreach.leads ?? (preserveMissingExtras ? existingOutreachLeads : []);
   const outreachActionsToUse = outreach.actions ?? (preserveMissingExtras ? existingOutreachActions : []);
@@ -260,6 +270,7 @@ export const applyBackup = (
     saveJsonToStorage(STORAGE_KEYS.researchLists, researchListsToUse);
     saveJsonToStorage(STORAGE_KEYS.eisenhowerItems, eisenhowerItemsToUse);
     saveJsonToStorage(STORAGE_KEYS.resources, resourcesToUse);
+    saveJsonToStorage(STORAGE_KEYS.productDev, productDevToUse);
     saveJsonToStorage(STORAGE_KEYS.outreachLeads, outreachLeadsToUse);
     saveJsonToStorage(STORAGE_KEYS.outreachActions, outreachActionsToUse);
     saveJsonToStorage(STORAGE_KEYS.outreachImports, outreachImportsToUse);
