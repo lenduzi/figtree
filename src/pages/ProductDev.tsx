@@ -78,6 +78,65 @@ const ARCHIVE_NOTE_TEMPLATES = [
   { label: "Not shipped — no longer necessary", tone: "neutral" },
 ] as const;
 
+const NOTE_SECTION_LABELS = [
+  "Problem",
+  "Why",
+  "Impact",
+  "Risks",
+  "Dependencies",
+  "Scope",
+  "Notes",
+  "Open questions",
+  "Success",
+  "Metrics",
+  "Constraints",
+] as const;
+
+const NOTE_LABEL_LOOKUP = NOTE_SECTION_LABELS.reduce<Record<string, string>>((acc, label) => {
+  acc[label.toLowerCase()] = label;
+  return acc;
+}, {});
+
+const extractLinks = (notes: string) => {
+  const matches = notes.match(/https?:\/\/[^\s)]+/gi);
+  if (!matches) return [];
+  const cleaned = matches.map((url) => url.replace(/[.,!?]+$/, ""));
+  return Array.from(new Set(cleaned));
+};
+
+const parseNotes = (notes: string) => {
+  const lines = notes.split(/\r?\n/);
+  const sections: Array<{ label: string; body: string[] }> = [];
+  const general: string[] = [];
+  let currentSection: { label: string; body: string[] } | null = null;
+
+  lines.forEach((rawLine) => {
+    const line = rawLine.trimEnd();
+    const match = line.match(/^([A-Za-z][A-Za-z\s-]*):\s*(.*)$/);
+    if (match) {
+      const key = match[1].trim().toLowerCase();
+      const label = NOTE_LABEL_LOOKUP[key];
+      if (label) {
+        currentSection = { label, body: [] };
+        sections.push(currentSection);
+        if (match[2]) currentSection.body.push(match[2]);
+        return;
+      }
+    }
+
+    if (currentSection) {
+      currentSection.body.push(line);
+    } else if (line.trim()) {
+      general.push(line);
+    }
+  });
+
+  return {
+    sections,
+    general,
+  };
+};
+
 const archiveToneClass = (tone: (typeof ARCHIVE_NOTE_TEMPLATES)[number]["tone"]) => {
   switch (tone) {
     case "success":
@@ -684,6 +743,9 @@ export default function ProductDev() {
   const previewUpdatedLabel = previewIdea
     ? formatDistanceToNow(previewIdea.updatedAt, { addSuffix: true })
     : "";
+  const previewNotes = previewIdea?.notes?.trim() ?? "";
+  const previewStructuredNotes = previewNotes ? parseNotes(previewNotes) : null;
+  const previewLinks = previewNotes ? extractLinks(previewNotes) : [];
 
   const ideaInputSection = (
     <div className="grid gap-4 md:grid-cols-3">
@@ -983,7 +1045,7 @@ export default function ProductDev() {
       )}
 
       <Dialog open={!!previewIdea} onOpenChange={(open) => !open && setPreviewIdea(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-4xl">
           {previewIdea ? (
             <>
               <DialogHeader>
@@ -1010,14 +1072,57 @@ export default function ProductDev() {
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                       Notes
                     </p>
-                    <div className="mt-2 text-sm text-foreground whitespace-pre-wrap">
-                      {previewIdea.notes?.trim() ? (
-                        previewIdea.notes
+                    <div className="mt-3 space-y-3 text-sm text-foreground">
+                      {previewStructuredNotes && previewStructuredNotes.sections.length > 0 ? (
+                        previewStructuredNotes.sections.map((section) => (
+                          <div key={section.label} className="space-y-1">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                              {section.label}
+                            </p>
+                            <div className="whitespace-pre-wrap">
+                              {section.body.join("\n").trim() || (
+                                <span className="text-muted-foreground">No details yet.</span>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      ) : previewNotes ? (
+                        <div className="whitespace-pre-wrap">{previewNotes}</div>
                       ) : (
                         <span className="text-muted-foreground">No notes yet.</span>
                       )}
+                      {previewStructuredNotes && previewStructuredNotes.general.length > 0 ? (
+                        <div className="space-y-1">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                            Additional notes
+                          </p>
+                          <div className="whitespace-pre-wrap">
+                            {previewStructuredNotes.general.join("\n")}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
+                  {previewLinks.length > 0 ? (
+                    <div className="rounded-lg border border-border/70 bg-card p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                        Links
+                      </p>
+                      <div className="mt-3 space-y-2 text-sm">
+                        {previewLinks.map((link) => (
+                          <a
+                            key={link}
+                            href={link}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block truncate text-primary hover:underline"
+                          >
+                            {link}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   {previewIdea.status === "archived" && previewIdea.archivedNote?.trim() ? (
                     <div className="rounded-lg border border-border/70 bg-muted/20 p-4">
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
