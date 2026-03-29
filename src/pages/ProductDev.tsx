@@ -1066,7 +1066,7 @@ export default function ProductDev() {
       )}
 
       <Dialog open={!!previewIdea} onOpenChange={(open) => !open && setPreviewIdea(null)}>
-        <DialogContent className="sm:!w-[50vw] sm:!max-w-[50vw]">
+        <DialogContent className="sm:!w-[60vw] sm:!max-w-[60vw] max-h-[85dvh] overflow-y-auto">
           {previewIdea ? (
             <>
               <DialogHeader>
