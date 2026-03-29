@@ -1227,12 +1227,12 @@ export default function ProductDev() {
       </Dialog>
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="sm:!w-[60vw] sm:!max-w-[60vw] max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingIdea ? "Edit idea" : "New idea"}</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2 md:col-span-2">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2 md:col-span-3">
               <Label>Title</Label>
               <Input
                 value={draft.title}
@@ -1240,7 +1240,7 @@ export default function ProductDev() {
                 placeholder="What should be built?"
               />
             </div>
-            <div className="space-y-2 md:col-span-2">
+            <div className="space-y-2 md:col-span-3">
               <Label>Value (one line)</Label>
               <Input
                 value={draft.value}
@@ -1338,7 +1338,7 @@ export default function ProductDev() {
                 }
               />
             </div>
-            <div className="space-y-2 md:col-span-2">
+            <div className="space-y-2 md:col-span-3">
               <Label>Notes</Label>
               <div className="flex flex-wrap gap-2">
                 {NOTE_CHIP_LABELS.map((label) => (
@@ -1358,11 +1358,11 @@ export default function ProductDev() {
                 value={draft.notes}
                 onChange={(event) => setDraft((prev) => ({ ...prev, notes: event.target.value }))}
                 placeholder="Context, links, or decision notes."
-                className="min-h-[110px]"
+                className="min-h-[100px]"
               />
             </div>
             {editingIdea?.status === "archived" ? (
-              <div className="space-y-2 md:col-span-2">
+              <div className="space-y-2 md:col-span-3">
                 <Label>Archive note</Label>
                 <Textarea
                   value={draft.archivedNote}
