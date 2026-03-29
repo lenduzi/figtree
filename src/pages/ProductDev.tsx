@@ -1066,7 +1066,7 @@ export default function ProductDev() {
       )}
 
       <Dialog open={!!previewIdea} onOpenChange={(open) => !open && setPreviewIdea(null)}>
-        <DialogContent className="max-w-5xl w-[min(92vw,1100px)]">
+        <DialogContent className="sm:!w-[50vw] sm:!max-w-[50vw]">
           {previewIdea ? (
             <>
               <DialogHeader>
