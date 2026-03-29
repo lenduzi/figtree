@@ -92,6 +92,16 @@ const NOTE_SECTION_LABELS = [
   "Constraints",
 ] as const;
 
+const NOTE_CHIP_LABELS = [
+  "Problem",
+  "Why",
+  "Impact",
+  "Dependencies",
+  "Success",
+  "Open questions",
+  "Constraints",
+] as const;
+
 const NOTE_LABEL_LOOKUP = NOTE_SECTION_LABELS.reduce<Record<string, string>>((acc, label) => {
   acc[label.toLowerCase()] = label;
   return acc;
@@ -617,6 +627,17 @@ export default function ProductDev() {
     setPreviewIdea(idea);
   };
 
+  const handleInsertNoteLabel = (label: string) => {
+    setDraft((prev) => {
+      const trimmed = prev.notes.trimEnd();
+      const prefix = trimmed.length ? "\n\n" : "";
+      return {
+        ...prev,
+        notes: `${trimmed}${prefix}${label}: `,
+      };
+    });
+  };
+
   const handleSave = () => {
     const title = draft.title.trim();
     if (!title) return;
@@ -1045,7 +1066,7 @@ export default function ProductDev() {
       )}
 
       <Dialog open={!!previewIdea} onOpenChange={(open) => !open && setPreviewIdea(null)}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-5xl w-[min(92vw,1100px)]">
           {previewIdea ? (
             <>
               <DialogHeader>
@@ -1319,6 +1340,20 @@ export default function ProductDev() {
             </div>
             <div className="space-y-2 md:col-span-2">
               <Label>Notes</Label>
+              <div className="flex flex-wrap gap-2">
+                {NOTE_CHIP_LABELS.map((label) => (
+                  <Button
+                    key={label}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleInsertNoteLabel(label)}
+                    className="h-7 rounded-full px-3 text-xs font-medium"
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
               <Textarea
                 value={draft.notes}
                 onChange={(event) => setDraft((prev) => ({ ...prev, notes: event.target.value }))}
