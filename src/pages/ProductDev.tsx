@@ -119,6 +119,7 @@ const createDefaultDraft = (): IdeaDraft => ({
 type IdeaCardProps = {
   idea: ProductIdea;
   onEdit: (idea: ProductIdea) => void;
+  onPreview?: (idea: ProductIdea) => void;
   onRequestDelete: (idea: ProductIdea) => void;
   onRequestArchive: (idea: ProductIdea) => void;
   onQuickUpdate: (id: string, changes: Partial<ProductIdea>) => void;
@@ -128,6 +129,7 @@ type IdeaCardProps = {
 const IdeaCard = ({
   idea,
   onEdit,
+  onPreview,
   onRequestDelete,
   onRequestArchive,
   onQuickUpdate,
@@ -139,6 +141,7 @@ const IdeaCard = ({
   const isDone = idea.status === "done";
   const isArchived = idea.status === "archived";
   const archiveNote = idea.archivedNote?.trim();
+  const isPreviewable = Boolean(onPreview);
   const mustGradient = (() => {
     if (!isMust) return "";
     if (idea.userType === "B2B") {
@@ -160,8 +163,19 @@ const IdeaCard = ({
         mustGradient,
         isDone && "opacity-80",
         isArchived && "opacity-70",
+        isPreviewable && "cursor-pointer hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         className,
       )}
+      role={isPreviewable ? "button" : undefined}
+      tabIndex={isPreviewable ? 0 : undefined}
+      onClick={isPreviewable ? () => onPreview?.(idea) : undefined}
+      onKeyDown={(event) => {
+        if (!isPreviewable) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onPreview?.(idea);
+        }
+      }}
     >
       <CardContent className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-3">
@@ -175,7 +189,13 @@ const IdeaCard = ({
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+              >
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -253,6 +273,7 @@ const IdeaCard = ({
 type DraggableIdeaCardProps = {
   idea: ProductIdea;
   onEdit: (idea: ProductIdea) => void;
+  onPreview?: (idea: ProductIdea) => void;
   onRequestDelete: (idea: ProductIdea) => void;
   onRequestArchive: (idea: ProductIdea) => void;
   onQuickUpdate: (id: string, changes: Partial<ProductIdea>) => void;
@@ -261,6 +282,7 @@ type DraggableIdeaCardProps = {
 const DraggableIdeaCard = ({
   idea,
   onEdit,
+  onPreview,
   onRequestDelete,
   onRequestArchive,
   onQuickUpdate,
@@ -286,6 +308,7 @@ const DraggableIdeaCard = ({
       <IdeaCard
         idea={idea}
         onEdit={onEdit}
+        onPreview={onPreview}
         onRequestDelete={onRequestDelete}
         onRequestArchive={onRequestArchive}
         onQuickUpdate={onQuickUpdate}
@@ -342,6 +365,7 @@ export default function ProductDev() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingIdea, setEditingIdea] = useState<ProductIdea | null>(null);
   const [draft, setDraft] = useState<IdeaDraft>(createDefaultDraft());
+  const [previewIdea, setPreviewIdea] = useState<ProductIdea | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<ProductIdea | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<ProductIdea | null>(null);
@@ -373,6 +397,12 @@ export default function ProductDev() {
       // ignore storage errors
     }
   }, [roadmapFirst]);
+
+  useEffect(() => {
+    if (!previewIdea?.id) return;
+    const latest = ideas.find((idea) => idea.id === previewIdea.id) || null;
+    setPreviewIdea(latest);
+  }, [ideas, previewIdea?.id]);
 
   const refreshIdeas = () => setIdeas(listIdeas());
 
@@ -499,12 +529,14 @@ export default function ProductDev() {
   };
 
   const openEditorForNew = () => {
+    setPreviewIdea(null);
     setEditingIdea(null);
     setDraft(createDefaultDraft());
     setEditorOpen(true);
   };
 
   const openEditorForEdit = (idea: ProductIdea) => {
+    setPreviewIdea(null);
     setEditingIdea(idea);
     setDraft({
       title: idea.title,
@@ -520,6 +552,10 @@ export default function ProductDev() {
       archivedNote: idea.archivedNote ?? "",
     });
     setEditorOpen(true);
+  };
+
+  const openPreview = (idea: ProductIdea) => {
+    setPreviewIdea(idea);
   };
 
   const handleSave = () => {
@@ -644,6 +680,10 @@ export default function ProductDev() {
     () => (activeIdeaId ? ideas.find((idea) => idea.id === activeIdeaId) || null : null),
     [activeIdeaId, ideas],
   );
+
+  const previewUpdatedLabel = previewIdea
+    ? formatDistanceToNow(previewIdea.updatedAt, { addSuffix: true })
+    : "";
 
   const ideaInputSection = (
     <div className="grid gap-4 md:grid-cols-3">
@@ -796,6 +836,7 @@ export default function ProductDev() {
                 key={idea.id}
                 idea={idea}
                 onEdit={openEditorForEdit}
+                onPreview={openPreview}
                 onRequestDelete={setDeleteTarget}
                 onRequestArchive={openArchiveDialog}
                 onQuickUpdate={handleQuickUpdate}
@@ -831,6 +872,7 @@ export default function ProductDev() {
                       key={idea.id}
                       idea={idea}
                       onEdit={openEditorForEdit}
+                      onPreview={openPreview}
                       onRequestDelete={setDeleteTarget}
                       onRequestArchive={openArchiveDialog}
                       onQuickUpdate={handleQuickUpdate}
@@ -876,6 +918,7 @@ export default function ProductDev() {
                       key={idea.id}
                       idea={idea}
                       onEdit={openEditorForEdit}
+                      onPreview={openPreview}
                       onRequestDelete={setDeleteTarget}
                       onRequestArchive={openArchiveDialog}
                       onQuickUpdate={handleQuickUpdate}
@@ -913,6 +956,7 @@ export default function ProductDev() {
                 key={idea.id}
                 idea={idea}
                 onEdit={openEditorForEdit}
+                onPreview={openPreview}
                 onRequestDelete={setDeleteTarget}
                 onRequestArchive={openArchiveDialog}
                 onQuickUpdate={handleQuickUpdate}
@@ -937,6 +981,124 @@ export default function ProductDev() {
           {roadmapSection}
         </>
       )}
+
+      <Dialog open={!!previewIdea} onOpenChange={(open) => !open && setPreviewIdea(null)}>
+        <DialogContent className="max-w-3xl">
+          {previewIdea ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-xl">{previewIdea.title}</DialogTitle>
+                {previewIdea.value ? (
+                  <p className="text-sm text-muted-foreground">{previewIdea.value}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No one-line value yet.</p>
+                )}
+              </DialogHeader>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-4 md:col-span-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {previewIdea.status === "done" && <Badge variant="secondary">Done</Badge>}
+                    {previewIdea.status === "archived" && <Badge variant="outline">Archived</Badge>}
+                    <Badge variant="secondary">{previewIdea.userType}</Badge>
+                    <Badge variant="outline">{previewIdea.moscow}</Badge>
+                    <Badge variant="outline">{previewIdea.roadmap}</Badge>
+                    <Badge className="bg-primary/10 text-primary hover:bg-primary/15">
+                      ICE {getIceScore(previewIdea).toFixed(1)}
+                    </Badge>
+                  </div>
+                  <div className="rounded-lg border border-border/70 bg-muted/20 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Notes
+                    </p>
+                    <div className="mt-2 text-sm text-foreground whitespace-pre-wrap">
+                      {previewIdea.notes?.trim() ? (
+                        previewIdea.notes
+                      ) : (
+                        <span className="text-muted-foreground">No notes yet.</span>
+                      )}
+                    </div>
+                  </div>
+                  {previewIdea.status === "archived" && previewIdea.archivedNote?.trim() ? (
+                    <div className="rounded-lg border border-border/70 bg-muted/20 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                        Archive note
+                      </p>
+                      <p className="mt-2 text-sm text-foreground whitespace-pre-wrap">
+                        {previewIdea.archivedNote}
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-border/70 bg-card p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Scoring
+                    </p>
+                    <div className="mt-3 space-y-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span>Impact</span>
+                        <span className="font-semibold">{previewIdea.impact}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Confidence</span>
+                        <span className="font-semibold">{previewIdea.confidence}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Effort</span>
+                        <span className="font-semibold">{previewIdea.effort}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>ICE</span>
+                        <span className="font-semibold text-primary">
+                          {getIceScore(previewIdea).toFixed(1)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-border/70 bg-card p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Details
+                    </p>
+                    <div className="mt-3 space-y-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span>User type</span>
+                        <span className="font-semibold">{previewIdea.userType}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>MoSCoW</span>
+                        <span className="font-semibold">{previewIdea.moscow}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Roadmap</span>
+                        <span className="font-semibold">{previewIdea.roadmap}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Status</span>
+                        <span className="font-semibold">
+                          {previewIdea.status === "active"
+                            ? "Active"
+                            : previewIdea.status === "done"
+                              ? "Done"
+                              : "Archived"}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="mt-4 text-xs text-muted-foreground">Updated {previewUpdatedLabel}</p>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setPreviewIdea(null)}>
+                  Close
+                </Button>
+                <Button onClick={() => previewIdea && openEditorForEdit(previewIdea)}>
+                  Edit idea
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
         <DialogContent className="max-w-2xl">
