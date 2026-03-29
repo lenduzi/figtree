@@ -268,25 +268,46 @@ const IdeaCard = ({
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[200px]">
-              <DropdownMenuItem onClick={() => onEdit(idea)}>Edit</DropdownMenuItem>
+            <DropdownMenuContent
+              align="end"
+              className="min-w-[200px]"
+              onClick={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
               <DropdownMenuItem
-                onClick={() =>
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onEdit(idea);
+                }}
+              >
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(event) => {
+                  event.stopPropagation();
                   onQuickUpdate(idea.id, {
                     status: idea.status === "done" ? "active" : "done",
-                  })
-                }
+                  });
+                }}
               >
                 {idea.status === "done" ? "Mark active" : "Mark done"}
               </DropdownMenuItem>
               {idea.status === "archived" ? (
                 <DropdownMenuItem
-                  onClick={() => onQuickUpdate(idea.id, { status: "active", archivedNote: "" })}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onQuickUpdate(idea.id, { status: "active", archivedNote: "" });
+                  }}
                 >
                   Restore from archive
                 </DropdownMenuItem>
               ) : (
-                <DropdownMenuItem onClick={() => onRequestArchive(idea)}>
+                <DropdownMenuItem
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onRequestArchive(idea);
+                  }}
+                >
                   Archive
                 </DropdownMenuItem>
               )}
@@ -294,7 +315,10 @@ const IdeaCard = ({
               {MOSCOW_TIERS.map((tier) => (
                 <DropdownMenuItem
                   key={tier}
-                  onClick={() => onQuickUpdate(idea.id, { moscow: tier })}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onQuickUpdate(idea.id, { moscow: tier });
+                  }}
                 >
                   MoSCoW: {tier}
                 </DropdownMenuItem>
@@ -303,7 +327,10 @@ const IdeaCard = ({
               {ROADMAP_LANES.map((lane) => (
                 <DropdownMenuItem
                   key={lane}
-                  onClick={() => onQuickUpdate(idea.id, { roadmap: lane })}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onQuickUpdate(idea.id, { roadmap: lane });
+                  }}
                 >
                   Roadmap: {lane}
                 </DropdownMenuItem>
@@ -311,7 +338,10 @@ const IdeaCard = ({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
-                onClick={() => onRequestDelete(idea)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onRequestDelete(idea);
+                }}
               >
                 Delete
               </DropdownMenuItem>
