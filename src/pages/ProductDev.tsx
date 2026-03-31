@@ -464,7 +464,6 @@ export default function ProductDev() {
   const [filterMoscow, setFilterMoscow] = useState<"all" | MoscowTier>("all");
   const [sortBy, setSortBy] = useState<"updated" | "ice">("updated");
   const [tab, setTab] = useState("inbox");
-  const [showLongTerm, setShowLongTerm] = useState(false);
 
   const [quickTitle, setQuickTitle] = useState("");
   const [quickUserType, setQuickUserType] = useState<UserType>("B2B");
@@ -534,11 +533,6 @@ export default function ProductDev() {
     });
   }, [activeIdeas, search, filterUserType, filterMoscow]);
 
-  const prioritizeIdeas = useMemo(() => {
-    if (showLongTerm) return filteredIdeas;
-    return filteredIdeas.filter((idea) => idea.roadmap !== "Later");
-  }, [filteredIdeas, showLongTerm]);
-
   const filteredArchivedIdeas = useMemo(() => {
     const query = search.trim().toLowerCase();
     return archivedIdeas.filter((idea) => {
@@ -585,7 +579,7 @@ export default function ProductDev() {
       Should: [],
       Could: [],
     };
-    prioritizeIdeas.forEach((idea) => {
+    filteredIdeas.forEach((idea) => {
       groups[idea.moscow].push(idea);
     });
     const statusWeight = (idea: ProductIdea) => (idea.status === "done" ? 1 : 0);
@@ -597,7 +591,7 @@ export default function ProductDev() {
       });
     });
     return groups;
-  }, [prioritizeIdeas]);
+  }, [filteredIdeas]);
 
   const roadmapGroups = useMemo(() => {
     const groups: Record<RoadmapLane, ProductIdea[]> = {
@@ -955,12 +949,6 @@ export default function ProductDev() {
               </TooltipProvider>
             ) : null}
           </div>
-          {tab === "prioritize" ? (
-            <div className="flex items-center gap-2 rounded-full border border-border/80 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
-              <span className={showLongTerm ? "text-foreground" : "opacity-70"}>Show long-term</span>
-              <Switch checked={showLongTerm} onCheckedChange={setShowLongTerm} />
-            </div>
-          ) : null}
         </div>
         <Select value={sortBy} onValueChange={(value) => setSortBy(value as "updated" | "ice")}>
           <SelectTrigger className="md:w-[170px]">
