@@ -1,5 +1,5 @@
 export type UserType = "B2B" | "B2C" | "Admin" | "Multi";
-export type MoscowTier = "Must" | "Should" | "Could" | "Won't";
+export type MoscowTier = "Must" | "Should" | "Could";
 export type RoadmapLane = "Now" | "Next" | "Later";
 export type IdeaStatus = "active" | "done" | "archived";
 
@@ -44,6 +44,11 @@ const saveIdeas = (ideas: ProductIdea[]) => {
   storage.setItem(STORAGE_KEY, JSON.stringify(ideas));
 };
 
+const normalizeMoscowTier = (value: unknown): MoscowTier => {
+  if (value === "Must" || value === "Should" || value === "Could") return value;
+  return "Could";
+};
+
 const generateId = () => {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -56,6 +61,7 @@ export const listIdeas = (): ProductIdea[] => {
   if (!storage) return [];
   const ideas = safeParse(storage.getItem(STORAGE_KEY)).map((idea) => ({
     ...idea,
+    moscow: normalizeMoscowTier((idea as ProductIdea).moscow),
     status: (idea as ProductIdea).status ?? "active",
     archivedNote: (idea as ProductIdea).archivedNote ?? "",
   }));

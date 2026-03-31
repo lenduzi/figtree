@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from
 import { formatDistanceToNow } from "date-fns";
 import {
   Download,
+  Info,
   MoreHorizontal,
   Plus,
   Sparkles,
@@ -47,6 +48,12 @@ import {
 } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -69,7 +76,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const USER_TYPES: UserType[] = ["B2B", "B2C", "Admin", "Multi"];
-const MOSCOW_TIERS: MoscowTier[] = ["Must", "Should", "Could", "Won't"];
+const MOSCOW_TIERS: MoscowTier[] = ["Must", "Should", "Could"];
 const ROADMAP_LANES: RoadmapLane[] = ["Now", "Next", "Later"];
 const ARCHIVE_NOTE_TEMPLATES = [
   { label: "Successful implementation", tone: "success" },
@@ -571,7 +578,6 @@ export default function ProductDev() {
       Must: [],
       Should: [],
       Could: [],
-      "Won't": [],
     };
     filteredIdeas.forEach((idea) => {
       groups[idea.moscow].push(idea);
@@ -907,22 +913,42 @@ export default function ProductDev() {
               ))}
             </SelectContent>
           </Select>
-          <Select
-            value={filterMoscow}
-            onValueChange={(value) => setFilterMoscow(value as "all" | MoscowTier)}
-          >
-            <SelectTrigger className="md:w-[170px]">
-              <SelectValue placeholder="MoSCoW" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All MoSCoW</SelectItem>
-              {MOSCOW_TIERS.map((tier) => (
-                <SelectItem key={tier} value={tier}>
-                  {tier}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Select
+              value={filterMoscow}
+              onValueChange={(value) => setFilterMoscow(value as "all" | MoscowTier)}
+            >
+              <SelectTrigger className="md:w-[170px]">
+                <SelectValue placeholder="MoSCoW" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All MoSCoW</SelectItem>
+                {MOSCOW_TIERS.map((tier) => (
+                  <SelectItem key={tier} value={tier}>
+                    {tier}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {tab === "prioritize" ? (
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="MoSCoW sorting details"
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-border/70 bg-muted/40 text-muted-foreground transition hover:text-foreground"
+                    >
+                      <Info className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" align="start" className="max-w-[260px] text-xs">
+                    MoSCoW buckets are sorted by ICE score (Impact × Confidence ÷ Effort).
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : null}
+          </div>
         </div>
         <Select value={sortBy} onValueChange={(value) => setSortBy(value as "updated" | "ice")}>
           <SelectTrigger className="md:w-[170px]">
@@ -960,15 +986,12 @@ export default function ProductDev() {
       </TabsContent>
 
       <TabsContent value="prioritize" className="space-y-4">
-        <div className="text-sm text-muted-foreground">
-          MoSCoW buckets are sorted by ICE score (Impact × Confidence ÷ Effort).
-        </div>
         <DndContext
           sensors={sensors}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {MOSCOW_TIERS.map((tier) => (
               <DroppableLane
                 key={tier}
