@@ -1,4 +1,4 @@
-import { CalendarCheck, Users, Kanban, Settings, MapPin, BookOpen, Info, LayoutGrid, Megaphone, Lightbulb } from 'lucide-react';
+import { CalendarCheck, Users, Kanban, Settings, MapPin, BookOpen, Info, LayoutGrid, Megaphone, Lightbulb, Scale } from 'lucide-react';
 import figtreeLogo from '@/assets/figtree-logo.png';
 import { NavLink } from '@/components/NavLink';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -32,6 +32,7 @@ const productivityItems = [
 
 const productItems = [
   { title: 'Product Dev', url: '/product-dev', icon: Lightbulb },
+  { title: 'Revenue', url: '/revenue', icon: Scale },
 ];
 
 export function AppSidebar() {
