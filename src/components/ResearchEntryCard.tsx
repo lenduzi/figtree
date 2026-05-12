@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ResearchEntry, ResearchPriority, ResearchStatus } from '@/types/crm';
+import { ResearchEntry, ResearchPriority } from '@/types/crm';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -12,16 +11,18 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Trash2, UserPlus, ExternalLink, ChevronDown } from 'lucide-react';
+import { MoreHorizontal, Trash2, UserPlus, ExternalLink, ChevronDown, Plus } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { appendIntelSnippet, getLatestIntelSnippet, parseIntelLog } from '@/lib/dream-client-intel';
 
 interface ResearchEntryCardProps {
   entry: ResearchEntry;
@@ -42,21 +43,22 @@ export function ResearchEntryCard({
   const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [intelDraft, setIntelDraft] = useState('');
   const [editForm, setEditForm] = useState({
     company: entry.company || '',
     poc: entry.poc || '',
     email: entry.email || '',
-    industry: entry.industry || '',
   });
 
   const linkedContact = entry.linkedContactId ? getContactById(entry.linkedContactId) : null;
+  const intelSnippets = parseIntelLog(entry.notes);
+  const latestIntel = getLatestIntelSnippet(entry.notes);
 
   const openEdit = () => {
     setEditForm({
       company: entry.company || '',
       poc: entry.poc || '',
       email: entry.email || '',
-      industry: entry.industry || '',
     });
     setEditOpen(true);
   };
@@ -67,26 +69,26 @@ export function ResearchEntryCard({
       company: entry.company || '',
       poc: entry.poc || '',
       email: entry.email || '',
-      industry: entry.industry || '',
     });
     setEditOpen(true);
     onAutoFocusHandled?.();
-  }, [autoOpenEdit, entry.company, entry.poc, entry.email, entry.industry, onAutoFocusHandled]);
+  }, [autoOpenEdit, entry.company, entry.poc, entry.email, onAutoFocusHandled]);
 
   const handleSave = () => {
     updateResearchEntry(entry.id, {
       company: editForm.company,
       poc: editForm.poc,
       email: editForm.email,
-      industry: editForm.industry,
     });
     setEditOpen(false);
   };
 
-  const statusColors: Record<ResearchStatus, string> = {
-    researching: 'bg-muted text-muted-foreground',
-    ready: 'bg-accent text-accent-foreground',
-    promoted: 'bg-primary text-primary-foreground',
+  const handleAddIntel = () => {
+    const nextNotes = appendIntelSnippet(entry.notes, intelDraft);
+    if (nextNotes === entry.notes) return;
+    updateResearchEntry(entry.id, { notes: nextNotes });
+    setIntelDraft('');
+    setIsExpanded(true);
   };
 
   const priorityCardClasses: Record<ResearchPriority, string> = {
@@ -116,11 +118,23 @@ export function ResearchEntryCard({
               {entry.company || 'Add company'}
             </p>
             <p className="text-xs text-muted-foreground mt-1 truncate">
-              {entry.industry || 'No industry'}
+              {latestIntel?.text || 'No intel yet'}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Badge className={statusColors[entry.status]}>{entry.status}</Badge>
+            {entry.status === 'promoted' && linkedContact ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  navigate(`/contacts/${linkedContact.id}`);
+                }}
+              >
+                Linked <ExternalLink className="ml-1 h-3 w-3" />
+              </Button>
+            ) : null}
             <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", isExpanded && "rotate-180")} />
           </div>
         </div>
@@ -182,18 +196,51 @@ export function ResearchEntryCard({
       </div>
 
       {isExpanded && (
-        <div className="border-t border-border px-4 py-3 space-y-2 text-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">POC</span>
-            <span className="text-foreground">{entry.poc || '—'}</span>
+        <div className="border-t border-border px-4 py-3 space-y-3 text-sm">
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">POC</span>
+              <span className="text-right text-foreground">{entry.poc || '—'}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">Email</span>
+              <span className="text-right text-foreground">{entry.email || '—'}</span>
+            </div>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Email</span>
-            <span className="text-foreground">{entry.email || '—'}</span>
+          <div className="space-y-2 rounded-xl border bg-background/80 p-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">Add Intel</p>
+              <p className="text-xs text-muted-foreground">Append a quick snippet instead of overwriting notes.</p>
+            </div>
+            <Textarea
+              value={intelDraft}
+              onChange={(event) => setIntelDraft(event.target.value)}
+              placeholder='Example: Ariana said their in-house team reached out directly.'
+              className="min-h-[88px] resize-none"
+            />
+            <Button onClick={handleAddIntel} disabled={!intelDraft.trim()} size="sm" className="w-full">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Intel
+            </Button>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Industry</span>
-            <span className="text-foreground">{entry.industry || '—'}</span>
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-foreground">Intel Timeline</p>
+            {intelSnippets.length > 0 ? (
+              <div className="space-y-2">
+                {[...intelSnippets].reverse().map((snippet, index) => (
+                  <div key={`${snippet.timestampLabel ?? 'legacy'}-${index}`} className="rounded-lg border bg-muted/30 px-3 py-2">
+                    {snippet.timestampLabel ? (
+                      <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                        {snippet.timestampLabel}
+                      </p>
+                    ) : null}
+                    <p className="text-sm leading-6 text-foreground">{snippet.text}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No intel logged yet.</p>
+            )}
           </div>
         </div>
       )}
@@ -201,7 +248,7 @@ export function ResearchEntryCard({
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Edit Entry</DialogTitle>
+            <DialogTitle>Edit Dream Client</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
@@ -230,15 +277,6 @@ export function ResearchEntryCard({
                 value={editForm.email}
                 onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                 placeholder="name@company.com"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor={`industry-${entry.id}`}>Industry</Label>
-              <Input
-                id={`industry-${entry.id}`}
-                value={editForm.industry}
-                onChange={(e) => setEditForm({ ...editForm, industry: e.target.value })}
-                placeholder="Industry"
               />
             </div>
           </div>

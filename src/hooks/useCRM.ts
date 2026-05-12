@@ -686,7 +686,7 @@ export function useCRM() {
       addTask({
         contactId: newContact.id,
         title: `Follow up with ${entry.poc || entry.company}`,
-        description: `Promoted from research list`,
+        description: `Promoted from Dream Clients`,
         dueDate: format(new Date(), 'yyyy-MM-dd'),
         hasReminder: true,
         completed: false,

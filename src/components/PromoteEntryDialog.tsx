@@ -93,7 +93,7 @@ export function PromoteEntryDialog({ entry, open, onOpenChange }: PromoteEntryDi
             <p><strong>Company:</strong> {entry.company || '—'}</p>
             <p><strong>Contact:</strong> {entry.poc || '—'}</p>
             <p><strong>Email:</strong> {entry.email || '—'}</p>
-            {entry.notes && <p><strong>Notes:</strong> {entry.notes}</p>}
+            {entry.notes && <p className="whitespace-pre-line"><strong>Intel:</strong> {entry.notes}</p>}
           </div>
         </div>
 

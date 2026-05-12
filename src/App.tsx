@@ -22,6 +22,7 @@ import LandingHome from "./pages/LandingHome";
 import Contacts from "./pages/Contacts";
 import Pipeline from "./pages/Pipeline";
 import Projects from "./pages/Projects";
+import Planning from "./pages/Planning";
 import Eisenhower from "./pages/Eisenhower";
 import Resources from "./pages/Resources";
 import OutreachOps from "./pages/OutreachOps";
@@ -88,7 +89,8 @@ function AppContent() {
     if (path.startsWith("/contacts")) return "Contacts";
     if (path.startsWith("/pipeline")) return "Pipeline";
     if (path.startsWith("/outreach")) return "Outreach";
-    if (path.startsWith("/projects") || path.startsWith("/planning")) return "Projects";
+    if (path.startsWith("/dream-clients") || path.startsWith("/planning")) return "Dream Clients";
+    if (path.startsWith("/projects")) return "Projects";
     if (path.startsWith("/product-dev")) return "Product Dev";
     if (path.startsWith("/revenue")) return "Revenue";
     if (path.startsWith("/eisenhower")) return "Easy Eisenhower";
@@ -197,7 +199,8 @@ function AppContent() {
               <Route path="/pipeline" element={<Pipeline />} />
               <Route path="/outreach" element={<OutreachOps />} />
               <Route path="/projects" element={<Projects />} />
-              <Route path="/planning" element={<Projects />} />
+              <Route path="/dream-clients" element={<Planning />} />
+              <Route path="/planning" element={<Navigate to="/dream-clients" replace />} />
               <Route path="/product-dev" element={<ProductDev />} />
               <Route path="/revenue" element={<BusinessModel />} />
               <Route path="/business-model" element={<Navigate to="/revenue" replace />} />

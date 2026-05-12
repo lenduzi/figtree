@@ -1,4 +1,4 @@
-import { CalendarCheck, Users, Kanban, Settings, MapPin, BookOpen, Info, LayoutGrid, Megaphone, Lightbulb, Scale } from 'lucide-react';
+import { CalendarCheck, Users, Kanban, Settings, MapPin, BookOpen, Info, Megaphone, Lightbulb, Stars } from 'lucide-react';
 import figtreeLogo from '@/assets/figtree-logo.png';
 import { NavLink } from '@/components/NavLink';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -22,17 +22,16 @@ const crmItems = [
   { title: 'Contacts', url: '/contacts', icon: Users },
   { title: 'Pipeline', url: '/pipeline', icon: Kanban },
   { title: 'Outreach Ops', url: '/outreach', icon: Megaphone },
+  { title: 'Dream Clients', url: '/dream-clients', icon: Stars },
+];
+
+const operationsItems = [
   { title: 'Projects', url: '/projects', icon: MapPin },
   { title: 'Resources', url: '/resources', icon: BookOpen },
 ];
 
-const productivityItems = [
-  { title: 'Easy Eisenhower', url: '/eisenhower', icon: LayoutGrid },
-];
-
 const productItems = [
   { title: 'Product Dev', url: '/product-dev', icon: Lightbulb },
-  { title: 'Revenue', url: '/revenue', icon: Scale },
 ];
 
 export function AppSidebar() {
@@ -88,12 +87,14 @@ export function AppSidebar() {
                       <item.icon className="h-5 w-5 lg:h-6 lg:w-6 flex-shrink-0" />
                       {!isCollapsed && (
                         <>
-                          <span className="flex-1 lg:text-base">{item.title}</span>
-                      {item.url === '/app' && todayTasks.length > 0 && (
-                        <Badge variant="destructive" className="ml-auto text-xs lg:text-sm">
-                          {todayTasks.length}
-                        </Badge>
-                      )}
+                          <span className="min-w-0 flex-1 truncate whitespace-nowrap lg:text-base">
+                            {item.title}
+                          </span>
+                          {item.url === '/app' && todayTasks.length > 0 && (
+                            <Badge variant="destructive" className="ml-auto shrink-0 text-xs lg:text-sm">
+                              {todayTasks.length}
+                            </Badge>
+                          )}
                         </>
                       )}
                     </NavLink>
@@ -103,15 +104,15 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <SidebarGroup className={isCollapsed ? 'mt-auto pt-2' : 'mt-auto pt-4'}>
+        <SidebarGroup className={isCollapsed ? 'mt-2' : 'mt-4'}>
           <SidebarGroupContent>
             <SidebarMenu>
               {!isCollapsed && (
                 <p className="hidden md:block px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground/80">
-                  Product
+                  Operations
                 </p>
               )}
-              {productItems.map((item) => (
+              {operationsItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild tooltip={isCollapsed ? item.title : undefined}>
                     <NavLink
@@ -134,15 +135,15 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <SidebarGroup className={isCollapsed ? 'mt-2' : 'mt-4'}>
+        <SidebarGroup className={isCollapsed ? 'mt-auto pt-2' : 'mt-auto pt-4'}>
           <SidebarGroupContent>
             <SidebarMenu>
               {!isCollapsed && (
                 <p className="hidden md:block px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground/80">
-                  Productivity
+                  Product
                 </p>
               )}
-              {productivityItems.map((item) => (
+              {productItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild tooltip={isCollapsed ? item.title : undefined}>
                     <NavLink

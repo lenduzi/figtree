@@ -84,7 +84,7 @@ export default function Planning() {
           </Button>
           <div>
             <h1 className="text-3xl lg:text-4xl font-bold text-foreground">{selectedList.name}</h1>
-            <p className="text-muted-foreground lg:text-lg mt-1">Research List</p>
+            <p className="text-muted-foreground lg:text-lg mt-1">Dream Client List</p>
           </div>
         </div>
         <Button className="hidden sm:inline-flex" onClick={handleAddEntry}>
@@ -107,9 +107,9 @@ export default function Planning() {
     <div className="p-6 lg:p-8 xl:p-10 max-w-4xl lg:max-w-5xl 2xl:max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="sr-only sm:not-sr-only text-3xl lg:text-4xl font-bold text-foreground">Planning</h1>
+          <h1 className="sr-only sm:not-sr-only text-3xl lg:text-4xl font-bold text-foreground">Dream Clients</h1>
           <p className="text-muted-foreground lg:text-lg mt-1">
-            Research and organize prospects before adding to your pipeline
+            Store aspirational companies, loose intel, and early relationship notes before they become real opportunities.
           </p>
         </div>
         <Button onClick={() => setNewListDialogOpen(true)}>
@@ -122,9 +122,9 @@ export default function Planning() {
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <FolderOpen className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium text-foreground mb-2">No research lists yet</h3>
+            <h3 className="text-lg font-medium text-foreground mb-2">No dream-client lists yet</h3>
             <p className="text-muted-foreground text-center mb-4 max-w-sm">
-              Create your first list to start organizing prospects, companies, and research before adding them to your CRM.
+              Create your first list to keep track of aspirational brands, companies, and notes before adding them to your CRM.
             </p>
             <Button onClick={() => setNewListDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
@@ -194,9 +194,9 @@ export default function Planning() {
       <Dialog open={newListDialogOpen} onOpenChange={setNewListDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create New List</DialogTitle>
+            <DialogTitle>Create Dream Client List</DialogTitle>
             <DialogDescription>
-              Give your research list a name (e.g., "Target Brands Q1", "Hamburg Experiences")
+              Give this list a name (e.g., "Dream Hotels", "Berlin Wellness Brands", "2026 Reachouts")
             </DialogDescription>
           </DialogHeader>
           <Input

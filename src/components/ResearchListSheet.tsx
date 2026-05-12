@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ResearchList, ResearchEntry, ResearchStatus, ResearchPriority } from '@/types/crm';
+import { ResearchList, ResearchEntry, ResearchPriority } from '@/types/crm';
 import { useCRMContext } from '@/contexts/CRMContext';
 import {
   Table,
@@ -32,13 +32,12 @@ interface ResearchListSheetProps {
   onAutoFocusHandled?: () => void;
 }
 
-type SortField = 'company' | 'poc' | 'priority' | 'status' | 'updatedAt';
+type SortField = 'company' | 'poc' | 'priority' | 'updatedAt';
 type SortDirection = 'asc' | 'desc';
 
 export function ResearchListSheet({ list, onAddEntry, autoFocusEntryId, onAutoFocusHandled }: ResearchListSheetProps) {
   const { getEntriesForList, addResearchEntry, researchEntries } = useCRMContext();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<ResearchStatus | 'all'>('all');
   const [priorityFilter, setPriorityFilter] = useState<ResearchPriority | 'all'>('all');
   const [sortField, setSortField] = useState<SortField>('updatedAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -58,13 +57,8 @@ export function ResearchListSheet({ list, onAddEntry, autoFocusEntryId, onAutoFo
           e.company.toLowerCase().includes(searchLower) ||
           e.poc.toLowerCase().includes(searchLower) ||
           e.email.toLowerCase().includes(searchLower) ||
-          e.industry.toLowerCase().includes(searchLower)
+          e.notes.toLowerCase().includes(searchLower)
       );
-    }
-
-    // Status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter((e) => e.status === statusFilter);
     }
 
     // Priority filter
@@ -76,8 +70,6 @@ export function ResearchListSheet({ list, onAddEntry, autoFocusEntryId, onAutoFo
     filtered.sort((a, b) => {
       let comparison = 0;
       const priorityOrder: Record<ResearchPriority, number> = { high: 0, medium: 1, low: 2 };
-      const statusOrder: Record<ResearchStatus, number> = { researching: 0, ready: 1, promoted: 2 };
-
       switch (sortField) {
         case 'company':
           comparison = a.company.localeCompare(b.company);
@@ -88,9 +80,6 @@ export function ResearchListSheet({ list, onAddEntry, autoFocusEntryId, onAutoFo
         case 'priority':
           comparison = priorityOrder[a.priority] - priorityOrder[b.priority];
           break;
-        case 'status':
-          comparison = statusOrder[a.status] - statusOrder[b.status];
-          break;
         case 'updatedAt':
           comparison = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
           break;
@@ -100,7 +89,7 @@ export function ResearchListSheet({ list, onAddEntry, autoFocusEntryId, onAutoFo
     });
 
     return filtered;
-  }, [list.id, getEntriesForList, search, statusFilter, priorityFilter, sortField, sortDirection, researchEntries]);
+  }, [list.id, getEntriesForList, search, priorityFilter, sortField, sortDirection, researchEntries]);
 
   const handleAddRow = () => {
     if (onAddEntry) {
@@ -133,24 +122,13 @@ export function ResearchListSheet({ list, onAddEntry, autoFocusEntryId, onAutoFo
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search entries..."
+            placeholder="Search companies, people, emails, or intel..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9 h-11"
           />
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-2">
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as ResearchStatus | 'all')}>
-            <SelectTrigger className="w-full sm:w-32">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="researching">Researching</SelectItem>
-              <SelectItem value="ready">Ready</SelectItem>
-              <SelectItem value="promoted">Promoted</SelectItem>
-            </SelectContent>
-          </Select>
           <Select value={priorityFilter} onValueChange={(v) => setPriorityFilter(v as ResearchPriority | 'all')}>
             <SelectTrigger className="w-full sm:w-32">
               <SelectValue placeholder="Priority" />
@@ -195,7 +173,7 @@ export function ResearchListSheet({ list, onAddEntry, autoFocusEntryId, onAutoFo
           ))}
           {entries.length === 0 && (
             <div className="p-8 text-center text-muted-foreground border rounded-lg bg-card">
-              {search || statusFilter !== 'all' || priorityFilter !== 'all'
+              {search || priorityFilter !== 'all'
                 ? 'No entries match your filters'
                 : 'No entries yet. Add your first one!'}
             </div>
@@ -219,20 +197,14 @@ export function ResearchListSheet({ list, onAddEntry, autoFocusEntryId, onAutoFo
                   </div>
                 </TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Industry</TableHead>
+                <TableHead>Latest Intel</TableHead>
                 <TableHead className="cursor-pointer" onClick={() => toggleSort('priority')}>
                   <div className="flex items-center gap-1">
                     Priority
                     <ArrowUpDown className="h-3 w-3" />
                   </div>
                 </TableHead>
-                <TableHead className="cursor-pointer" onClick={() => toggleSort('status')}>
-                  <div className="flex items-center gap-1">
-                    Status
-                    <ArrowUpDown className="h-3 w-3" />
-                  </div>
-                </TableHead>
-                <TableHead className="w-12"></TableHead>
+                <TableHead className="w-24 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -251,7 +223,7 @@ export function ResearchListSheet({ list, onAddEntry, autoFocusEntryId, onAutoFo
 
           {entries.length === 0 && (
             <div className="p-8 text-center text-muted-foreground">
-              {search || statusFilter !== 'all' || priorityFilter !== 'all'
+              {search || priorityFilter !== 'all'
                 ? 'No entries match your filters'
                 : 'No entries yet. Add your first one!'}
             </div>
