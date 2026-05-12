@@ -45,6 +45,7 @@ export function ResearchListSheet({ list, onAddEntry, autoFocusEntryId, onAutoFo
   const [colorByPriority, setColorByPriority] = useState(false);
   const isMobile = useMediaQuery("(max-width: 639px)");
   const colorToggleId = `priority-color-toggle-${list.id}`;
+  const shouldHighlightPriority = colorByPriority || priorityFilter !== 'all';
 
   const entries = useMemo(() => {
     let filtered = getEntriesForList(list.id);
@@ -166,7 +167,7 @@ export function ResearchListSheet({ list, onAddEntry, autoFocusEntryId, onAutoFo
               key={entry.id}
               entry={entry}
               onPromote={handlePromote}
-              highlightPriority={colorByPriority}
+              highlightPriority={shouldHighlightPriority}
               autoOpenEdit={entry.id === autoFocusEntryId}
               onAutoFocusHandled={onAutoFocusHandled}
             />
@@ -213,7 +214,7 @@ export function ResearchListSheet({ list, onAddEntry, autoFocusEntryId, onAutoFo
                   key={entry.id}
                   entry={entry}
                   onPromote={handlePromote}
-                  highlightPriority={colorByPriority}
+                  highlightPriority={shouldHighlightPriority}
                   autoFocusCompany={entry.id === autoFocusEntryId}
                   onAutoFocusHandled={onAutoFocusHandled}
                 />
