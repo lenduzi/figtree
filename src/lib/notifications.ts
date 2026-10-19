@@ -97,7 +97,7 @@ export const disablePushOnThisDevice = async () => {
 export const sendTestNotification = async () => {
   const { data, error } = await getClient().functions.invoke("send-reminders", { body: { test: true } });
   if (error) throw error;
-  return data as { sent: number; devices: number };
+  return data as { sent: number; devices: number; errors?: string[] };
 };
 
 export const getBrowserTimeZone = () => {

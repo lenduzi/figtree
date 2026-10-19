@@ -78,6 +78,7 @@ const timeToMinutes = (time: string) => {
 
 const sendToSubscriptions = async (db: SupabaseClient, subscriptions: Subscription[], payload: Payload) => {
   let sent = 0;
+  const errors: string[] = [];
   for (const subscription of subscriptions) {
     try {
       await webpush.sendNotification(
@@ -87,16 +88,18 @@ const sendToSubscriptions = async (db: SupabaseClient, subscriptions: Subscripti
       );
       sent += 1;
     } catch (error) {
-      const statusCode = (error as { statusCode?: number }).statusCode;
+      const { statusCode, body } = error as { statusCode?: number; body?: string };
+      const service = new URL(subscription.endpoint).host;
+      errors.push(`${service}: ${statusCode ?? "error"} ${body || (error as Error).message || ""}`.trim());
       if (statusCode === 404 || statusCode === 410) {
         // The browser unsubscribed or the subscription expired.
         await db.from("push_subscriptions").delete().eq("id", subscription.id);
       } else {
-        console.error("push failed", subscription.endpoint.slice(0, 60), statusCode, error);
+        console.error("push failed", service, statusCode, error);
       }
     }
   }
-  return sent;
+  return { sent, errors };
 };
 
 const sendTaskReminders = async (
@@ -134,12 +137,12 @@ const sendTaskReminders = async (
     if (minutesLate <= REMINDER_MAX_LATE_MINUTES) {
       const contact = contactById.get(task.contact_id);
       const who = contact ? [contact.full_name, contact.company].filter(Boolean).join(" · ") : "";
-      sent += await sendToSubscriptions(db, subscriptions, {
+      sent += (await sendToSubscriptions(db, subscriptions, {
         title: task.title || "Follow-up due",
         body: [who, `due ${String(task.due_time).slice(0, 5)}`].filter(Boolean).join(" — "),
         url: `/contacts/${task.contact_id}`,
         tag: `task-${task.id}`,
-      });
+      })).sent;
     }
     await db.from("tasks").update({ reminded_at: new Date().toISOString() }).eq("id", task.id);
   }
@@ -266,11 +269,11 @@ Deno.serve(async (req) => {
     .from("push_subscriptions")
     .select("id, user_id, endpoint, p256dh, auth")
     .eq("user_id", userData.user.id);
-  const sent = await sendToSubscriptions(db, subscriptions ?? [], {
+  const { sent, errors } = await sendToSubscriptions(db, subscriptions ?? [], {
     title: "Figtree notifications are on",
     body: "Task reminders arrive at their due time; your digest each morning.",
     url: "/app",
     tag: "test",
   });
-  return json({ sent, devices: subscriptions?.length ?? 0 });
+  return json({ sent, devices: subscriptions?.length ?? 0, errors });
 });

@@ -71,8 +71,14 @@ export function NotificationSettings() {
       const result = await sendTestNotification();
       if (result.devices === 0) {
         toast('No devices have notifications on yet.');
+      } else if (result.errors?.length) {
+        toast.error(`Sent to ${result.sent} of ${result.devices} device${result.devices === 1 ? '' : 's'}`, {
+          description: result.errors.join('\n'),
+        });
       } else {
-        toast(`Test sent to ${result.sent} of ${result.devices} device${result.devices === 1 ? '' : 's'}`);
+        toast(`Test sent to ${result.sent} of ${result.devices} device${result.devices === 1 ? '' : 's'}`, {
+          description: "If nothing shows up, check your system's notification settings for this browser.",
+        });
       }
     } catch (error) {
       toast.error('Test notification failed', { description: errorMessage(error) });
