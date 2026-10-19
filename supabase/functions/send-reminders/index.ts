@@ -1,9 +1,20 @@
-// Sends push notifications: task reminders at their due time and a morning
-// digest. Called every 5 minutes by pg_cron (x-cron-secret header), or by a
-// signed-in user with {"test": true} to send themselves a test notification.
+// The 5-minute job. Called by pg_cron (x-cron-secret header) it:
+//   - sends scheduled emails and detects replies (users with Gmail connected)
+//   - sends task reminders at their due time and the morning digest, as push
+//     notifications and/or emails to the user's own Gmail
+// A signed-in user can also call it with {"test": true} for a test notification.
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
+import {
+  appUrl,
+  deliverEmailRow,
+  emailAddressOf,
+  getAccessToken,
+  getThreadMessages,
+  GmailAuthError,
+  sendGmail,
+} from "../_shared/gmail.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -31,6 +42,7 @@ type Settings = {
   digest_enabled: boolean;
   digest_hour: number;
   last_digest_on: string | null;
+  email_notifications: boolean;
 };
 type Payload = { title: string; body: string; url: string; tag: string };
 
@@ -102,15 +114,34 @@ const sendToSubscriptions = async (db: SupabaseClient, subscriptions: Subscripti
   return { sent, errors };
 };
 
+type Channels = {
+  subscriptions: Subscription[];
+  // Set when the user has Gmail connected and email notifications on.
+  notifyEmail: string | null;
+};
+
+/** Emails the user (from their own Gmail, to themselves). */
+const emailSelf = async (db: SupabaseClient, userId: string, channels: Channels, subject: string, body: string) => {
+  if (!channels.notifyEmail) return false;
+  try {
+    const accessToken = await getAccessToken(db, userId);
+    await sendGmail(accessToken, { to: channels.notifyEmail, subject, body });
+    return true;
+  } catch (error) {
+    console.error("self email failed", error);
+    return false;
+  }
+};
+
 const sendTaskReminders = async (
   db: SupabaseClient,
   userId: string,
   local: { date: string; minutes: number },
-  subscriptions: Subscription[],
+  channels: Channels,
 ) => {
   const { data: tasks, error } = await db
     .from("tasks")
-    .select("id, title, due_date, due_time, contact_id")
+    .select("id, title, description, due_date, due_time, contact_id")
     .eq("user_id", userId)
     .eq("has_reminder", true)
     .eq("completed", false)
@@ -119,11 +150,9 @@ const sendTaskReminders = async (
     .lte("due_date", local.date);
   if (error) throw error;
 
-  const due = (tasks ?? []).filter((task) => {
-    const minutesLate =
-      daysBetween(task.due_date, local.date) * 1440 + local.minutes - timeToMinutes(task.due_time);
-    return minutesLate >= 0;
-  });
+  const minutesLate = (task: { due_date: string; due_time: string }) =>
+    daysBetween(task.due_date, local.date) * 1440 + local.minutes - timeToMinutes(task.due_time);
+  const due = (tasks ?? []).filter((task) => minutesLate(task) >= 0);
   if (due.length === 0) return 0;
 
   const contactIds = [...new Set(due.map((task) => task.contact_id))];
@@ -132,32 +161,42 @@ const sendTaskReminders = async (
 
   let sent = 0;
   for (const task of due) {
-    const minutesLate =
-      daysBetween(task.due_date, local.date) * 1440 + local.minutes - timeToMinutes(task.due_time);
-    if (minutesLate <= REMINDER_MAX_LATE_MINUTES) {
-      const contact = contactById.get(task.contact_id);
-      const who = contact ? [contact.full_name, contact.company].filter(Boolean).join(" · ") : "";
-      sent += (await sendToSubscriptions(db, subscriptions, {
-        title: task.title || "Follow-up due",
-        body: [who, `due ${String(task.due_time).slice(0, 5)}`].filter(Boolean).join(" — "),
-        url: `/contacts/${task.contact_id}`,
-        tag: `task-${task.id}`,
-      })).sent;
-    }
+    // Mark first so an overlapping run can't remind twice.
     await db.from("tasks").update({ reminded_at: new Date().toISOString() }).eq("id", task.id);
+    if (minutesLate(task) > REMINDER_MAX_LATE_MINUTES) continue;
+
+    const contact = contactById.get(task.contact_id);
+    const who = contact ? [contact.full_name, contact.company].filter(Boolean).join(" · ") : "";
+    const time = String(task.due_time).slice(0, 5);
+    const push = await sendToSubscriptions(db, channels.subscriptions, {
+      title: task.title || "Follow-up due",
+      body: [who, `due ${time}`].filter(Boolean).join(" — "),
+      url: `/contacts/${task.contact_id}`,
+      tag: `task-${task.id}`,
+    });
+    const emailed = await emailSelf(
+      db,
+      userId,
+      channels,
+      `Reminder: ${task.title || "Follow-up"} (${time})`,
+      [
+        who && `Contact: ${who}`,
+        task.description,
+        "",
+        `Open in Figtree: ${appUrl()}/contacts/${task.contact_id}`,
+      ].filter((line) => typeof line === "string").join("\n"),
+    );
+    if (push.sent > 0 || emailed) sent += 1;
   }
   return sent;
 };
 
 const buildDigest = async (db: SupabaseClient, userId: string, local: { date: string }) => {
-  const [overdue, dueToday, stages, contacts, openTasks, outreach] = await Promise.all([
-    db.from("tasks").select("id", { count: "exact", head: true })
-      .eq("user_id", userId).eq("completed", false).lt("due_date", local.date),
-    db.from("tasks").select("id", { count: "exact", head: true })
-      .eq("user_id", userId).eq("completed", false).eq("due_date", local.date),
+  const [openTasks, stages, contacts, outreach] = await Promise.all([
+    db.from("tasks").select("title, due_date, contact_id").eq("user_id", userId).eq("completed", false)
+      .lte("due_date", local.date).order("due_date"),
     db.from("stages").select("id, name").eq("user_id", userId),
-    db.from("contacts").select("id, full_name, stage_id, last_interaction_at, created_at").eq("user_id", userId),
-    db.from("tasks").select("contact_id").eq("user_id", userId).eq("completed", false),
+    db.from("contacts").select("id, full_name, company, stage_id, last_interaction_at, created_at").eq("user_id", userId),
     // Due through the end of the user's local day; a day of slack either side
     // of UTC is fine for a count.
     db.from("outreach_leads").select("id", { count: "exact", head: true })
@@ -165,62 +204,205 @@ const buildDigest = async (db: SupabaseClient, userId: string, local: { date: st
       .not("status", "in", `(${INACTIVE_OUTREACH_STATUSES.map((s) => `"${s}"`).join(",")})`)
       .lt("next_action_at", `${addDays(local.date, 1)}T00:00:00Z`),
   ]);
+  const { data: anyOpenTasks } = await db.from("tasks").select("contact_id").eq("user_id", userId).eq("completed", false);
 
+  const contactById = new Map((contacts.data ?? []).map((contact) => [contact.id, contact]));
   const closedStageIds = new Set(
     (stages.data ?? [])
       .filter((stage) => CLOSED_STAGES.has(stage.id) || CLOSED_STAGES.has(String(stage.name).trim().toLowerCase()))
       .map((stage) => stage.id),
   );
-  const withOpenTask = new Set((openTasks.data ?? []).map((task) => task.contact_id));
-  const goingCold = (contacts.data ?? []).filter((contact) => {
-    if (contact.full_name === "Me" || closedStageIds.has(contact.stage_id) || withOpenTask.has(contact.id)) {
-      return false;
-    }
-    const lastTouch = (contact.last_interaction_at ?? contact.created_at ?? "").slice(0, 10);
-    return lastTouch !== "" && daysBetween(lastTouch, local.date) >= COLD_AFTER_DAYS;
-  }).length;
+  const withOpenTask = new Set((anyOpenTasks ?? []).map((task) => task.contact_id));
+  const goingCold = (contacts.data ?? [])
+    .map((contact) => {
+      const lastTouch = (contact.last_interaction_at ?? contact.created_at ?? "").slice(0, 10);
+      return { contact, days: lastTouch ? daysBetween(lastTouch, local.date) : 0 };
+    })
+    .filter(({ contact, days }) =>
+      contact.full_name !== "Me" && !closedStageIds.has(contact.stage_id) && !withOpenTask.has(contact.id) &&
+      days >= COLD_AFTER_DAYS
+    )
+    .sort((a, b) => b.days - a.days);
 
-  const counts = {
-    overdue: overdue.count ?? 0,
-    dueToday: dueToday.count ?? 0,
-    outreachDue: outreach.count ?? 0,
-    goingCold,
+  const overdue = (openTasks.data ?? []).filter((task) => task.due_date < local.date);
+  const dueToday = (openTasks.data ?? []).filter((task) => task.due_date === local.date);
+  const outreachDue = outreach.count ?? 0;
+
+  const summary = [
+    overdue.length && `${overdue.length} overdue`,
+    dueToday.length && `${dueToday.length} due today`,
+    outreachDue && `${outreachDue} outreach due`,
+    goingCold.length && `${goingCold.length} going cold`,
+  ].filter(Boolean).join(" · ");
+
+  const taskLine = (task: { title: string; due_date: string; contact_id: string }) => {
+    const contact = contactById.get(task.contact_id);
+    const who = contact ? ` — ${[contact.full_name, contact.company].filter(Boolean).join(", ")}` : "";
+    return `- ${task.title}${who}${task.due_date < local.date ? ` (due ${task.due_date})` : ""}`;
   };
-  const parts = [
-    counts.overdue && `${counts.overdue} overdue`,
-    counts.dueToday && `${counts.dueToday} due today`,
-    counts.outreachDue && `${counts.outreachDue} outreach due`,
-    counts.goingCold && `${counts.goingCold} going cold`,
-  ].filter(Boolean);
-  return { counts, body: parts.join(" · ") };
+  const lines: string[] = ["Here's what needs your attention today.", ""];
+  if (overdue.length) lines.push(`Overdue (${overdue.length})`, ...overdue.slice(0, 15).map(taskLine), "");
+  if (dueToday.length) lines.push(`Due today (${dueToday.length})`, ...dueToday.slice(0, 15).map(taskLine), "");
+  if (goingCold.length) {
+    lines.push(
+      `Going cold (${goingCold.length}) — open deals, no task planned, quiet ${COLD_AFTER_DAYS}+ days`,
+      ...goingCold.slice(0, 8).map(({ contact, days }) =>
+        `- ${contact.full_name}${contact.company ? `, ${contact.company}` : ""} (${days} days)`
+      ),
+      "",
+    );
+  }
+  if (outreachDue) lines.push(`Outreach: ${outreachDue} leads due`, "");
+  lines.push(`Open Figtree: ${appUrl()}/app`);
+
+  return { summary, emailBody: lines.join("\n") };
+};
+
+const processScheduledEmails = async (db: SupabaseClient, userId: string) => {
+  const { data: due } = await db
+    .from("emails")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("status", "scheduled")
+    .lte("scheduled_for", new Date().toISOString())
+    .order("scheduled_for")
+    .limit(20);
+  let sent = 0;
+  for (const { id } of due ?? []) {
+    // Claim it, so the send-now path or an overlapping run can't send it too.
+    const { data: email } = await db
+      .from("emails")
+      .update({ status: "sending" })
+      .eq("id", id)
+      .eq("status", "scheduled")
+      .select("id, user_id, contact_id, to_email, subject, body")
+      .maybeSingle();
+    if (!email) continue;
+    if ((await deliverEmailRow(db, email)).ok) sent += 1;
+  }
+  return sent;
+};
+
+const REPLY_CHECK_INTERVAL_MS = 10 * 60 * 1000;
+const REPLY_CHECK_WINDOW_DAYS = 30;
+const NOT_A_REPLY = /mailer-daemon|postmaster|no-?reply/i;
+
+const checkReplies = async (
+  db: SupabaseClient,
+  userId: string,
+  local: { date: string },
+  ownAddress: string,
+) => {
+  const now = Date.now();
+  const { data: emails } = await db
+    .from("emails")
+    .select("id, contact_id, subject, sent_at, gmail_thread_id, reply_checked_at")
+    .eq("user_id", userId)
+    .eq("status", "sent")
+    .is("replied_at", null)
+    .not("gmail_thread_id", "is", null)
+    .gte("sent_at", new Date(now - REPLY_CHECK_WINDOW_DAYS * 86_400_000).toISOString())
+    .order("sent_at", { ascending: false })
+    .limit(50);
+  const toCheck = (emails ?? []).filter((email) =>
+    !email.reply_checked_at || now - Date.parse(email.reply_checked_at) > REPLY_CHECK_INTERVAL_MS
+  );
+  if (toCheck.length === 0) return 0;
+
+  const accessToken = await getAccessToken(db, userId);
+  const own = ownAddress.toLowerCase();
+  let replies = 0;
+  for (const email of toCheck) {
+    const messages = await getThreadMessages(accessToken, email.gmail_thread_id);
+    const sentAt = Date.parse(email.sent_at);
+    const reply = messages.find((message) => {
+      const from = emailAddressOf(message.from);
+      return from && from !== own && !NOT_A_REPLY.test(from) && message.internalDate > sentAt;
+    });
+    const checkedAt = new Date().toISOString();
+    if (!reply) {
+      await db.from("emails").update({ reply_checked_at: checkedAt }).eq("id", email.id);
+      continue;
+    }
+
+    const repliedAt = new Date(reply.internalDate).toISOString();
+    await db.from("emails").update({ replied_at: repliedAt, reply_checked_at: checkedAt }).eq("id", email.id);
+    replies += 1;
+    if (!email.contact_id) continue;
+
+    const { data: contact } = await db.from("contacts").select("full_name").eq("id", email.contact_id).maybeSingle();
+    const name = contact?.full_name || emailAddressOf(reply.from);
+    await db.from("activities").insert({
+      id: crypto.randomUUID(),
+      user_id: userId,
+      contact_id: email.contact_id,
+      type: "email",
+      description: `Reply received: ${email.subject || "(no subject)"}`,
+      occurred_at: repliedAt,
+    });
+    await db.from("tasks").insert({
+      id: crypto.randomUUID(),
+      user_id: userId,
+      contact_id: email.contact_id,
+      title: `Reply from ${name}`,
+      description: `Re: ${email.subject || "(no subject)"} — detected in Gmail`,
+      due_date: local.date,
+      has_reminder: false,
+      completed: false,
+    });
+    // They replied: stop any follow-ups still queued for them.
+    await db
+      .from("emails")
+      .update({ status: "cancelled", error: "Cancelled automatically: contact replied" })
+      .eq("contact_id", email.contact_id)
+      .eq("status", "scheduled");
+  }
+  return replies;
 };
 
 const runSchedule = async (db: SupabaseClient) => {
   const now = new Date();
-  const { data: subscriptions, error } = await db
-    .from("push_subscriptions")
-    .select("id, user_id, endpoint, p256dh, auth");
+  const [{ data: subscriptions, error }, { data: gmailAccounts }] = await Promise.all([
+    db.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth"),
+    db.from("gmail_accounts").select("user_id, email"),
+  ]);
   if (error) throw error;
 
-  const byUser = new Map<string, Subscription[]>();
+  const subscriptionsByUser = new Map<string, Subscription[]>();
   for (const subscription of subscriptions ?? []) {
-    byUser.set(subscription.user_id, [...(byUser.get(subscription.user_id) ?? []), subscription]);
+    subscriptionsByUser.set(subscription.user_id, [...(subscriptionsByUser.get(subscription.user_id) ?? []), subscription]);
   }
-  if (byUser.size === 0) return { users: 0, reminders: 0, digests: 0 };
+  const gmailByUser = new Map((gmailAccounts ?? []).map((account) => [account.user_id, account.email as string]));
+  const userIds = [...new Set([...subscriptionsByUser.keys(), ...gmailByUser.keys()])];
+  const totals = { users: userIds.length, emailsSent: 0, replies: 0, reminders: 0, digests: 0 };
+  if (userIds.length === 0) return totals;
 
   const { data: settingsRows } = await db
     .from("user_settings")
-    .select("user_id, timezone, digest_enabled, digest_hour, last_digest_on")
-    .in("user_id", [...byUser.keys()]);
+    .select("user_id, timezone, digest_enabled, digest_hour, last_digest_on, email_notifications")
+    .in("user_id", userIds);
   const settingsByUser = new Map((settingsRows ?? []).map((row: Settings) => [row.user_id, row]));
 
-  let reminders = 0;
-  let digests = 0;
-  for (const [userId, userSubscriptions] of byUser) {
+  for (const userId of userIds) {
     const settings = settingsByUser.get(userId);
     const local = localNow(now, settings?.timezone ?? "UTC");
+    const gmail = gmailByUser.get(userId) ?? null;
+    const channels: Channels = {
+      subscriptions: subscriptionsByUser.get(userId) ?? [],
+      notifyEmail: gmail && (settings?.email_notifications ?? true) ? gmail : null,
+    };
 
-    reminders += await sendTaskReminders(db, userId, local, userSubscriptions);
+    if (gmail) {
+      try {
+        totals.emailsSent += await processScheduledEmails(db, userId);
+        totals.replies += await checkReplies(db, userId, local, gmail);
+      } catch (error) {
+        // Typically GmailAuthError (access revoked); reminders below still run.
+        console.error("gmail work failed", userId, error instanceof GmailAuthError ? error.message : error);
+      }
+    }
+
+    totals.reminders += await sendTaskReminders(db, userId, local, channels);
 
     if (!settings?.digest_enabled) continue;
     const digestStart = settings.digest_hour * 60;
@@ -230,16 +412,17 @@ const runSchedule = async (db: SupabaseClient) => {
     // Mark first so an overlapping run can't send it twice.
     await db.from("user_settings").update({ last_digest_on: local.date }).eq("user_id", userId);
     const digest = await buildDigest(db, userId, local);
-    if (!digest.body) continue;
-    await sendToSubscriptions(db, userSubscriptions, {
+    if (!digest.summary) continue;
+    await sendToSubscriptions(db, channels.subscriptions, {
       title: "Your Figtree day",
-      body: digest.body,
+      body: digest.summary,
       url: "/app",
       tag: `digest-${local.date}`,
     });
-    digests += 1;
+    await emailSelf(db, userId, channels, `Your Figtree day: ${digest.summary}`, digest.emailBody);
+    totals.digests += 1;
   }
-  return { users: byUser.size, reminders, digests };
+  return totals;
 };
 
 Deno.serve(async (req) => {

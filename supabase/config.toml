@@ -417,3 +417,8 @@ enabled = true
 # for test notifications; the function checks both itself.
 [functions.send-reminders]
 verify_jwt = false
+
+# Google redirects the browser here after consent (no Supabase JWT); the
+# function checks the signed-in user itself for start/disconnect.
+[functions.gmail-oauth]
+verify_jwt = false

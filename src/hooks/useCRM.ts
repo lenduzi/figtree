@@ -226,6 +226,16 @@ export function useCRM(userId: string | null) {
       });
   }, [loadData]);
 
+  // Re-reads everything without the loading screen, e.g. after a server-side
+  // change such as an email being sent and logged on a contact.
+  const refreshData = useCallback(
+    () =>
+      waitForWrites()
+        .then(() => loadData())
+        .catch((error) => console.error('Figtree: refresh failed', error)),
+    [loadData],
+  );
+
   // A failed save leaves the screen out of step with the database, so reload.
   useEffect(() => {
     setWriteErrorHandler(() => {
@@ -872,6 +882,7 @@ export function useCRM(userId: string | null) {
   return {
     dataStatus,
     reloadData,
+    refreshData,
     contacts,
     tasks,
     stages,

@@ -31,7 +31,18 @@ export function NotificationSettings() {
       .then((subscription) => setDeviceEnabled(Boolean(subscription)))
       .catch(() => setDeviceEnabled(false));
     loadUserSettings()
-      .then((loaded) => setSettings(loaded ?? { timezone: '', digest_enabled: true, digest_hour: 9 }))
+      .then((loaded) =>
+        setSettings(
+          loaded ?? {
+            timezone: '',
+            digest_enabled: true,
+            digest_hour: 9,
+            email_notifications: true,
+            ai_context: '',
+            email_signature: '',
+          },
+        ),
+      )
       .catch((error) => toast.error('Could not load notification settings', { description: errorMessage(error) }));
   }, []);
 

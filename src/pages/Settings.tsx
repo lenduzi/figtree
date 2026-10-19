@@ -38,6 +38,7 @@ import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { toLocalDateKey } from '@/lib/utils';
 import { clearOutreachData } from '@/lib/outreach-store';
 import { NotificationSettings } from '@/components/NotificationSettings';
+import { GmailSettings } from '@/components/GmailSettings';
 const FEEDBACK_EMAIL = 'lennhahn@gmail.com';
 const FEEDBACK_ENDPOINT = `https://formsubmit.co/ajax/${FEEDBACK_EMAIL}`;
 
@@ -549,6 +550,7 @@ export default function Settings() {
         </CardContent>
       </Card>
 
+      {session && <GmailSettings />}
       {session && <NotificationSettings />}
 
       <Card className="mt-6">

@@ -6,6 +6,7 @@ import { TaskItem } from '@/components/TaskItem';
 import { TaskDetailDialog } from '@/components/TaskDetailDialog';
 import { AddTaskDialog } from '@/components/AddTaskDialog';
 import { AddActivityDialog } from '@/components/AddActivityDialog';
+import { ContactEmails } from '@/components/ContactEmails';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -417,6 +418,8 @@ export default function ContactDetail() {
               />
             </CardContent>
           </Card>
+
+          <ContactEmails contact={contact} />
 
           {/* Tasks */}
           <Card>

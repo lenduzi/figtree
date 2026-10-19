@@ -9,6 +9,9 @@ export type UserSettings = {
   timezone: string;
   digest_enabled: boolean;
   digest_hour: number;
+  email_notifications: boolean;
+  ai_context: string;
+  email_signature: string;
 };
 
 export type PushSupport = "supported" | "needs-install" | "unsupported";
@@ -111,7 +114,7 @@ export const getBrowserTimeZone = () => {
 export const loadUserSettings = async (): Promise<UserSettings | null> => {
   const { data, error } = await getClient()
     .from("user_settings")
-    .select("timezone, digest_enabled, digest_hour")
+    .select("timezone, digest_enabled, digest_hour, email_notifications, ai_context, email_signature")
     .maybeSingle();
   if (error) throw error;
   return data;
