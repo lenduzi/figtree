@@ -1,3 +1,5 @@
+import { OUTREACH_LAST_CHANGE_KEY } from "@/lib/backup";
+
 export type PivotStatus = "Explore" | "Validate" | "Decide" | "Parked";
 
 export type PivotIdea = {
@@ -289,7 +291,18 @@ export const loadBusinessModel = (): BusinessModelState => {
 export const saveBusinessModel = (state: BusinessModelState) => {
   const storage = getStorage();
   if (!storage) return;
-  storage.setItem(STORAGE_KEY, JSON.stringify(state));
+  const serialized = JSON.stringify(state);
+  const previous = storage.getItem(STORAGE_KEY);
+  if (previous === serialized) return;
+  storage.setItem(STORAGE_KEY, serialized);
+  // Seeding defaults isn't an edit; marking it would block pulling real data from the cloud.
+  if (previous === null) return;
+  // Marks a local edit so cloud sync doesn't pull an older copy over it.
+  try {
+    storage.setItem(OUTREACH_LAST_CHANGE_KEY, new Date().toISOString());
+  } catch {
+    // ignore storage errors
+  }
 };
 
 export const createAdditionalStream = (): AdditionalStream => ({

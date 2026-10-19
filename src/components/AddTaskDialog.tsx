@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { useCRMContext } from '@/contexts/CRMContext';
+import { toLocalDateKey } from '@/lib/utils';
 
 interface AddTaskDialogProps {
   contactId: string;
@@ -25,7 +26,7 @@ export function AddTaskDialog({ contactId, trigger }: AddTaskDialogProps) {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    dueDate: new Date().toISOString().split('T')[0],
+    dueDate: toLocalDateKey(),
     dueTime: '',
     hasReminder: true,
   });
@@ -43,7 +44,7 @@ export function AddTaskDialog({ contactId, trigger }: AddTaskDialogProps) {
     setFormData({
       title: '',
       description: '',
-      dueDate: new Date().toISOString().split('T')[0],
+      dueDate: toLocalDateKey(),
       dueTime: '',
       hasReminder: true,
     });

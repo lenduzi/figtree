@@ -35,6 +35,7 @@ import {
   validateBackup,
 } from '@/lib/backup';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { toLocalDateKey } from '@/lib/utils';
 const FEEDBACK_EMAIL = 'lennhahn@gmail.com';
 const FEEDBACK_ENDPOINT = `https://formsubmit.co/ajax/${FEEDBACK_EMAIL}`;
 
@@ -357,7 +358,7 @@ export default function Settings() {
     const json = JSON.stringify(backup, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const date = new Date().toISOString().split('T')[0];
+    const date = toLocalDateKey();
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = `crm-backup-${date}.json`;

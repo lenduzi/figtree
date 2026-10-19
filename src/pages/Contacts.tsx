@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/table';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { isGoingCold } from '@/lib/follow-up-health';
 
 type SortField = 'name' | 'company' | 'email' | 'lastInteraction' | 'stage';
 type SortDirection = 'asc' | 'desc';
@@ -170,6 +171,11 @@ export default function Contacts() {
           <div className="space-y-3 sm:hidden">
             {filteredContacts.map((contact) => {
               const stage = getStageById(contact.stageId);
+              const cold = isGoingCold(contact, {
+                stage,
+                openTaskCount: getOpenTaskCount(contact.id),
+                meContactId,
+              });
               return (
                 <button
                   key={contact.id}
@@ -203,11 +209,12 @@ export default function Contacts() {
                       </Badge>
                     )}
                   </div>
-                  <p className="mt-2 text-xs text-muted-foreground">
+                  <p className={cn("mt-2 text-xs", cold ? "text-amber-600 dark:text-amber-300" : "text-muted-foreground")}>
                     Last contact:{" "}
                     {contact.lastInteractionDate
                       ? formatDistanceToNow(new Date(contact.lastInteractionDate), { addSuffix: true })
                       : "Never"}
+                    {cold && " · going cold"}
                   </p>
                 </button>
               );
@@ -280,6 +287,7 @@ export default function Contacts() {
                 {filteredContacts.map((contact) => {
                   const stage = getStageById(contact.stageId);
                   const taskCount = getOpenTaskCount(contact.id);
+                  const cold = isGoingCold(contact, { stage, openTaskCount: taskCount, meContactId });
                   return (
                     <TableRow
                       key={contact.id}
@@ -300,13 +308,17 @@ export default function Contacts() {
                       <TableCell className="lg:py-4 lg:text-base">{contact.company || '-'}</TableCell>
                       <TableCell className="lg:py-4 lg:text-base">{contact.email || '-'}</TableCell>
                       <TableCell className="lg:py-4">
-                        {contact.lastInteractionDate ? (
-                          <span className="text-sm lg:text-base text-muted-foreground">
-                            {formatDistanceToNow(new Date(contact.lastInteractionDate), { addSuffix: true })}
-                          </span>
-                        ) : (
-                          <span className="text-sm lg:text-base text-muted-foreground">Never</span>
-                        )}
+                        <span
+                          className={cn(
+                            "text-sm lg:text-base",
+                            cold ? "text-amber-600 dark:text-amber-300" : "text-muted-foreground",
+                          )}
+                          title={cold ? "Going cold: no open task and no recent touch" : undefined}
+                        >
+                          {contact.lastInteractionDate
+                            ? formatDistanceToNow(new Date(contact.lastInteractionDate), { addSuffix: true })
+                            : 'Never'}
+                        </span>
                       </TableCell>
                       <TableCell className="lg:py-4">
                         {stage && (

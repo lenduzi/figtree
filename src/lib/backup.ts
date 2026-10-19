@@ -1,5 +1,6 @@
 import type { Resource } from "@/lib/resources-store";
 import type { ProductIdea } from "@/lib/product-dev-store";
+import type { BusinessModelState } from "@/lib/business-model-store";
 import type { OutreachActionLog, OutreachImportSummary, OutreachLead } from "@/types/outreach";
 import {
   Activity,
@@ -31,6 +32,7 @@ const STORAGE_KEYS = {
   outreachActions: "simplecrm_outreach_actions_v1",
   outreachImports: "simplecrm_outreach_imports_v1",
   productDev: "simplecrm_product_dev_v1",
+  businessModel: "simplecrm_business_model_v1",
 };
 
 export const CLOUD_BACKUP_TABLE = "user_backups";
@@ -66,6 +68,7 @@ export type CRMBackup = {
     eisenhowerItems?: EisenhowerItem[];
     resources?: Resource[];
     productDev?: ProductIdea[];
+    businessModel?: BusinessModelState | null;
     outreach?: OutreachBackup;
     settings?: BackupSettings;
   };
@@ -105,6 +108,7 @@ const saveJsonToStorage = <T,>(key: string, value: T) => {
 const readLocalExtras = () => ({
   resources: readJsonFromStorage<Resource[]>(STORAGE_KEYS.resources, []),
   productDev: readJsonFromStorage<ProductIdea[]>(STORAGE_KEYS.productDev, []),
+  businessModel: readJsonFromStorage<BusinessModelState | null>(STORAGE_KEYS.businessModel, null),
   outreach: {
     leads: readJsonFromStorage<OutreachLead[]>(STORAGE_KEYS.outreachLeads, []),
     actions: readJsonFromStorage<OutreachActionLog[]>(STORAGE_KEYS.outreachActions, []),
@@ -129,6 +133,7 @@ export const buildBackup = (input: BackupInput): CRMBackup => {
       eisenhowerItems: input.eisenhowerItems,
       resources: extras.resources,
       productDev: extras.productDev,
+      businessModel: extras.businessModel,
       outreach: extras.outreach,
       settings: {
         stages: input.stages,
@@ -194,6 +199,9 @@ export const validateBackup = (
   if (data.productDev !== undefined && !Array.isArray(data.productDev)) {
     return { ok: false, error: "Product dev data is invalid." };
   }
+  if (data.businessModel !== undefined && data.businessModel !== null && !isRecord(data.businessModel)) {
+    return { ok: false, error: "Revenue data is invalid." };
+  }
 
   if (data.outreach !== undefined) {
     if (!isRecord(data.outreach)) {
@@ -241,6 +249,7 @@ export const applyBackup = (
   const existingCreators = readJsonFromStorage<Creator[]>(STORAGE_KEYS.creators, []);
   const existingResources = readJsonFromStorage<Resource[]>(STORAGE_KEYS.resources, []);
   const existingProductDev = readJsonFromStorage<ProductIdea[]>(STORAGE_KEYS.productDev, []);
+  const existingBusinessModel = readJsonFromStorage<BusinessModelState | null>(STORAGE_KEYS.businessModel, null);
   const existingOutreachLeads = readJsonFromStorage<OutreachLead[]>(STORAGE_KEYS.outreachLeads, []);
   const existingOutreachActions = readJsonFromStorage<OutreachActionLog[]>(STORAGE_KEYS.outreachActions, []);
   const existingOutreachImports = readJsonFromStorage<OutreachImportSummary[]>(STORAGE_KEYS.outreachImports, []);
@@ -253,6 +262,8 @@ export const applyBackup = (
   const creatorsToUse = backup.data.creators ?? (preserveMissingExtras ? existingCreators : []);
   const resourcesToUse = backup.data.resources ?? (preserveMissingExtras ? existingResources : []);
   const productDevToUse = backup.data.productDev ?? (preserveMissingExtras ? existingProductDev : []);
+  const businessModelToUse =
+    backup.data.businessModel ?? (preserveMissingExtras ? existingBusinessModel : null);
   const outreach = backup.data.outreach ?? {};
   const outreachLeadsToUse = outreach.leads ?? (preserveMissingExtras ? existingOutreachLeads : []);
   const outreachActionsToUse = outreach.actions ?? (preserveMissingExtras ? existingOutreachActions : []);
@@ -271,6 +282,11 @@ export const applyBackup = (
     saveJsonToStorage(STORAGE_KEYS.eisenhowerItems, eisenhowerItemsToUse);
     saveJsonToStorage(STORAGE_KEYS.resources, resourcesToUse);
     saveJsonToStorage(STORAGE_KEYS.productDev, productDevToUse);
+    if (businessModelToUse) {
+      saveJsonToStorage(STORAGE_KEYS.businessModel, businessModelToUse);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.businessModel);
+    }
     saveJsonToStorage(STORAGE_KEYS.outreachLeads, outreachLeadsToUse);
     saveJsonToStorage(STORAGE_KEYS.outreachActions, outreachActionsToUse);
     saveJsonToStorage(STORAGE_KEYS.outreachImports, outreachImportsToUse);

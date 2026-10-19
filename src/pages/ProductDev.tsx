@@ -73,7 +73,7 @@ import {
   type RoadmapLane,
   type UserType,
 } from "@/lib/product-dev-store";
-import { cn } from "@/lib/utils";
+import { cn, toLocalDateKey } from "@/lib/utils";
 
 const USER_TYPES: UserType[] = ["B2B", "B2C", "Admin", "Multi"];
 const MOSCOW_TIERS: MoscowTier[] = ["Must", "Should", "Could"];
@@ -740,7 +740,7 @@ export default function ProductDev() {
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    const date = new Date().toISOString().slice(0, 10);
+    const date = toLocalDateKey();
     link.href = url;
     link.download = `product-dev-export-${date}.json`;
     document.body.appendChild(link);

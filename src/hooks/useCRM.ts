@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Contact, Task, Stage, Activity, ActivityType, DEFAULT_STAGES, ResearchList, ResearchEntry, ResearchStatus, ResearchPriority, EisenhowerItem, Project, ProjectVisit, ProjectStatus, VisitStatus, Creator } from '@/types/crm';
 import { addDays, format } from 'date-fns';
+import { toLocalDateKey } from '@/lib/utils';
 
 const STORAGE_KEYS = {
   contacts: 'simplecrm_contacts',
@@ -702,17 +703,17 @@ export function useCRM() {
   }, [tasks]);
 
   const getTasksForToday = useCallback(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = toLocalDateKey();
     return tasks.filter(t => !t.completed && t.dueDate <= today);
   }, [tasks]);
 
   const getOverdueTasks = useCallback(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = toLocalDateKey();
     return tasks.filter(t => !t.completed && t.dueDate < today);
   }, [tasks]);
 
   const getUpcomingTasks = useCallback(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = toLocalDateKey();
     return tasks.filter(t => !t.completed && t.dueDate > today);
   }, [tasks]);
 

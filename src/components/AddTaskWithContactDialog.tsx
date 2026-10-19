@@ -22,6 +22,7 @@ import { Switch } from '@/components/ui/switch';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { toLocalDateKey } from '@/lib/utils';
 
 interface AddTaskWithContactDialogProps {
   trigger?: React.ReactNode;
@@ -56,7 +57,7 @@ export function AddTaskWithContactDialog({
     contactId: defaultContactId || '',
     title: '',
     description: '',
-    dueDate: new Date().toISOString().split('T')[0],
+    dueDate: toLocalDateKey(),
     dueTime: '',
     hasReminder: true,
   });
@@ -101,7 +102,7 @@ export function AddTaskWithContactDialog({
       contactId: '',
       title: '',
       description: '',
-      dueDate: new Date().toISOString().split('T')[0],
+      dueDate: toLocalDateKey(),
       dueTime: '',
       hasReminder: true,
     });

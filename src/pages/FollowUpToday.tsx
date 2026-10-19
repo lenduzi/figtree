@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarCheck, AlertTriangle, Clock, CheckCircle2, Plus } from 'lucide-react';
+import { CalendarCheck, AlertTriangle, Clock, CheckCircle2, Plus, Megaphone, Snowflake, ChevronRight } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { TaskItem } from '@/components/TaskItem';
 import { TaskDetailDialog } from '@/components/TaskDetailDialog';
@@ -8,8 +8,10 @@ import { AddTaskWithContactDialog } from '@/components/AddTaskWithContactDialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Task } from '@/types/crm';
-import { addDays } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { addDays, differenceInCalendarDays } from 'date-fns';
+import { listDueOutreachLeads } from '@/lib/outreach-store';
+import { COLD_AFTER_DAYS, getColdContacts } from '@/lib/follow-up-health';
+import { cn, toLocalDateKey } from '@/lib/utils';
 
 interface RecentlyCompleted {
   task: Task;
@@ -17,16 +19,30 @@ interface RecentlyCompleted {
 }
 
 const FIRST_TASK_NUDGE_KEY = 'simplecrm_first_task_nudge_seen';
+const COLD_PREVIEW_LIMIT = 6;
+
+const formatOutreachDue = (nextActionAt: string | null) => {
+  if (!nextActionAt) return '';
+  const days = differenceInCalendarDays(new Date(), new Date(nextActionAt));
+  if (days <= 0) return 'Due today';
+  return `${days} day${days !== 1 ? 's' : ''} overdue`;
+};
 
 export default function FollowUpToday() {
   const navigate = useNavigate();
-  const { tasks, contacts, toggleTaskComplete, getContactById, rescheduleTask } = useCRMContext();
+  const { tasks, contacts, stages, meContactId, toggleTaskComplete, getContactById, rescheduleTask } = useCRMContext();
+  // Outreach leads live outside the CRM context; this page remounts on navigation, so reading once is enough.
+  const [dueOutreachLeads] = useState(() => listDueOutreachLeads());
+  const coldContacts = useMemo(
+    () => getColdContacts(contacts, tasks, stages, meContactId),
+    [contacts, tasks, stages, meContactId],
+  );
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [recentlyCompleted, setRecentlyCompleted] = useState<RecentlyCompleted[]>([]);
   const [showFirstTaskNudge, setShowFirstTaskNudge] = useState(false);
 
-  const today = new Date().toISOString().split('T')[0];
-  const comingUpEnd = addDays(new Date(), 7).toISOString().split('T')[0];
+  const today = toLocalDateKey();
+  const comingUpEnd = toLocalDateKey(addDays(new Date(), 7));
 
   // Clean up expired recently completed tasks
   useEffect(() => {
@@ -98,7 +114,7 @@ export default function FollowUpToday() {
     .filter(t => t.dueDate > today && t.dueDate <= comingUpEnd)
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
-  const totalActionItems = overdueTasks.length + todayTasks.length;
+  const totalActionItems = overdueTasks.length + todayTasks.length + dueOutreachLeads.length;
 
   return (
     <div className="p-6 lg:p-8 xl:p-10 max-w-4xl lg:max-w-5xl 2xl:max-w-6xl mx-auto">
@@ -264,6 +280,99 @@ export default function FollowUpToday() {
           </CardContent>
         </Card>
       </div>
+
+      {(dueOutreachLeads.length > 0 || coldContacts.length > 0) && (
+        <div className="mt-4 lg:mt-8 grid gap-4 lg:gap-8 lg:grid-cols-2 items-stretch">
+          {dueOutreachLeads.length > 0 && (
+            <Card className="flex flex-col h-full">
+              <CardHeader className="pb-3 lg:pb-4 lg:px-6">
+                <CardTitle className="flex items-center gap-2 text-foreground text-lg lg:text-xl">
+                  <Megaphone className="h-5 w-5 lg:h-6 lg:w-6" />
+                  Outreach Due ({dueOutreachLeads.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 space-y-2 lg:space-y-3 lg:px-6">
+                {dueOutreachLeads.map((lead) => {
+                  const dueLabel = formatOutreachDue(lead.nextActionAt);
+                  return (
+                    <button
+                      key={lead.id}
+                      onClick={() => navigate(`/outreach?lead=${lead.id}`)}
+                      className="w-full text-left p-3 lg:p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm lg:text-base font-medium text-foreground truncate">
+                            {lead.venueName || 'Untitled lead'}
+                          </p>
+                          <p className="text-xs lg:text-sm text-muted-foreground truncate">
+                            {[lead.nextAction, lead.city].filter(Boolean).join(' • ')}
+                          </p>
+                        </div>
+                        <span
+                          className={cn(
+                            'text-xs lg:text-sm shrink-0',
+                            dueLabel === 'Due today' ? 'text-accent-foreground' : 'text-destructive-foreground',
+                          )}
+                        >
+                          {dueLabel}
+                        </span>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                      </div>
+                    </button>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
+
+          {coldContacts.length > 0 && (
+            <Card className="flex flex-col h-full">
+              <CardHeader className="pb-3 lg:pb-4 lg:px-6">
+                <CardTitle className="flex items-center gap-2 text-foreground text-lg lg:text-xl">
+                  <Snowflake className="h-5 w-5 lg:h-6 lg:w-6" />
+                  Going Cold ({coldContacts.length})
+                </CardTitle>
+                <p className="text-xs lg:text-sm text-muted-foreground">
+                  Open deals with no task planned and no touch in {COLD_AFTER_DAYS}+ days
+                </p>
+              </CardHeader>
+              <CardContent className="flex-1 space-y-2 lg:space-y-3 lg:px-6">
+                {coldContacts.slice(0, COLD_PREVIEW_LIMIT).map(({ contact, daysSinceTouch }) => (
+                  <button
+                    key={contact.id}
+                    onClick={() => navigate(`/contacts/${contact.id}`)}
+                    className="w-full text-left p-3 lg:p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm lg:text-base font-medium text-foreground truncate">
+                          {contact.fullName}
+                        </p>
+                        <p className="text-xs lg:text-sm text-muted-foreground truncate">
+                          {contact.company || 'No company'}
+                        </p>
+                      </div>
+                      <span className="text-xs lg:text-sm text-amber-600 dark:text-amber-300 shrink-0">
+                        {daysSinceTouch}d quiet
+                      </span>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                    </div>
+                  </button>
+                ))}
+                {coldContacts.length > COLD_PREVIEW_LIMIT && (
+                  <button
+                    onClick={() => navigate('/contacts')}
+                    className="w-full text-center text-xs lg:text-sm text-muted-foreground hover:text-foreground py-1"
+                  >
+                    +{coldContacts.length - COLD_PREVIEW_LIMIT} more in Contacts
+                  </button>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {recentlyCompleted.length > 0 && (
         <Card className="mt-6 lg:mt-8 border-muted bg-muted/30">

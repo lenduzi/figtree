@@ -265,6 +265,22 @@ const saveImports = (imports: OutreachImportSummary[]) => {
   touchOutreachChange();
 };
 
+const INACTIVE_STATUSES: OutreachStatus[] = ["Won", "No", "Dead/Invalid", "Not Now"];
+
+/** True when the lead's next cadence step is due today or earlier. */
+export const isOutreachLeadDue = (lead: OutreachLead, now = new Date()) => {
+  if (INACTIVE_STATUSES.includes(lead.status)) return false;
+  if (!lead.nextActionAt) return false;
+  const startOfTomorrow = new Date(now);
+  startOfTomorrow.setHours(24, 0, 0, 0);
+  return new Date(lead.nextActionAt) < startOfTomorrow;
+};
+
+export const listDueOutreachLeads = (now = new Date()): OutreachLead[] =>
+  getLeads()
+    .filter((lead) => isOutreachLeadDue(lead, now))
+    .sort((a, b) => (a.nextActionAt ?? "").localeCompare(b.nextActionAt ?? ""));
+
 export const listOutreachLeads = (): OutreachLead[] => {
   return [...getLeads()].sort((a, b) => {
     const aNext = a.nextActionAt ? new Date(a.nextActionAt).getTime() : Number.POSITIVE_INFINITY;

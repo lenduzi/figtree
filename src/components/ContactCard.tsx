@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { forwardRef } from 'react';
 import { useCRMContext } from '@/contexts/CRMContext';
+import { isGoingCold } from '@/lib/follow-up-health';
+import { cn } from '@/lib/utils';
 
 interface ContactCardProps {
   contact: Contact;
@@ -18,6 +20,7 @@ export const ContactCard = forwardRef<HTMLDivElement, ContactCardProps>(
   ({ contact, stage, taskCount = 0, onClick, isDragging }, ref) => {
     const { meContactId } = useCRMContext();
     const isMe = contact.id === meContactId;
+    const cold = isGoingCold(contact, { stage, openTaskCount: taskCount, meContactId });
 
     return (
       <Card 
@@ -74,12 +77,25 @@ export const ContactCard = forwardRef<HTMLDivElement, ContactCardProps>(
 
           <div className="mt-3 lg:mt-4 pt-3 lg:pt-4 border-t border-border flex items-center justify-between">
             {contact.lastInteractionDate ? (
-              <span className="text-xs lg:text-sm text-muted-foreground flex items-center gap-1">
+              <span
+                className={cn(
+                  "text-xs lg:text-sm flex items-center gap-1",
+                  cold ? "text-amber-600 dark:text-amber-300" : "text-muted-foreground",
+                )}
+                title={cold ? "Going cold: no open task and no recent touch" : undefined}
+              >
                 <Clock className="h-3 w-3 lg:h-4 lg:w-4" />
                 {formatDistanceToNow(new Date(contact.lastInteractionDate), { addSuffix: true })}
               </span>
             ) : (
-              <span className="text-xs lg:text-sm text-muted-foreground">No interactions yet</span>
+              <span
+                className={cn(
+                  "text-xs lg:text-sm",
+                  cold ? "text-amber-600 dark:text-amber-300" : "text-muted-foreground",
+                )}
+              >
+                No interactions yet
+              </span>
             )}
             {taskCount > 0 && (
               <span className="text-xs lg:text-sm text-muted-foreground">

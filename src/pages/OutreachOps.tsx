@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   buildWhatsAppLink,
   importOutreachCsv,
+  isOutreachLeadDue,
   listOutreachLeads,
   logOutreachAction,
   updateOutreachLead,
@@ -111,15 +113,6 @@ const saveOutreachUiState = (state: OutreachUiState) => {
 
 const getLeadDisplayName = (lead: OutreachLead) => lead.venueName || "Untitled lead";
 
-const getDueStatus = (lead: OutreachLead) => {
-  if (["Won", "No", "Dead/Invalid", "Not Now"].includes(lead.status)) return "";
-  if (!lead.nextActionAt) return "";
-  const dueDate = new Date(lead.nextActionAt);
-  const startOfTomorrow = new Date();
-  startOfTomorrow.setHours(24, 0, 0, 0);
-  return dueDate < startOfTomorrow ? "due" : "";
-};
-
 const formatDate = (value: string | null) => {
   if (!value) return "—";
   try {
@@ -132,7 +125,8 @@ const formatDate = (value: string | null) => {
 export default function OutreachOps() {
   const { addContact, addTask, stages } = useCRMContext();
   const [storedUi] = useState(() => loadOutreachUiState());
-  const [leads, setLeads] = useState<OutreachLead[]>([]);
+  // Load synchronously so the stale-selection check below doesn't clear a valid selection on mount.
+  const [leads, setLeads] = useState<OutreachLead[]>(() => listOutreachLeads());
   const [search, setSearch] = useState(() => storedUi?.search ?? "");
   const [statusFilter, setStatusFilter] = useState<"all" | OutreachStatus>(() => {
     if (storedUi?.statusFilter === "all") return "all";
@@ -150,7 +144,10 @@ export default function OutreachOps() {
   });
   const [keywordFilter, setKeywordFilter] = useState<string>(() => storedUi?.keywordFilter ?? "all");
   const [dueOnly, setDueOnly] = useState(() => Boolean(storedUi?.dueOnly));
-  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(() => storedUi?.selectedLeadId ?? null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(
+    () => searchParams.get("lead") ?? storedUi?.selectedLeadId ?? null,
+  );
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [disableDedupe, setDisableDedupe] = useState(false);
@@ -164,9 +161,13 @@ export default function OutreachOps() {
 
   const refreshLeads = () => setLeads(listOutreachLeads());
 
+  // ?lead=<id> deep links (from Follow-Up Today) open that lead once, then drop the param.
   useEffect(() => {
-    refreshLeads();
-  }, []);
+    if (!searchParams.has("lead")) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("lead");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!selectedLead) return;
@@ -192,7 +193,7 @@ export default function OutreachOps() {
       const matchesKeyword =
         keywordFilter === "all" ||
         lead.keywordsFoundBy.some((keyword) => keyword.toLowerCase() === keywordFilter.toLowerCase());
-      const matchesDue = !dueOnly || getDueStatus(lead) === "due";
+      const matchesDue = !dueOnly || isOutreachLeadDue(lead);
       return matchesSearch && matchesStatus && matchesBucket && matchesKeyword && matchesDue;
     });
   }, [leads, search, statusFilter, bucketFilter, keywordFilter, dueOnly]);
@@ -207,7 +208,7 @@ export default function OutreachOps() {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [leads]);
 
-  const dueLeads = useMemo(() => leads.filter((lead) => getDueStatus(lead) === "due"), [leads]);
+  const dueLeads = useMemo(() => leads.filter((lead) => isOutreachLeadDue(lead)), [leads]);
   const activeLeads = useMemo(
     () => leads.filter((lead) => !["Won", "No", "Dead/Invalid", "Not Now"].includes(lead.status)),
     [leads],
@@ -601,7 +602,7 @@ export default function OutreachOps() {
                 onClick={() => setSelectedLeadId(lead.id)}
                 className={cn(
                   "w-full text-left rounded-xl border bg-card p-4 shadow-sm transition-colors",
-                  getDueStatus(lead) === "due" && "border-primary/40 bg-primary/5",
+                  isOutreachLeadDue(lead) && "border-primary/40 bg-primary/5",
                 )}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -644,7 +645,7 @@ export default function OutreachOps() {
                 {filteredLeads.map((lead) => (
                   <TableRow
                     key={lead.id}
-                    className={cn("cursor-pointer", getDueStatus(lead) === "due" && "bg-accent/40")}
+                    className={cn("cursor-pointer", isOutreachLeadDue(lead) && "bg-accent/40")}
                     onClick={() => setSelectedLeadId(lead.id)}
                   >
                 <TableCell className="font-medium text-foreground">
