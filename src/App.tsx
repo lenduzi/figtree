@@ -34,6 +34,7 @@ import BusinessModel from "./pages/BusinessModel";
 import ContactDetail from "./pages/ContactDetail";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import Privacy from "./pages/Privacy";
 
 const queryClient = new QueryClient();
 const APP_ENTRY_BANNER_KEY = "simplecrm_app_entry_banner_seen";
@@ -95,7 +96,9 @@ function AppContent() {
   })();
   const marketingParam = new URLSearchParams(location.search).get("marketing") === "1";
   const isMarketing = location.pathname === "/marketing" || (location.pathname === "/" && marketingParam);
-  const isLanding = isMarketing || (location.pathname === "/" && !hasUsed);
+  // Public pages render without the app shell or sign-in.
+  const isLanding =
+    isMarketing || location.pathname === "/privacy" || (location.pathname === "/" && !hasUsed);
   // The app itself needs a signed-in user and their data loaded from Supabase.
   const appGate = (() => {
     if (isLanding) return null;
@@ -226,6 +229,7 @@ function AppContent() {
               <Routes>
                 <Route path="/" element={<LandingHome />} />
                 <Route path="/marketing" element={<LandingHome />} />
+                <Route path="/privacy" element={<Privacy />} />
                 <Route path="/app" element={<FollowUpToday />} />
                 <Route path="/contacts" element={<Contacts />} />
                 <Route path="/contacts/:id" element={<ContactDetail />} />
