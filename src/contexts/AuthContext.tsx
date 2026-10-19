@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { syncTimeZone } from '@/lib/notifications';
 
 type AuthContextType = {
   session: Session | null;
@@ -32,6 +33,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
     };
   }, []);
+
+  const userId = session?.user.id;
+  useEffect(() => {
+    if (!userId) return;
+    syncTimeZone().catch((error) => console.error('Figtree: failed to save timezone', error));
+  }, [userId]);
 
   return <AuthContext.Provider value={{ session, status }}>{children}</AuthContext.Provider>;
 }
