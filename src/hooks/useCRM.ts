@@ -1,13 +1,30 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { toast } from 'sonner';
 import { Contact, Task, Stage, Activity, ActivityType, DEFAULT_STAGES, ResearchList, ResearchEntry, ResearchStatus, ResearchPriority, EisenhowerItem, Project, ProjectVisit, ProjectStatus, VisitStatus, Creator } from '@/types/crm';
 import { addDays, format } from 'date-fns';
 import { toLocalDateKey } from '@/lib/utils';
+import {
+  activityFromRow,
+  activityToRow,
+  contactFromRow,
+  contactToRow,
+  createTableSync,
+  fetchAll,
+  hasPendingWrites,
+  importBackupIntoTables,
+  setSyncUser,
+  setWriteErrorHandler,
+  stageFromRow,
+  stageToRow,
+  taskFromRow,
+  taskToRow,
+  waitForWrites,
+} from '@/lib/db';
+import { loadOutreachData } from '@/lib/outreach-store';
 
+// Contacts, tasks, stages and activities live in Supabase (see lib/db.ts);
+// the rest is still stored on the device.
 const STORAGE_KEYS = {
-  contacts: 'simplecrm_contacts',
-  tasks: 'simplecrm_tasks',
-  stages: 'simplecrm_stages',
-  activities: 'simplecrm_activities',
   researchLists: 'simplecrm_research_lists',
   researchEntries: 'simplecrm_research_entries',
   eisenhowerItems: 'simplecrm_eisenhower_items',
@@ -50,19 +67,46 @@ function markHasUsed() {
 const normalizeStageName = (name: string) => name.trim().toLowerCase();
 const isPilotAgreedStageName = (name: string) => normalizeStageName(name) === PILOT_AGREED_STAGE_NAME;
 
-export function useCRM() {
-  const [contacts, setContacts] = useState<Contact[]>(() => 
-    loadFromStorage(STORAGE_KEYS.contacts, [])
-  );
-  const [tasks, setTasks] = useState<Task[]>(() => 
-    loadFromStorage(STORAGE_KEYS.tasks, [])
-  );
-  const [stages, setStages] = useState<Stage[]>(() => 
-    loadFromStorage(STORAGE_KEYS.stages, DEFAULT_STAGES)
-  );
-  const [activities, setActivities] = useState<Activity[]>(() =>
-    loadFromStorage(STORAGE_KEYS.activities, [])
-  );
+const REFRESH_ON_FOCUS_AFTER_MS = 30000;
+
+const stagesSync = createTableSync<Stage>({
+  table: 'stages',
+  keyOf: (stage) => stage.id,
+  toRow: stageToRow,
+  onConflict: 'user_id,id',
+});
+const contactsSync = createTableSync<Contact>({ table: 'contacts', keyOf: (c) => c.id, toRow: contactToRow });
+const tasksSync = createTableSync<Task>({ table: 'tasks', keyOf: (t) => t.id, toRow: taskToRow });
+const activitiesSync = createTableSync<Activity>({ table: 'activities', keyOf: (a) => a.id, toRow: activityToRow });
+
+const fetchCoreData = async () => {
+  const [stageRows, contactRows, taskRows, activityRows] = await Promise.all([
+    fetchAll('stages', 'sort_order'),
+    fetchAll('contacts', 'created_at'),
+    fetchAll('tasks', 'created_at'),
+    fetchAll('activities', 'occurred_at'),
+  ]);
+  return {
+    stages: stageRows.map(stageFromRow),
+    contacts: contactRows.map(contactFromRow),
+    tasks: taskRows.map(taskFromRow),
+    // The app keeps activities newest first.
+    activities: activityRows.map(activityFromRow).reverse(),
+  };
+};
+
+export type CRMDataStatus = 'loading' | 'ready' | 'error';
+
+export function useCRM(userId: string | null) {
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [stages, setStages] = useState<Stage[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [dataStatus, setDataStatus] = useState<CRMDataStatus>('loading');
+  const dataStatusRef = useRef<CRMDataStatus>('loading');
+  dataStatusRef.current = dataStatus;
+  const lastLoadRef = useRef(0);
+  const reloadScheduledRef = useRef(false);
   const [researchLists, setResearchLists] = useState<ResearchList[]>(() =>
     loadFromStorage(STORAGE_KEYS.researchLists, [])
   );
@@ -134,21 +178,101 @@ export function useCRM() {
     }
   });
 
-  useEffect(() => {
-    saveToStorage(STORAGE_KEYS.contacts, contacts);
-  }, [contacts]);
+  const loadData = useCallback(async (options: { importIfEmpty?: boolean } = {}) => {
+    let data = await fetchCoreData();
+    // First load after the move to Supabase: copy the cloud backup into the tables.
+    if (options.importIfEmpty && data.stages.length === 0 && data.contacts.length === 0) {
+      const result = await importBackupIntoTables();
+      if (result.imported) {
+        data = await fetchCoreData();
+      }
+    }
+    await loadOutreachData();
+
+    stagesSync.reset(data.stages);
+    contactsSync.reset(data.contacts);
+    tasksSync.reset(data.tasks);
+    activitiesSync.reset(data.activities);
+    // A brand-new account has no stages yet; the sync effect below saves the defaults.
+    setStages(data.stages.length > 0 ? data.stages : DEFAULT_STAGES);
+    setContacts(data.contacts);
+    setTasks(data.tasks);
+    setActivities(data.activities);
+    lastLoadRef.current = Date.now();
+    setDataStatus('ready');
+  }, []);
 
   useEffect(() => {
-    saveToStorage(STORAGE_KEYS.tasks, tasks);
-  }, [tasks]);
+    setSyncUser(userId);
+    if (!userId) return;
+    let cancelled = false;
+    setDataStatus('loading');
+    loadData({ importIfEmpty: true }).catch((error) => {
+      console.error('Figtree: failed to load data', error);
+      if (!cancelled) setDataStatus('error');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, loadData]);
+
+  const reloadData = useCallback(() => {
+    setDataStatus('loading');
+    return waitForWrites()
+      .then(() => loadData())
+      .catch((error) => {
+        console.error('Figtree: failed to load data', error);
+        setDataStatus('error');
+      });
+  }, [loadData]);
+
+  // A failed save leaves the screen out of step with the database, so reload.
+  useEffect(() => {
+    setWriteErrorHandler(() => {
+      if (reloadScheduledRef.current) return;
+      reloadScheduledRef.current = true;
+      toast.error("Couldn't save a change", { description: 'Reloading your data from the server.' });
+      waitForWrites()
+        .then(() => loadData())
+        .catch(() => setDataStatus('error'))
+        .finally(() => {
+          reloadScheduledRef.current = false;
+        });
+    });
+    return () => setWriteErrorHandler(null);
+  }, [loadData]);
+
+  // Pick up changes made on another device when coming back to the app.
+  useEffect(() => {
+    if (!userId) return;
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible' || dataStatusRef.current !== 'ready') return;
+      if (Date.now() - lastLoadRef.current < REFRESH_ON_FOCUS_AFTER_MS) return;
+      waitForWrites().then(() => {
+        if (hasPendingWrites()) return;
+        loadData().catch((error) => console.error('Figtree: background refresh failed', error));
+      });
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [userId, loadData]);
+
+  // Save changes. Order matters: stages before contacts before tasks/activities.
+  useEffect(() => {
+    if (dataStatus === 'ready') stagesSync.sync(stages);
+  }, [stages, dataStatus]);
 
   useEffect(() => {
-    saveToStorage(STORAGE_KEYS.stages, stages);
-  }, [stages]);
+    if (dataStatus === 'ready') contactsSync.sync(contacts);
+  }, [contacts, dataStatus]);
 
   useEffect(() => {
-    saveToStorage(STORAGE_KEYS.activities, activities);
-  }, [activities]);
+    if (dataStatus === 'ready') tasksSync.sync(tasks);
+  }, [tasks, dataStatus]);
+
+  useEffect(() => {
+    if (dataStatus === 'ready') activitiesSync.sync(activities);
+  }, [activities, dataStatus]);
 
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.researchLists, researchLists);
@@ -182,7 +306,7 @@ export function useCRM() {
   }, []);
 
   useEffect(() => {
-    if (contacts.length > 0) return;
+    if (dataStatus !== 'ready' || contacts.length > 0) return;
     let hasCreated = false;
     try {
       hasCreated = localStorage.getItem(ME_CONTACT_CREATED_KEY) === '1';
@@ -215,7 +339,7 @@ export function useCRM() {
     }
     setMeContactId(newContact.id);
     setContacts(prev => (prev.length === 0 ? [newContact] : prev));
-  }, [contacts.length, stages]);
+  }, [contacts.length, stages, dataStatus]);
 
   const defaultProjectStatus: ProjectStatus = 'Preparing';
 
@@ -746,6 +870,8 @@ export function useCRM() {
   }, []);
 
   return {
+    dataStatus,
+    reloadData,
     contacts,
     tasks,
     stages,

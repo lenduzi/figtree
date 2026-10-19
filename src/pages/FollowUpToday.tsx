@@ -20,6 +20,7 @@ interface RecentlyCompleted {
 
 const FIRST_TASK_NUDGE_KEY = 'simplecrm_first_task_nudge_seen';
 const COLD_PREVIEW_LIMIT = 6;
+const OUTREACH_PREVIEW_LIMIT = 6;
 
 const formatOutreachDue = (nextActionAt: string | null) => {
   if (!nextActionAt) return '';
@@ -32,7 +33,8 @@ export default function FollowUpToday() {
   const navigate = useNavigate();
   const { tasks, contacts, stages, meContactId, toggleTaskComplete, getContactById, rescheduleTask } = useCRMContext();
   // Outreach leads live outside the CRM context; this page remounts on navigation, so reading once is enough.
-  const [dueOutreachLeads] = useState(() => listDueOutreachLeads());
+  // Most recently due first: long-overdue leads from old campaigns matter least.
+  const [dueOutreachLeads] = useState(() => listDueOutreachLeads().reverse());
   const coldContacts = useMemo(
     () => getColdContacts(contacts, tasks, stages, meContactId),
     [contacts, tasks, stages, meContactId],
@@ -114,7 +116,7 @@ export default function FollowUpToday() {
     .filter(t => t.dueDate > today && t.dueDate <= comingUpEnd)
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
-  const totalActionItems = overdueTasks.length + todayTasks.length + dueOutreachLeads.length;
+  const totalActionItems = overdueTasks.length + todayTasks.length;
 
   return (
     <div className="p-6 lg:p-8 xl:p-10 max-w-4xl lg:max-w-5xl 2xl:max-w-6xl mx-auto">
@@ -292,7 +294,7 @@ export default function FollowUpToday() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex-1 space-y-2 lg:space-y-3 lg:px-6">
-                {dueOutreachLeads.map((lead) => {
+                {dueOutreachLeads.slice(0, OUTREACH_PREVIEW_LIMIT).map((lead) => {
                   const dueLabel = formatOutreachDue(lead.nextActionAt);
                   return (
                     <button
@@ -322,6 +324,14 @@ export default function FollowUpToday() {
                     </button>
                   );
                 })}
+                {dueOutreachLeads.length > OUTREACH_PREVIEW_LIMIT && (
+                  <button
+                    onClick={() => navigate('/outreach?due=1')}
+                    className="w-full text-center text-xs lg:text-sm text-muted-foreground hover:text-foreground py-1"
+                  >
+                    +{dueOutreachLeads.length - OUTREACH_PREVIEW_LIMIT} more in Outreach
+                  </button>
+                )}
               </CardContent>
             </Card>
           )}

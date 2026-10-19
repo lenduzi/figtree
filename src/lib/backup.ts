@@ -1,11 +1,12 @@
 import type { Resource } from "@/lib/resources-store";
 import type { ProductIdea } from "@/lib/product-dev-store";
 import type { BusinessModelState } from "@/lib/business-model-store";
+import { importBackupIntoTables } from "@/lib/db";
+import { listOutreachActions, listOutreachImports, listOutreachLeads } from "@/lib/outreach-store";
 import type { OutreachActionLog, OutreachImportSummary, OutreachLead } from "@/types/outreach";
 import {
   Activity,
   Contact,
-  DEFAULT_STAGES,
   EisenhowerItem,
   Project,
   ProjectVisit,
@@ -16,11 +17,9 @@ import {
   Task,
 } from "@/types/crm";
 
+// Device-local data. Contacts, tasks, stages, activities and outreach live in
+// Supabase tables; backups still include them, and restoreBackup writes them back.
 const STORAGE_KEYS = {
-  contacts: "simplecrm_contacts",
-  tasks: "simplecrm_tasks",
-  stages: "simplecrm_stages",
-  activities: "simplecrm_activities",
   researchLists: "simplecrm_research_lists",
   researchEntries: "simplecrm_research_entries",
   eisenhowerItems: "simplecrm_eisenhower_items",
@@ -28,9 +27,6 @@ const STORAGE_KEYS = {
   projectVisits: "simplecrm_project_visits",
   creators: "simplecrm_creators",
   resources: "simplecrm_resources_v1",
-  outreachLeads: "simplecrm_outreach_leads_v1",
-  outreachActions: "simplecrm_outreach_actions_v1",
-  outreachImports: "simplecrm_outreach_imports_v1",
   productDev: "simplecrm_product_dev_v1",
   businessModel: "simplecrm_business_model_v1",
 };
@@ -110,9 +106,9 @@ const readLocalExtras = () => ({
   productDev: readJsonFromStorage<ProductIdea[]>(STORAGE_KEYS.productDev, []),
   businessModel: readJsonFromStorage<BusinessModelState | null>(STORAGE_KEYS.businessModel, null),
   outreach: {
-    leads: readJsonFromStorage<OutreachLead[]>(STORAGE_KEYS.outreachLeads, []),
-    actions: readJsonFromStorage<OutreachActionLog[]>(STORAGE_KEYS.outreachActions, []),
-    imports: readJsonFromStorage<OutreachImportSummary[]>(STORAGE_KEYS.outreachImports, []),
+    leads: listOutreachLeads(),
+    actions: listOutreachActions(),
+    imports: listOutreachImports(),
   },
 });
 
@@ -235,13 +231,16 @@ export const validateBackup = (
   return { ok: true, data: value as CRMBackup };
 };
 
+/**
+ * Writes the device-local parts of a backup (everything not stored in Supabase
+ * tables). Cloud sync uses this to carry that data between devices.
+ */
 export const applyBackup = (
   backup: CRMBackup,
   options: { preserveMissingExtras?: boolean } = {},
 ): { ok: true } | { ok: false; error: string } => {
   const preserveMissingExtras = options.preserveMissingExtras ?? true;
   const settings = backup.data.settings ?? {};
-  const stagesToUse = settings.stages ?? DEFAULT_STAGES;
   const researchListsToUse = settings.researchLists ?? [];
   const existingEisenhower = readJsonFromStorage<EisenhowerItem[]>(STORAGE_KEYS.eisenhowerItems, []);
   const existingProjects = readJsonFromStorage<Project[]>(STORAGE_KEYS.projects, []);
@@ -250,9 +249,6 @@ export const applyBackup = (
   const existingResources = readJsonFromStorage<Resource[]>(STORAGE_KEYS.resources, []);
   const existingProductDev = readJsonFromStorage<ProductIdea[]>(STORAGE_KEYS.productDev, []);
   const existingBusinessModel = readJsonFromStorage<BusinessModelState | null>(STORAGE_KEYS.businessModel, null);
-  const existingOutreachLeads = readJsonFromStorage<OutreachLead[]>(STORAGE_KEYS.outreachLeads, []);
-  const existingOutreachActions = readJsonFromStorage<OutreachActionLog[]>(STORAGE_KEYS.outreachActions, []);
-  const existingOutreachImports = readJsonFromStorage<OutreachImportSummary[]>(STORAGE_KEYS.outreachImports, []);
 
   const eisenhowerItemsToUse =
     backup.data.eisenhowerItems ?? (preserveMissingExtras ? existingEisenhower : []);
@@ -264,20 +260,12 @@ export const applyBackup = (
   const productDevToUse = backup.data.productDev ?? (preserveMissingExtras ? existingProductDev : []);
   const businessModelToUse =
     backup.data.businessModel ?? (preserveMissingExtras ? existingBusinessModel : null);
-  const outreach = backup.data.outreach ?? {};
-  const outreachLeadsToUse = outreach.leads ?? (preserveMissingExtras ? existingOutreachLeads : []);
-  const outreachActionsToUse = outreach.actions ?? (preserveMissingExtras ? existingOutreachActions : []);
-  const outreachImportsToUse = outreach.imports ?? (preserveMissingExtras ? existingOutreachImports : []);
 
   try {
-    saveJsonToStorage(STORAGE_KEYS.contacts, backup.data.contacts);
-    saveJsonToStorage(STORAGE_KEYS.tasks, backup.data.tasks);
-    saveJsonToStorage(STORAGE_KEYS.activities, backup.data.activities);
     saveJsonToStorage(STORAGE_KEYS.researchEntries, backup.data.researchEntries);
     saveJsonToStorage(STORAGE_KEYS.projects, projectsToUse);
     saveJsonToStorage(STORAGE_KEYS.projectVisits, projectVisitsToUse);
     saveJsonToStorage(STORAGE_KEYS.creators, creatorsToUse);
-    saveJsonToStorage(STORAGE_KEYS.stages, stagesToUse);
     saveJsonToStorage(STORAGE_KEYS.researchLists, researchListsToUse);
     saveJsonToStorage(STORAGE_KEYS.eisenhowerItems, eisenhowerItemsToUse);
     saveJsonToStorage(STORAGE_KEYS.resources, resourcesToUse);
@@ -287,11 +275,24 @@ export const applyBackup = (
     } else {
       localStorage.removeItem(STORAGE_KEYS.businessModel);
     }
-    saveJsonToStorage(STORAGE_KEYS.outreachLeads, outreachLeadsToUse);
-    saveJsonToStorage(STORAGE_KEYS.outreachActions, outreachActionsToUse);
-    saveJsonToStorage(STORAGE_KEYS.outreachImports, outreachImportsToUse);
     return { ok: true };
   } catch {
     return { ok: false, error: "Import failed. Please try again with a valid backup file." };
   }
+};
+
+/**
+ * Full restore: replaces the Supabase CRM tables with the backup's contacts,
+ * tasks, stages, activities and outreach, then writes the device-local parts.
+ */
+export const restoreBackup = async (
+  backup: CRMBackup,
+): Promise<{ ok: true } | { ok: false; error: string }> => {
+  try {
+    await importBackupIntoTables(backup);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, error: `Restore failed: ${message}` };
+  }
+  return applyBackup(backup);
 };

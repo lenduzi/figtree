@@ -20,6 +20,7 @@ const PULL_POLL_MS = 45000;
 
 export default function CloudSync() {
   const {
+    dataStatus,
     contacts,
     tasks,
     stages,
@@ -79,7 +80,12 @@ export default function CloudSync() {
     };
   }, []);
 
+  // Until the CRM data has loaded from Supabase the backup would be empty, and
+  // pushing it would overwrite the real cloud backup.
+  const dataReady = dataStatus === 'ready';
+
   useEffect(() => {
+    if (!dataReady) return;
     if (!supabase || !session) {
       setBootstrapStatus('ready');
       return;
@@ -148,17 +154,17 @@ export default function CloudSync() {
     return () => {
       isMounted = false;
     };
-  }, [session]);
+  }, [session, dataReady]);
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !session) return;
+    if (!isSupabaseConfigured || !session || !dataReady) return;
     if (bootstrapStatus !== 'ready') return;
     const interval = window.setInterval(() => {
       if (!isSyncEnabled()) return;
       setTick((prev) => prev + 1);
     }, SYNC_INTERVAL_MS);
     return () => window.clearInterval(interval);
-  }, [session, bootstrapStatus]);
+  }, [session, bootstrapStatus, dataReady]);
 
   const backup = useMemo(
     () =>
@@ -180,7 +186,7 @@ export default function CloudSync() {
   const dataHash = useMemo(() => JSON.stringify(backup.data), [backup]);
 
   useEffect(() => {
-    if (!supabase || !session) return;
+    if (!supabase || !session || !dataReady) return;
     if (bootstrapStatus !== 'ready') return;
     if (!isSyncEnabled()) return;
     if (dataHash === lastDataHashRef.current) return;
@@ -217,10 +223,10 @@ export default function CloudSync() {
         window.clearTimeout(debounceRef.current);
       }
     };
-  }, [backup, dataHash, session, bootstrapStatus]);
+  }, [backup, dataHash, session, bootstrapStatus, dataReady]);
 
   useEffect(() => {
-    if (!supabase || !session) return;
+    if (!supabase || !session || !dataReady) return;
     if (bootstrapStatus !== 'ready') return;
     if (!isSyncEnabled()) return;
 
@@ -261,7 +267,7 @@ export default function CloudSync() {
     checkForCloudUpdate();
     const interval = window.setInterval(checkForCloudUpdate, PULL_POLL_MS);
     return () => window.clearInterval(interval);
-  }, [session, dataHash, bootstrapStatus]);
+  }, [session, dataHash, bootstrapStatus, dataReady]);
 
   return null;
 }

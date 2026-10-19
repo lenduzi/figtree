@@ -143,8 +143,8 @@ export default function OutreachOps() {
     return "all";
   });
   const [keywordFilter, setKeywordFilter] = useState<string>(() => storedUi?.keywordFilter ?? "all");
-  const [dueOnly, setDueOnly] = useState(() => Boolean(storedUi?.dueOnly));
   const [searchParams, setSearchParams] = useSearchParams();
+  const [dueOnly, setDueOnly] = useState(() => searchParams.get("due") === "1" || Boolean(storedUi?.dueOnly));
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(
     () => searchParams.get("lead") ?? storedUi?.selectedLeadId ?? null,
   );
@@ -161,11 +161,12 @@ export default function OutreachOps() {
 
   const refreshLeads = () => setLeads(listOutreachLeads());
 
-  // ?lead=<id> deep links (from Follow-Up Today) open that lead once, then drop the param.
+  // ?lead=<id> and ?due=1 deep links (from Follow-Up Today) apply once, then drop the params.
   useEffect(() => {
-    if (!searchParams.has("lead")) return;
+    if (!searchParams.has("lead") && !searchParams.has("due")) return;
     const next = new URLSearchParams(searchParams);
     next.delete("lead");
+    next.delete("due");
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
 

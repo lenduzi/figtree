@@ -9,6 +9,9 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { CRMProvider, useCRMContext } from "@/contexts/CRMContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { SignInScreen } from "@/components/SignInScreen";
+import { Button } from "@/components/ui/button";
 import { AppThemeProvider, useAppTheme } from "@/contexts/AppThemeContext";
 import type { AppTheme } from "@/contexts/AppThemeContext";
 import { CommandPalette } from "@/components/CommandPalette";
@@ -54,6 +57,14 @@ const setStoredThemeMode = (appTheme: AppTheme, mode: "light" | "dark") => {
   }
 };
 
+function LoadingScreen() {
+  return (
+    <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center">
+      <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" aria-label="Loading" />
+    </div>
+  );
+}
+
 function AppContent() {
   const [addContactOpen, setAddContactOpen] = useState(false);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
@@ -64,12 +75,15 @@ function AppContent() {
   const { theme, setTheme } = useTheme();
   const previousAppThemeRef = useRef<AppTheme | null>(null);
   const {
+    dataStatus,
+    reloadData,
     showFirstTaskBanner,
     dismissFirstTaskBanner,
     firstActionSeen,
     firstActionNudgeDismissed,
     dismissFirstActionNudge,
   } = useCRMContext();
+  const { session, status: authStatus } = useAuth();
   const [showLearnMoreNudge, setShowLearnMoreNudge] = useState(false);
   const [showAppEntryBanner, setShowAppEntryBanner] = useState(false);
   const hasUsed = (() => {
@@ -82,6 +96,24 @@ function AppContent() {
   const marketingParam = new URLSearchParams(location.search).get("marketing") === "1";
   const isMarketing = location.pathname === "/marketing" || (location.pathname === "/" && marketingParam);
   const isLanding = isMarketing || (location.pathname === "/" && !hasUsed);
+  // The app itself needs a signed-in user and their data loaded from Supabase.
+  const appGate = (() => {
+    if (isLanding) return null;
+    if (authStatus === "loading") return <LoadingScreen />;
+    if (!session) return <SignInScreen />;
+    if (dataStatus === "loading") return <LoadingScreen />;
+    if (dataStatus === "error") {
+      return (
+        <div className="min-h-[calc(100vh-3.5rem)] flex flex-col items-center justify-center gap-3 p-6 text-center">
+          <p className="font-medium text-foreground">Couldn't load your data.</p>
+          <p className="text-sm text-muted-foreground">Check your connection and try again.</p>
+          <Button onClick={() => reloadData()}>Retry</Button>
+        </div>
+      );
+    }
+    return null;
+  })();
+  const showAppChrome = !isLanding && !appGate;
   const mobileTitle = (() => {
     const path = location.pathname;
     if (path === "/app" || path === "/") return "Tasks";
@@ -174,14 +206,14 @@ function AppContent() {
       <CloudSync />
       <SidebarProvider>
         <div className="min-h-screen flex w-full">
-          {!isLanding && <AppSidebar />}
+          {showAppChrome && <AppSidebar />}
           <main
             ref={mainRef}
-            className={`flex-1 overflow-auto ${isLanding ? '' : 'pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0'}`}
+            className={`flex-1 overflow-auto ${showAppChrome ? 'pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0' : ''}`}
           >
             {!isLanding && (
               <header className="h-14 border-b border-border flex items-center px-6 md:px-4 gap-3">
-                <SidebarTrigger className="h-9 w-9 ml-2 hidden md:inline-flex" />
+                {showAppChrome && <SidebarTrigger className="h-9 w-9 ml-2 hidden md:inline-flex" />}
                 <div className="sm:hidden flex-1">
                   <span className="text-base font-semibold tracking-tight text-primary">{mobileTitle}</span>
                 </div>
@@ -190,33 +222,35 @@ function AppContent() {
                 </div>
               </header>
             )}
-            <Routes>
-              <Route path="/" element={<LandingHome />} />
-              <Route path="/marketing" element={<LandingHome />} />
-              <Route path="/app" element={<FollowUpToday />} />
-              <Route path="/contacts" element={<Contacts />} />
-              <Route path="/contacts/:id" element={<ContactDetail />} />
-              <Route path="/pipeline" element={<Pipeline />} />
-              <Route path="/outreach" element={<OutreachOps />} />
-              <Route path="/projects" element={<Projects />} />
-              <Route path="/dream-clients" element={<Planning />} />
-              <Route path="/planning" element={<Navigate to="/dream-clients" replace />} />
-              <Route path="/product-dev" element={<ProductDev />} />
-              <Route path="/revenue" element={<BusinessModel />} />
-              <Route path="/business-model" element={<Navigate to="/revenue" replace />} />
-              <Route path="/eisenhower" element={<Eisenhower />} />
-              <Route path="/resources" element={<Resources />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            {appGate ?? (
+              <Routes>
+                <Route path="/" element={<LandingHome />} />
+                <Route path="/marketing" element={<LandingHome />} />
+                <Route path="/app" element={<FollowUpToday />} />
+                <Route path="/contacts" element={<Contacts />} />
+                <Route path="/contacts/:id" element={<ContactDetail />} />
+                <Route path="/pipeline" element={<Pipeline />} />
+                <Route path="/outreach" element={<OutreachOps />} />
+                <Route path="/projects" element={<Projects />} />
+                <Route path="/dream-clients" element={<Planning />} />
+                <Route path="/planning" element={<Navigate to="/dream-clients" replace />} />
+                <Route path="/product-dev" element={<ProductDev />} />
+                <Route path="/revenue" element={<BusinessModel />} />
+                <Route path="/business-model" element={<Navigate to="/revenue" replace />} />
+                <Route path="/eisenhower" element={<Eisenhower />} />
+                <Route path="/resources" element={<Resources />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            )}
           </main>
         </div>
       </SidebarProvider>
-      {!isLanding && <MobileBottomNav />}
+      {showAppChrome && <MobileBottomNav />}
       {/* Hidden dialogs for command palette */}
       <AddContactDialog open={addContactOpen} onOpenChange={setAddContactOpen} triggerless />
       <AddTaskWithContactDialog open={addTaskOpen} onOpenChange={setAddTaskOpen} triggerless />
-      {!isLanding && showFirstTaskBanner && (
+      {showAppChrome && showFirstTaskBanner && (
         <FirstTaskBanner
           onDismiss={dismissFirstTaskBanner}
           title="✅ Nice – first task done."
@@ -226,7 +260,7 @@ function AppContent() {
           autoCloseMs={8000}
         />
       )}
-      {!isLanding && !showFirstTaskBanner && showLearnMoreNudge && (
+      {showAppChrome && !showFirstTaskBanner && showLearnMoreNudge && (
         <FirstTaskBanner
           onDismiss={() => {
             dismissFirstActionNudge();
@@ -244,7 +278,7 @@ function AppContent() {
           autoCloseMs={8000}
         />
       )}
-      {!isLanding && !showFirstTaskBanner && !showLearnMoreNudge && showAppEntryBanner && (
+      {showAppChrome && !showFirstTaskBanner && !showLearnMoreNudge && showAppEntryBanner && (
         <FirstTaskBanner
           onDismiss={() => {
             try {
@@ -282,9 +316,11 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <CRMProvider>
-              <AppContent />
-            </CRMProvider>
+            <AuthProvider>
+              <CRMProvider>
+                <AppContent />
+              </CRMProvider>
+            </AuthProvider>
           </BrowserRouter>
         </TooltipProvider>
       </AppThemeProvider>

@@ -12,13 +12,16 @@ import {
   OutreachLead,
   OutreachStatus,
 } from "@/types/outreach";
-import { OUTREACH_LAST_CHANGE_KEY } from "@/lib/backup";
-
-const STORAGE_KEYS = {
-  leads: "simplecrm_outreach_leads_v1",
-  actions: "simplecrm_outreach_actions_v1",
-  imports: "simplecrm_outreach_imports_v1",
-};
+import {
+  createTableSync,
+  fetchAll,
+  outreachActionFromRow,
+  outreachActionToRow,
+  outreachImportFromRow,
+  outreachImportToRow,
+  outreachLeadFromRow,
+  outreachLeadToRow,
+} from "@/lib/db";
 
 const DEFAULT_SOURCE = "csv_import";
 
@@ -50,42 +53,45 @@ const SCORE_THRESHOLDS = {
   b: 40,
 };
 
-const getStorage = () => {
-  if (typeof window === "undefined") return null;
-  return window.localStorage;
+// Outreach data lives in Supabase. It's loaded into memory once at startup
+// (loadOutreachData) so the rest of this module can stay synchronous; every
+// save diffs against the last saved state and writes the changes.
+let leadsCache: OutreachLead[] = [];
+let actionsCache: OutreachActionLog[] = [];
+let importsCache: OutreachImportSummary[] = [];
+
+const leadsSync = createTableSync<OutreachLead>({
+  table: "outreach_leads",
+  keyOf: (lead) => lead.id,
+  toRow: outreachLeadToRow,
+});
+const actionsSync = createTableSync<OutreachActionLog>({
+  table: "outreach_actions",
+  keyOf: (action) => action.id,
+  toRow: outreachActionToRow,
+});
+const importsSync = createTableSync<OutreachImportSummary>({
+  table: "outreach_imports",
+  keyOf: (summary) => summary.id,
+  toRow: outreachImportToRow,
+});
+
+export const loadOutreachData = async () => {
+  const [leadRows, actionRows, importRows] = await Promise.all([
+    fetchAll("outreach_leads", "created_at"),
+    fetchAll("outreach_actions", "created_at"),
+    fetchAll("outreach_imports", "created_at"),
+  ]);
+  leadsCache = leadRows.map(outreachLeadFromRow);
+  actionsCache = actionRows.map(outreachActionFromRow);
+  importsCache = importRows.map(outreachImportFromRow);
+  leadsSync.reset(leadsCache);
+  actionsSync.reset(actionsCache);
+  importsSync.reset(importsCache);
 };
 
-const safeParse = <T>(raw: string | null, fallback: T): T => {
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-};
-
-const saveToStorage = <T>(key: string, value: T) => {
-  const storage = getStorage();
-  if (!storage) return;
-  storage.setItem(key, JSON.stringify(value));
-};
-
-const touchOutreachChange = () => {
-  const storage = getStorage();
-  if (!storage) return;
-  try {
-    storage.setItem(OUTREACH_LAST_CHANGE_KEY, new Date().toISOString());
-  } catch {
-    // ignore storage errors
-  }
-};
-
-const generateId = () => {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `out_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-};
+// Ids are uuid columns in the database.
+const generateId = () => crypto.randomUUID();
 
 const normalizeText = (value: string) => value.trim().toLowerCase();
 
@@ -232,37 +238,33 @@ const scheduleNextAction = (
   };
 };
 
-const getLeads = (): OutreachLead[] => {
-  const storage = getStorage();
-  if (!storage) return [];
-  return safeParse(storage.getItem(STORAGE_KEYS.leads), [] as OutreachLead[]);
-};
+// Callers mutate the returned arrays before saving them, so hand out copies.
+const getLeads = (): OutreachLead[] => [...leadsCache];
 
 const saveLeads = (leads: OutreachLead[]) => {
-  saveToStorage(STORAGE_KEYS.leads, leads);
-  touchOutreachChange();
+  leadsCache = [...leads];
+  leadsSync.sync(leadsCache);
 };
 
-const getActions = (): OutreachActionLog[] => {
-  const storage = getStorage();
-  if (!storage) return [];
-  return safeParse(storage.getItem(STORAGE_KEYS.actions), [] as OutreachActionLog[]);
-};
+const getActions = (): OutreachActionLog[] => [...actionsCache];
 
 const saveActions = (actions: OutreachActionLog[]) => {
-  saveToStorage(STORAGE_KEYS.actions, actions);
-  touchOutreachChange();
+  actionsCache = [...actions];
+  actionsSync.sync(actionsCache);
 };
 
-const getImports = (): OutreachImportSummary[] => {
-  const storage = getStorage();
-  if (!storage) return [];
-  return safeParse(storage.getItem(STORAGE_KEYS.imports), [] as OutreachImportSummary[]);
-};
+const getImports = (): OutreachImportSummary[] => [...importsCache];
 
 const saveImports = (imports: OutreachImportSummary[]) => {
-  saveToStorage(STORAGE_KEYS.imports, imports);
-  touchOutreachChange();
+  importsCache = [...imports];
+  importsSync.sync(importsCache);
+};
+
+export const clearOutreachData = () => {
+  // Leads cascade to their actions in the database.
+  saveLeads([]);
+  saveActions([]);
+  saveImports([]);
 };
 
 const INACTIVE_STATUSES: OutreachStatus[] = ["Won", "No", "Dead/Invalid", "Not Now"];

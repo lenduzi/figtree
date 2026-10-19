@@ -25,7 +25,7 @@ import { useNavigate } from 'react-router-dom';
 import { AppTheme, useAppTheme } from '@/contexts/AppThemeContext';
 import type { Session } from '@supabase/supabase-js';
 import {
-  applyBackup,
+  restoreBackup,
   buildBackup,
   CLOUD_BACKUP_TABLE,
   CLOUD_LAST_PULL_KEY,
@@ -36,6 +36,7 @@ import {
 } from '@/lib/backup';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { toLocalDateKey } from '@/lib/utils';
+import { clearOutreachData } from '@/lib/outreach-store';
 const FEEDBACK_EMAIL = 'lennhahn@gmail.com';
 const FEEDBACK_ENDPOINT = `https://formsubmit.co/ajax/${FEEDBACK_EMAIL}`;
 
@@ -324,7 +325,7 @@ export default function Settings() {
       toast.error(validation.error);
       return;
     }
-    const result = applyBackup(validation.data);
+    const result = await restoreBackup(validation.data);
     if (!result.ok) {
       setSyncStatus('failed');
       toast.error(result.error);
@@ -367,16 +368,10 @@ export default function Settings() {
   };
 
   const handleClearOutreach = () => {
-    try {
-      localStorage.removeItem('simplecrm_outreach_leads_v1');
-      localStorage.removeItem('simplecrm_outreach_actions_v1');
-      localStorage.removeItem('simplecrm_outreach_imports_v1');
-      toast('Outreach data cleared', {
-        description: 'You can re-import your CSV now.',
-      });
-    } catch {
-      toast('Unable to clear outreach data');
-    }
+    clearOutreachData();
+    toast('Outreach data cleared', {
+      description: 'You can re-import your CSV now.',
+    });
   };
 
   const handleImportClick = () => {
@@ -403,9 +398,9 @@ export default function Settings() {
     }
   };
 
-  const applyImport = () => {
+  const applyImport = async () => {
     if (!pendingImport) return;
-    const result = applyBackup(pendingImport);
+    const result = await restoreBackup(pendingImport);
     if (!result.ok) {
       toast.error(result.error);
       return;
@@ -433,7 +428,10 @@ export default function Settings() {
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
           <p>A lightweight personal CRM to manage contacts, track stages, and never miss a follow-up.</p>
-          <p className="mt-2">All data is stored locally in your browser.</p>
+          <p className="mt-2">
+            Contacts, tasks, pipeline and outreach are saved to your account. Projects, resources and planning
+            tools are stored on this device and backed up with cloud sync.
+          </p>
         </CardContent>
       </Card>
 
