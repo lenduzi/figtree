@@ -19,10 +19,12 @@ import {
   X,
 } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
+import { instagramUrl } from '@/lib/utils';
 import { AddActivityDialog } from '@/components/AddActivityDialog';
 import { AddTaskDialog } from '@/components/AddTaskDialog';
 import { CompanyEmails } from '@/components/CompanyEmails';
 import { CompanySequenceCard } from '@/components/CompanySequenceCard';
+import { CompanyResearchCard } from '@/components/CompanyResearchCard';
 import { TaskItem } from '@/components/TaskItem';
 import { TaskDetailDialog } from '@/components/TaskDetailDialog';
 import { Button } from '@/components/ui/button';
@@ -433,7 +435,7 @@ export default function CompanyDetail() {
                 )}
                 {company.instagram && (
                   <a
-                    href={`https://instagram.com/${company.instagram.replace(/^@/, '')}`}
+                    href={instagramUrl(company.instagram)}
                     target="_blank"
                     rel="noreferrer"
                     className="flex items-center gap-2 hover:text-primary"
@@ -631,6 +633,8 @@ export default function CompanyDetail() {
         {/* Right: what to do */}
         <div className="lg:col-span-3 space-y-6">
           <CompanySequenceCard company={company} />
+
+          <CompanyResearchCard company={company} />
 
           <Card>
             <CardHeader className="pb-3">

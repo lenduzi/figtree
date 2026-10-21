@@ -1,4 +1,4 @@
-import { BookOpen, Brain, Building2, CalendarCheck, MapPin, Kanban, MoreHorizontal, Settings, Phone, Lightbulb, Workflow } from "lucide-react";
+import { BookOpen, Brain, Building2, CalendarCheck, MapPin, Kanban, MoreHorizontal, Settings, Phone, Lightbulb, Workflow, Radar } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { cn } from "@/lib/utils";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -23,7 +23,7 @@ const isActiveRoute = (pathname: string, to: string) => {
 export function MobileBottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
-  const isOthersActive = ["/pipeline", "/calls", "/sequences", "/brain", "/projects", "/product-dev", "/resources"].some((route) =>
+  const isOthersActive = ["/pipeline", "/calls", "/sequences", "/prospecting", "/brain", "/projects", "/product-dev", "/resources"].some((route) =>
     location.pathname.startsWith(route),
   );
 
@@ -81,6 +81,10 @@ export function MobileBottomNav() {
             <DropdownMenuItem onClick={() => navigate("/sequences")}>
               <Workflow className="h-4 w-4 mr-2" />
               Sequences
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/prospecting")}>
+              <Radar className="h-4 w-4 mr-2" />
+              Prospecting
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/brain")}>
               <Brain className="h-4 w-4 mr-2" />

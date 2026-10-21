@@ -1,4 +1,4 @@
-import { CalendarCheck, Building2, Kanban, Settings, MapPin, BookOpen, Info, Phone, Lightbulb, Brain, Workflow } from 'lucide-react';
+import { CalendarCheck, Building2, Kanban, Settings, MapPin, BookOpen, Info, Phone, Lightbulb, Brain, Workflow, Radar } from 'lucide-react';
 import figtreeLogo from '@/assets/figtree-logo.png';
 import { NavLink } from '@/components/NavLink';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -23,6 +23,7 @@ const crmItems = [
   { title: 'Pipeline', url: '/pipeline', icon: Kanban },
   { title: 'Call Mode', url: '/calls', icon: Phone },
   { title: 'Sequences', url: '/sequences', icon: Workflow },
+  { title: 'Prospecting', url: '/prospecting', icon: Radar },
 ];
 
 const operationsItems = [

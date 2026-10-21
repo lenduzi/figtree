@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarCheck, AlertTriangle, Clock, CheckCircle2, Plus, Phone, Snowflake, ChevronRight, User } from 'lucide-react';
+import { CalendarCheck, AlertTriangle, Clock, CheckCircle2, Plus, Phone, Snowflake, ChevronRight, User, Radar } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { TaskItem } from '@/components/TaskItem';
 import { TaskDetailDialog } from '@/components/TaskDetailDialog';
@@ -42,6 +42,7 @@ export default function FollowUpToday() {
       .sort((a, b) => (b.nextActionAt ?? '').localeCompare(a.nextActionAt ?? ''));
   }, [companies]);
   const coldCompanies = useMemo(() => getColdCompanies(companies, tasks), [companies, tasks]);
+  const prospectsToReview = companies.filter((company) => company.needsReview && company.fit).length;
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [recentlyCompleted, setRecentlyCompleted] = useState<RecentlyCompleted[]>([]);
   const [showFirstTaskNudge, setShowFirstTaskNudge] = useState(false);
@@ -187,6 +188,19 @@ export default function FollowUpToday() {
       </div>
 
       <ApprovalQueue />
+
+      {prospectsToReview > 0 && (
+        <button
+          onClick={() => navigate('/prospecting')}
+          className="mb-4 lg:mb-8 w-full text-left rounded-lg border border-primary/30 bg-card p-4 hover:bg-muted/40 flex items-center gap-3"
+        >
+          <Radar className="h-5 w-5 text-primary" />
+          <span className="flex-1 font-medium">
+            {prospectsToReview} new prospect{prospectsToReview === 1 ? '' : 's'} to review
+          </span>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </button>
+      )}
 
       <div className="grid gap-4 lg:gap-8 lg:grid-cols-2 items-stretch">
         <Card className="flex flex-col h-full">

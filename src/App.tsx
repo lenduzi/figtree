@@ -38,6 +38,8 @@ import NotFound from "./pages/NotFound";
 import Privacy from "./pages/Privacy";
 import Brain from "./pages/Brain";
 import Sequences from "./pages/Sequences";
+import Prospecting from "./pages/Prospecting";
+import { ResearchWatcher } from "@/components/ResearchWatcher";
 
 const queryClient = new QueryClient();
 const APP_ENTRY_BANNER_KEY = "simplecrm_app_entry_banner_seen";
@@ -137,6 +139,7 @@ function AppContent() {
     if (path.startsWith("/pipeline")) return "Pipeline";
     if (path.startsWith("/calls")) return "Call Mode";
     if (path.startsWith("/sequences")) return "Sequences";
+    if (path.startsWith("/prospecting")) return "Prospecting";
     if (path.startsWith("/projects")) return "Projects";
     if (path.startsWith("/product-dev")) return "Product Dev";
     if (path.startsWith("/revenue")) return "Revenue";
@@ -220,6 +223,7 @@ function AppContent() {
         onAddTask={() => setAddTaskOpen(true)}
       />
       <CloudSync />
+      {showAppChrome && <ResearchWatcher />}
       <SidebarProvider>
         <div className="min-h-screen flex w-full">
           {showAppChrome && <AppSidebar />}
@@ -251,6 +255,7 @@ function AppContent() {
                 <Route path="/pipeline" element={<Pipeline />} />
                 <Route path="/calls" element={<CallMode />} />
                 <Route path="/sequences" element={<Sequences />} />
+                <Route path="/prospecting" element={<Prospecting />} />
                 <Route path="/outreach" element={<Navigate to="/calls" replace />} />
                 <Route path="/projects" element={<Projects />} />
                 <Route path="/dream-clients" element={<Navigate to="/companies" replace />} />

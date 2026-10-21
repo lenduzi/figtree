@@ -192,11 +192,15 @@ export const companyFromRow = (row: Row): Company => ({
   nextActionAt: nullableStr(row.next_action_at),
   cadenceStep: num(row.cadence_step),
   lastActivityAt: nullableStr(row.last_activity_at),
+  research: str(row.research),
+  enrichedAt: nullableStr(row.enriched_at),
+  needsReview: Boolean(row.needs_review),
   createdAt: str(row.created_at),
   updatedAt: str(row.updated_at),
 });
 
-// lifecycle_changed_at and last_activity_at are maintained by triggers.
+// lifecycle_changed_at and last_activity_at are maintained by triggers;
+// research and enriched_at are written only by the research worker.
 export const companyToRow = (company: Company): Row => ({
   id: company.id,
   name: company.name ?? "",
@@ -221,6 +225,7 @@ export const companyToRow = (company: Company): Row => ({
   next_action: company.nextAction,
   next_action_at: company.nextActionAt,
   cadence_step: company.cadenceStep ?? 0,
+  needs_review: company.needsReview ?? false,
   created_at: company.createdAt,
 });
 

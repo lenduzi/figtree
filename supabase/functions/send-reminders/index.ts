@@ -205,7 +205,7 @@ const OPEN_DEAL_STAGES = ["talking", "meeting", "proposal", "pilot"];
 const CALL_STAGES = ["sourced", "qualified", "contacting", "talking"];
 
 const buildDigest = async (db: SupabaseClient, userId: string, local: { date: string }) => {
-  const [openTasks, companies, callsDue, drafts] = await Promise.all([
+  const [openTasks, companies, callsDue, drafts, prospects] = await Promise.all([
     db.from("tasks").select("title, due_date, company_id, contact_id").eq("user_id", userId).eq("completed", false)
       .order("due_date"),
     db.from("companies").select("id, name, city, lifecycle, last_activity_at, lifecycle_changed_at, created_at")
@@ -218,8 +218,11 @@ const buildDigest = async (db: SupabaseClient, userId: string, local: { date: st
       .neq("phone", "")
       .lt("next_action_at", `${addDays(local.date, 1)}T00:00:00Z`),
     db.from("emails").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "draft"),
+    db.from("companies").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("needs_review", true)
+      .not("fit", "is", null),
   ]);
   const toApprove = drafts.count ?? 0;
+  const newProspects = prospects.count ?? 0;
 
   const tasks = openTasks.data ?? [];
   const companyById = new Map((companies.data ?? []).map((company) => [company.id, company]));
@@ -242,6 +245,7 @@ const buildDigest = async (db: SupabaseClient, userId: string, local: { date: st
 
   const summary = [
     toApprove && `${toApprove} emails to approve`,
+    newProspects && `${newProspects} new prospects`,
     overdue.length && `${overdue.length} overdue`,
     dueToday.length && `${dueToday.length} due today`,
     calls && `${calls} calls due`,
@@ -255,6 +259,7 @@ const buildDigest = async (db: SupabaseClient, userId: string, local: { date: st
   };
   const lines: string[] = ["Here's what needs your attention today.", ""];
   if (toApprove) lines.push(`Emails to approve: ${toApprove} — ${appUrl()}/app`, "");
+  if (newProspects) lines.push(`New prospects to review: ${newProspects} — ${appUrl()}/prospecting`, "");
   if (overdue.length) lines.push(`Overdue (${overdue.length})`, ...overdue.slice(0, 15).map(taskLine), "");
   if (dueToday.length) lines.push(`Due today (${dueToday.length})`, ...dueToday.slice(0, 15).map(taskLine), "");
   if (calls) lines.push(`Calls due: ${calls} — ${appUrl()}/calls`, "");

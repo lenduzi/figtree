@@ -56,12 +56,12 @@ const SECTION_TITLES: Record<string, string> = {
   other: "Other",
 };
 
-const section = (title: string, content: string) => (content.trim() ? `<${title}>\n${content.trim()}\n</${title}>` : "");
+export const section = (title: string, content: string) => (content.trim() ? `<${title}>\n${content.trim()}\n</${title}>` : "");
 
-type BrainEntry = { section: string; title: string; content: string };
-type BrainFile = { id: string; path: string; filename: string; mime_type: string; size: number; description: string };
+export type BrainEntry = { section: string; title: string; content: string };
+export type BrainFile = { id: string; path: string; filename: string; mime_type: string; size: number; description: string };
 
-const renderBrain = (entries: BrainEntry[], files: BrainFile[], aiContext: string) => {
+export const renderBrain = (entries: BrainEntry[], files: BrainFile[], aiContext: string) => {
   const bySection = Object.keys(SECTION_TITLES).map((key) => {
     const items = entries.filter((entry) => (SECTION_TITLES[entry.section] ? entry.section : "other") === key);
     if (items.length === 0) return "";
@@ -111,7 +111,7 @@ export const generateDraft = async (
 
   const { data: company } = await db
     .from("companies")
-    .select("id, name, type, industry, city, website, lifecycle, lifecycle_changed_at, fit, fit_reason, lists, notes, last_activity_at")
+    .select("id, name, type, industry, city, website, lifecycle, lifecycle_changed_at, fit, fit_reason, lists, notes, research, last_activity_at")
     .eq("id", companyId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -172,6 +172,7 @@ export const generateDraft = async (
       .filter((person) => person.id !== recipient?.id)
       .map((person) => `${person.full_name}${person.role ? ` (${person.role})` : ""}`).join("\n")),
     section("notes", company.notes ?? ""),
+    section("research_brief", company.research ?? ""),
     section("activity_log_newest_first", (activities.data ?? [])
       .map((a) => `${a.occurred_at.slice(0, 10)} [${a.type}] ${a.description}${a.contact_id && nameOf.get(a.contact_id) ? ` (${nameOf.get(a.contact_id)})` : ""}`)
       .join("\n")),

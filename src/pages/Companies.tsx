@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
-import { Search, Workflow } from 'lucide-react';
+import { Search, Sparkles, Workflow } from 'lucide-react';
+import { toast } from 'sonner';
+import { ESTIMATED_COST_EUR, queueEnrichment } from '@/lib/research';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { AddCompanyDialog } from '@/components/AddCompanyDialog';
 import { LifecycleBadge } from '@/components/LifecycleBadge';
@@ -93,6 +95,21 @@ export default function Companies() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companies, search, stageFilter, typeFilter, listFilter, fitFilter, peopleByCompany]);
 
+  const unresearched = filtered.filter(
+    (company) => !company.enrichedAt || Date.now() - new Date(company.enrichedAt).getTime() > 30 * 86_400_000,
+  );
+
+  const handleResearch = async () => {
+    const cost = (unresearched.length * ESTIMATED_COST_EUR.enrich).toFixed(0);
+    if (!window.confirm(`Research ${unresearched.length} companies with AI? Roughly €${cost}, about one company per minute in the background.`)) return;
+    try {
+      const queued = await queueEnrichment(unresearched.map((company) => company.id));
+      toast(`Queued ${queued} for research`, { description: 'Results fill in over the next minutes; you can keep working.' });
+    } catch (error) {
+      toast.error('Could not queue research', { description: error instanceof Error ? error.message : String(error) });
+    }
+  };
+
   const nextStep = (company: Company) => {
     const taskDate = nextTaskByCompany.get(company.id);
     if (taskDate) return `Task ${taskDate}`;
@@ -109,7 +126,16 @@ export default function Companies() {
             {filtered.length} of {companies.length}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            disabled={unresearched.length === 0}
+            onClick={handleResearch}
+            title="Research every company in this filtered list that hasn't been researched in the last 30 days"
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            Research ({unresearched.length})
+          </Button>
           <Button
             variant="outline"
             disabled={filtered.length === 0}

@@ -422,3 +422,8 @@ verify_jwt = false
 # function checks the signed-in user itself for start/disconnect.
 [functions.gmail-oauth]
 verify_jwt = false
+
+# Called by pg_cron with the shared secret and by signed-in users ("enrich
+# now"); the function checks both itself.
+[functions.research-worker]
+verify_jwt = false

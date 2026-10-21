@@ -77,6 +77,11 @@ export interface Company {
   nextActionAt: string | null;
   cadenceStep: number;
   lastActivityAt: string | null;
+  /** AI research brief (written by the research worker). */
+  research: string;
+  enrichedAt: string | null;
+  /** An AI-found prospect waiting to be accepted or rejected. */
+  needsReview: boolean;
   createdAt: string;
   updatedAt: string;
 }
