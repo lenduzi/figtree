@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
-import { Search } from 'lucide-react';
+import { Search, Workflow } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { AddCompanyDialog } from '@/components/AddCompanyDialog';
 import { LifecycleBadge } from '@/components/LifecycleBadge';
+import { StartSequenceDialog } from '@/components/StartSequenceDialog';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -23,6 +25,7 @@ export default function Companies() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [limit, setLimit] = useState(PAGE_SIZE);
+  const [sequenceOpen, setSequenceOpen] = useState(false);
 
   const stageFilter = searchParams.get('stage') ?? ACTIVE;
   const typeFilter = searchParams.get('type') ?? ALL;
@@ -106,8 +109,20 @@ export default function Companies() {
             {filtered.length} of {companies.length}
           </p>
         </div>
-        <AddCompanyDialog defaultList={listFilter !== ALL ? listFilter : undefined} />
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            disabled={filtered.length === 0}
+            onClick={() => setSequenceOpen(true)}
+            title="Start a sequence for every company in this filtered list"
+          >
+            <Workflow className="h-4 w-4 mr-2" />
+            Start sequence ({filtered.length})
+          </Button>
+          <AddCompanyDialog defaultList={listFilter !== ALL ? listFilter : undefined} />
+        </div>
       </div>
+      <StartSequenceDialog open={sequenceOpen} onOpenChange={setSequenceOpen} companies={filtered} />
 
       <div className="flex flex-col lg:flex-row gap-3">
         <div className="relative flex-1">

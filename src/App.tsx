@@ -37,6 +37,7 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Privacy from "./pages/Privacy";
 import Brain from "./pages/Brain";
+import Sequences from "./pages/Sequences";
 
 const queryClient = new QueryClient();
 const APP_ENTRY_BANNER_KEY = "simplecrm_app_entry_banner_seen";
@@ -135,6 +136,7 @@ function AppContent() {
     if (path.startsWith("/companies") || path.startsWith("/contacts")) return "Companies";
     if (path.startsWith("/pipeline")) return "Pipeline";
     if (path.startsWith("/calls")) return "Call Mode";
+    if (path.startsWith("/sequences")) return "Sequences";
     if (path.startsWith("/projects")) return "Projects";
     if (path.startsWith("/product-dev")) return "Product Dev";
     if (path.startsWith("/revenue")) return "Revenue";
@@ -248,6 +250,7 @@ function AppContent() {
                 <Route path="/contacts/:id" element={<ContactRedirect />} />
                 <Route path="/pipeline" element={<Pipeline />} />
                 <Route path="/calls" element={<CallMode />} />
+                <Route path="/sequences" element={<Sequences />} />
                 <Route path="/outreach" element={<Navigate to="/calls" replace />} />
                 <Route path="/projects" element={<Projects />} />
                 <Route path="/dream-clients" element={<Navigate to="/companies" replace />} />

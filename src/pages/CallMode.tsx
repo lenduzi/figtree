@@ -160,7 +160,7 @@ function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (op
 }
 
 export default function CallMode() {
-  const { companies, contacts, getCompanyActivities, updateCompany, logActivity, addTask } = useCRMContext();
+  const { companies, contacts, tasks, getCompanyActivities, updateCompany, logActivity, addTask, toggleTaskComplete } = useCRMContext();
   const [searchParams, setSearchParams] = useSearchParams();
   const [queue, setQueue] = useState<Queue>('due');
   const [search, setSearch] = useState('');
@@ -292,6 +292,10 @@ export default function CallMode() {
         break;
     }
     updateCompany(selected.id, updates);
+    // A sequence's call step is done once the call is logged.
+    tasks
+      .filter((task) => !task.completed && task.companyId === selected.id && task.title.startsWith(`Call ${selected.name}:`))
+      .forEach((task) => toggleTaskComplete(task.id));
     toast(`${selected.name}: ${outcome.label}`);
     openCompany(nextInQueue());
   };

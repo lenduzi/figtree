@@ -10,7 +10,7 @@ export const isBrainFilePath = (path: string) => path.split("/")[1] === "brain";
 /** Gmail allows 25 MB of attachments per message. */
 export const MAX_ATTACHMENTS_BYTES = 25 * 1024 * 1024;
 
-export type EmailStatus = "scheduled" | "sending" | "sent" | "failed" | "cancelled";
+export type EmailStatus = "draft" | "scheduled" | "sending" | "sent" | "failed" | "cancelled";
 
 export type EmailRecord = {
   id: string;
@@ -25,8 +25,14 @@ export type EmailRecord = {
   replied_at: string | null;
   error: string | null;
   attachments: EmailAttachment[];
+  ai_draft: string | null;
+  enrollment_id: string | null;
+  step_index: number | null;
   created_at: string;
 };
+
+const EMAIL_COLUMNS =
+  "id, contact_id, company_id, to_email, subject, body, status, scheduled_for, sent_at, replied_at, error, attachments, ai_draft, enrollment_id, step_index, created_at";
 
 const getClient = () => {
   if (!supabase) throw new Error("Supabase is not configured");
@@ -63,7 +69,7 @@ export const disconnectGmail = () => invoke("gmail-oauth", { action: "disconnect
 export const listCompanyEmails = async (companyId: string) => {
   const { data, error } = await getClient()
     .from("emails")
-    .select("id, contact_id, company_id, to_email, subject, body, status, scheduled_for, sent_at, replied_at, error, attachments, created_at")
+    .select(EMAIL_COLUMNS)
     .eq("company_id", companyId)
     .order("created_at", { ascending: false });
   if (error) throw error;
@@ -141,3 +147,45 @@ export const removeAttachment = async (attachment: EmailAttachment) => {
 
 export const formatFileSize = (bytes: number) =>
   bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+
+/** Sequence drafts waiting for the user's approval, oldest first. */
+export const listDraftEmails = async () => {
+  const { data, error } = await getClient()
+    .from("emails")
+    .select(EMAIL_COLUMNS)
+    .eq("status", "draft")
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as EmailRecord[];
+};
+
+/** Updates a draft (what the user edited) and queues it to send at `scheduledFor`. */
+export const approveDraft = async (
+  emailId: string,
+  fields: { to: string; contactId: string | null; subject: string; body: string; attachments: EmailAttachment[]; scheduledFor: Date },
+) => {
+  const { error } = await getClient()
+    .from("emails")
+    .update({
+      to_email: fields.to,
+      contact_id: fields.contactId,
+      subject: fields.subject,
+      body: fields.body,
+      attachments: fields.attachments,
+      status: "scheduled",
+      scheduled_for: fields.scheduledFor.toISOString(),
+    })
+    .eq("id", emailId)
+    .eq("status", "draft");
+  if (error) throw error;
+};
+
+/** Skips a sequence draft; the sequence moves on to its next step. */
+export const skipDraft = async (emailId: string) => {
+  const { error } = await getClient()
+    .from("emails")
+    .update({ status: "cancelled", error: "Skipped" })
+    .eq("id", emailId)
+    .eq("status", "draft");
+  if (error) throw error;
+};

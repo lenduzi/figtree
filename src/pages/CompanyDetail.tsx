@@ -22,6 +22,7 @@ import { useCRMContext } from '@/contexts/CRMContext';
 import { AddActivityDialog } from '@/components/AddActivityDialog';
 import { AddTaskDialog } from '@/components/AddTaskDialog';
 import { CompanyEmails } from '@/components/CompanyEmails';
+import { CompanySequenceCard } from '@/components/CompanySequenceCard';
 import { TaskItem } from '@/components/TaskItem';
 import { TaskDetailDialog } from '@/components/TaskDetailDialog';
 import { Button } from '@/components/ui/button';
@@ -629,6 +630,8 @@ export default function CompanyDetail() {
 
         {/* Right: what to do */}
         <div className="lg:col-span-3 space-y-6">
+          <CompanySequenceCard company={company} />
+
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-lg">Notes</CardTitle>

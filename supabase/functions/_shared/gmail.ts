@@ -117,12 +117,16 @@ export const htmlToText = (html: string) =>
 
 export type MailAttachment = { filename: string; mimeType: string; data: Uint8Array };
 
+/** Headers that make a message a reply in an existing thread. */
+export type ThreadReply = { threadId: string; inReplyTo: string };
+
 export const buildMimeMessage = (message: {
   to: string;
   subject: string;
   text: string;
   html: string;
   attachments?: MailAttachment[];
+  reply?: ThreadReply | null;
 }) => {
   const boundary = (label: string) => `figtree_${label}_${crypto.randomUUID().replace(/-/g, "")}`;
   const alternativeBoundary = boundary("alt");
@@ -146,6 +150,9 @@ export const buildMimeMessage = (message: {
     `To: ${headerValue(message.to)}`,
     `Subject: ${encodeHeaderWord(message.subject)}`,
     "MIME-Version: 1.0",
+    ...(message.reply?.inReplyTo
+      ? [`In-Reply-To: ${headerValue(message.reply.inReplyTo)}`, `References: ${headerValue(message.reply.inReplyTo)}`]
+      : []),
   ];
 
   const attachments = message.attachments ?? [];
@@ -175,24 +182,64 @@ export const buildMimeMessage = (message: {
 };
 
 /**
- * Sends a message. Uses the media upload endpoint, which accepts messages up
- * to 35 MB (the JSON endpoint is limited to a few MB).
+ * Sends a message through the upload endpoint, which accepts messages up to
+ * 35 MB (the JSON endpoint is limited to a few MB). Replies go out as a
+ * multipart upload so the thread id can travel with the message.
  */
 export const sendGmail = async (
   accessToken: string,
-  message: { to: string; subject: string; text: string; html?: string; attachments?: MailAttachment[] },
+  message: {
+    to: string;
+    subject: string;
+    text: string;
+    html?: string;
+    attachments?: MailAttachment[];
+    reply?: ThreadReply | null;
+  },
 ) => {
   const raw = buildMimeMessage({ ...message, html: message.html ?? textToGmailHtml(message.text) });
-  const response = await fetch("https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "message/rfc822" },
-    body: raw,
-  });
+  const upload = "https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send";
+  let response: Response;
+  if (message.reply?.threadId) {
+    const boundary = `figtree_upload_${crypto.randomUUID().replace(/-/g, "")}`;
+    response = await fetch(`${upload}?uploadType=multipart`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": `multipart/related; boundary=${boundary}` },
+      body: [
+        `--${boundary}`,
+        "Content-Type: application/json; charset=UTF-8",
+        "",
+        JSON.stringify({ threadId: message.reply.threadId }),
+        `--${boundary}`,
+        "Content-Type: message/rfc822",
+        "",
+        raw,
+        `--${boundary}--`,
+      ].join("\r\n"),
+    });
+  } else {
+    response = await fetch(`${upload}?uploadType=media`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "message/rfc822" },
+      body: raw,
+    });
+  }
   const body = await response.json();
   if (!response.ok) {
     throw new Error(`Gmail send failed: ${body?.error?.message ?? response.status}`);
   }
   return { id: body.id as string, threadId: body.threadId as string };
+};
+
+/** The RFC Message-ID header of a sent message (needed to reply to it). */
+export const getMessageIdHeader = async (accessToken: string, gmailMessageId: string) => {
+  const response = await fetch(
+    `${GMAIL_API}/messages/${encodeURIComponent(gmailMessageId)}?format=metadata&metadataHeaders=Message-ID`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!response.ok) return "";
+  const body = await response.json();
+  return (body.payload?.headers ?? []).find((header: { name: string }) => header.name.toLowerCase() === "message-id")?.value ?? "";
 };
 
 /** The HTML signature Gmail would add for this address, or "" if unavailable. */
@@ -256,10 +303,27 @@ export const deliverEmailRow = async (
     subject: string;
     body: string;
     attachments?: EmailAttachmentRef[] | null;
+    reply_to_email_id?: string | null;
   },
 ) => {
   try {
     const accessToken = await getAccessToken(db, email.user_id);
+
+    // Follow-ups go into the thread of the email they follow up on.
+    let reply: ThreadReply | null = null;
+    if (email.reply_to_email_id) {
+      const { data: original } = await db
+        .from("emails")
+        .select("gmail_message_id, gmail_thread_id")
+        .eq("id", email.reply_to_email_id)
+        .maybeSingle();
+      if (original?.gmail_thread_id && original.gmail_message_id) {
+        reply = {
+          threadId: original.gmail_thread_id,
+          inReplyTo: await getMessageIdHeader(accessToken, original.gmail_message_id),
+        };
+      }
+    }
 
     const [{ data: account }, { data: settings }] = await Promise.all([
       db.from("gmail_accounts").select("email").eq("user_id", email.user_id).maybeSingle(),
@@ -289,7 +353,7 @@ export const deliverEmailRow = async (
       });
     }
 
-    const sent = await sendGmail(accessToken, { to: email.to_email, subject: email.subject, text, html, attachments });
+    const sent = await sendGmail(accessToken, { to: email.to_email, subject: email.subject, text, html, attachments, reply });
     const sentAt = new Date().toISOString();
     await db
       .from("emails")

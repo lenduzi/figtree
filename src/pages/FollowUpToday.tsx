@@ -4,6 +4,7 @@ import { CalendarCheck, AlertTriangle, Clock, CheckCircle2, Plus, Phone, Snowfla
 import { useCRMContext } from '@/contexts/CRMContext';
 import { TaskItem } from '@/components/TaskItem';
 import { TaskDetailDialog } from '@/components/TaskDetailDialog';
+import { ApprovalQueue } from '@/components/ApprovalQueue';
 import { AddTaskWithContactDialog } from '@/components/AddTaskWithContactDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -184,6 +185,8 @@ export default function FollowUpToday() {
           Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs lg:text-sm">⌘K</kbd> for Quick Actions
         </p>
       </div>
+
+      <ApprovalQueue />
 
       <div className="grid gap-4 lg:gap-8 lg:grid-cols-2 items-stretch">
         <Card className="flex flex-col h-full">

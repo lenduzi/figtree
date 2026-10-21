@@ -1,4 +1,7 @@
 // The 5-minute job. Called by pg_cron (x-cron-secret header) it:
+//   - runs sequences: stops them on reply or stage change, turns due steps
+//     into call tasks or Claude drafts awaiting approval, and schedules the
+//     next step once the current one is done
 //   - sends scheduled emails and detects replies (users with Gmail connected)
 //   - sends task reminders at their due time and the morning digest, as push
 //     notifications and/or emails to the user's own Gmail
@@ -6,6 +9,8 @@
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
+import Anthropic from "npm:@anthropic-ai/sdk";
+import { generateDraft } from "../_shared/drafting.ts";
 import {
   appUrl,
   deliverEmailRow,
@@ -200,7 +205,7 @@ const OPEN_DEAL_STAGES = ["talking", "meeting", "proposal", "pilot"];
 const CALL_STAGES = ["sourced", "qualified", "contacting", "talking"];
 
 const buildDigest = async (db: SupabaseClient, userId: string, local: { date: string }) => {
-  const [openTasks, companies, callsDue] = await Promise.all([
+  const [openTasks, companies, callsDue, drafts] = await Promise.all([
     db.from("tasks").select("title, due_date, company_id, contact_id").eq("user_id", userId).eq("completed", false)
       .order("due_date"),
     db.from("companies").select("id, name, city, lifecycle, last_activity_at, lifecycle_changed_at, created_at")
@@ -212,7 +217,9 @@ const buildDigest = async (db: SupabaseClient, userId: string, local: { date: st
       .in("lifecycle", CALL_STAGES)
       .neq("phone", "")
       .lt("next_action_at", `${addDays(local.date, 1)}T00:00:00Z`),
+    db.from("emails").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "draft"),
   ]);
+  const toApprove = drafts.count ?? 0;
 
   const tasks = openTasks.data ?? [];
   const companyById = new Map((companies.data ?? []).map((company) => [company.id, company]));
@@ -234,6 +241,7 @@ const buildDigest = async (db: SupabaseClient, userId: string, local: { date: st
   const calls = callsDue.count ?? 0;
 
   const summary = [
+    toApprove && `${toApprove} emails to approve`,
     overdue.length && `${overdue.length} overdue`,
     dueToday.length && `${dueToday.length} due today`,
     calls && `${calls} calls due`,
@@ -246,6 +254,7 @@ const buildDigest = async (db: SupabaseClient, userId: string, local: { date: st
     return `- ${task.title}${company ? ` — ${company.name}` : ""}${task.due_date < local.date ? ` (due ${task.due_date})` : ""}`;
   };
   const lines: string[] = ["Here's what needs your attention today.", ""];
+  if (toApprove) lines.push(`Emails to approve: ${toApprove} — ${appUrl()}/app`, "");
   if (overdue.length) lines.push(`Overdue (${overdue.length})`, ...overdue.slice(0, 15).map(taskLine), "");
   if (dueToday.length) lines.push(`Due today (${dueToday.length})`, ...dueToday.slice(0, 15).map(taskLine), "");
   if (calls) lines.push(`Calls due: ${calls} — ${appUrl()}/calls`, "");
@@ -281,7 +290,7 @@ const processScheduledEmails = async (db: SupabaseClient, userId: string) => {
       .update({ status: "sending" })
       .eq("id", id)
       .eq("status", "scheduled")
-      .select("id, user_id, contact_id, company_id, to_email, subject, body, attachments")
+      .select("id, user_id, contact_id, company_id, to_email, subject, body, attachments, reply_to_email_id")
       .maybeSingle();
     if (!email) continue;
     if ((await deliverEmailRow(db, email)).ok) sent += 1;
@@ -370,12 +379,266 @@ const checkReplies = async (
   return replies;
 };
 
+
+// Sequences ------------------------------------------------------------------
+
+const FUNNEL = ["sourced", "qualified", "contacting", "talking", "meeting", "proposal", "pilot", "customer"];
+const EXIT_STAGES = ["not_now", "lost", "disqualified"];
+const MAX_DRAFTS_PER_RUN = 3;
+const SEQUENCE_START_MINUTES = 7 * 60;
+
+type SequenceStep = {
+  wait_days: number;
+  channel: "call" | "email";
+  label: string;
+  instructions: string;
+  reply_in_thread?: boolean;
+};
+
+/**
+ * A play stops once the company has moved on: any exit stage or customer, or
+ * past where it started (with sourced/qualified allowed to reach contacting,
+ * since cold calling moves them there).
+ */
+const sequenceShouldStop = (startStage: string, current: string) => {
+  if (current === startStage) return false;
+  if (EXIT_STAGES.includes(current) || current === "customer") return true;
+  const floor = Math.max(FUNNEL.indexOf(startStage), FUNNEL.indexOf("contacting"));
+  return FUNNEL.indexOf(current) > floor;
+};
+
+/** The date n business days after `date` (n = 0: the date itself, or the next weekday). */
+const addBusinessDays = (date: string, n: number) => {
+  let time = Date.parse(`${date}T00:00:00Z`);
+  const isWeekend = (t: number) => [0, 6].includes(new Date(t).getUTCDay());
+  let added = 0;
+  while (added < n) {
+    time += 86_400_000;
+    if (!isWeekend(time)) added += 1;
+  }
+  while (isWeekend(time)) time += 86_400_000;
+  return new Date(time).toISOString().slice(0, 10);
+};
+
+type Enrollment = {
+  id: string;
+  sequence_id: string;
+  company_id: string;
+  contact_id: string | null;
+  to_email: string;
+  status: string;
+  step_index: number;
+  next_step_on: string | null;
+  start_lifecycle: string;
+  pending_task_id: string | null;
+  pending_email_id: string | null;
+  last_email_id: string | null;
+  started_at: string;
+  sequences: { name: string; steps: SequenceStep[] } | null;
+  companies: { id: string; name: string; lifecycle: string; email: string } | null;
+  contacts: { email: string; full_name: string } | null;
+};
+
+const stopEnrollment = async (db: SupabaseClient, enrollment: Enrollment, reason: string) => {
+  await db
+    .from("sequence_enrollments")
+    .update({ status: "stopped", stop_reason: reason, finished_at: new Date().toISOString() })
+    .eq("id", enrollment.id);
+  // Drop what the play prepared but the user hasn't acted on.
+  if (enrollment.pending_email_id) {
+    await db.from("emails").update({ status: "cancelled", error: `Sequence stopped: ${reason}` })
+      .eq("id", enrollment.pending_email_id).eq("status", "draft");
+  }
+  if (enrollment.pending_task_id) {
+    await db.from("tasks").delete().eq("id", enrollment.pending_task_id).eq("completed", false);
+  }
+};
+
+const advanceEnrollment = async (
+  db: SupabaseClient,
+  enrollment: Enrollment,
+  localDate: string,
+  extra: Record<string, unknown> = {},
+) => {
+  const steps = enrollment.sequences?.steps ?? [];
+  const next = enrollment.step_index + 1;
+  if (next >= steps.length) {
+    await db.from("sequence_enrollments").update({
+      ...extra,
+      status: "completed",
+      step_index: next,
+      pending_task_id: null,
+      pending_email_id: null,
+      next_step_on: null,
+      finished_at: new Date().toISOString(),
+    }).eq("id", enrollment.id);
+    return;
+  }
+  await db.from("sequence_enrollments").update({
+    ...extra,
+    status: "active",
+    step_index: next,
+    pending_task_id: null,
+    pending_email_id: null,
+    next_step_on: addBusinessDays(localDate, Math.max(0, steps[next].wait_days ?? 0)),
+  }).eq("id", enrollment.id);
+};
+
+const runSequences = async (
+  db: SupabaseClient,
+  anthropic: Anthropic | null,
+  userId: string,
+  local: { date: string; minutes: number },
+) => {
+  const { data } = await db
+    .from("sequence_enrollments")
+    .select(
+      "id, sequence_id, company_id, contact_id, to_email, status, step_index, next_step_on, start_lifecycle, " +
+        "pending_task_id, pending_email_id, last_email_id, started_at, " +
+        "sequences(name, steps), companies(id, name, lifecycle, email), contacts(email, full_name)",
+    )
+    .eq("user_id", userId)
+    .in("status", ["active", "waiting"]);
+  const enrollments = (data ?? []) as unknown as Enrollment[];
+  const totals = { steps: 0, drafts: 0, stopped: 0, advanced: 0 };
+  let draftsLeft = MAX_DRAFTS_PER_RUN;
+
+  for (const enrollment of enrollments) {
+    const company = enrollment.companies;
+    const steps = enrollment.sequences?.steps ?? [];
+    if (!company || steps.length === 0) continue;
+
+    // 1. Stop when they replied or the company moved on.
+    const { count: replies } = await db.from("emails").select("id", { count: "exact", head: true })
+      .eq("company_id", company.id).gte("replied_at", enrollment.started_at);
+    if (replies) {
+      await stopEnrollment(db, enrollment, "They replied");
+      totals.stopped += 1;
+      continue;
+    }
+    if (sequenceShouldStop(enrollment.start_lifecycle, company.lifecycle)) {
+      await stopEnrollment(db, enrollment, `Moved to ${company.lifecycle.replace("_", " ")}`);
+      totals.stopped += 1;
+      continue;
+    }
+
+    // 2. A step is waiting on the user: move on once it's done.
+    if (enrollment.status === "waiting") {
+      if (enrollment.pending_task_id) {
+        const { data: task } = await db.from("tasks").select("completed").eq("id", enrollment.pending_task_id).maybeSingle();
+        if (task && !task.completed) continue;
+        await advanceEnrollment(db, enrollment, local.date);
+      } else if (enrollment.pending_email_id) {
+        const { data: email } = await db.from("emails").select("id, status").eq("id", enrollment.pending_email_id).maybeSingle();
+        if (email?.status === "sent") {
+          await advanceEnrollment(db, enrollment, local.date, { last_email_id: email.id });
+        } else if (!email || email.status === "cancelled") {
+          await advanceEnrollment(db, enrollment, local.date); // skipped
+        } else {
+          continue; // draft, scheduled, sending or failed: still the user's move
+        }
+      } else {
+        await advanceEnrollment(db, enrollment, local.date);
+      }
+      totals.advanced += 1;
+      continue;
+    }
+
+    // 3. Run a due step.
+    if (!enrollment.next_step_on || enrollment.next_step_on > local.date || local.minutes < SEQUENCE_START_MINUTES) continue;
+    const step = steps[enrollment.step_index];
+    if (!step) {
+      await advanceEnrollment(db, enrollment, local.date);
+      continue;
+    }
+    const position = `${enrollment.sequences?.name} · step ${enrollment.step_index + 1}/${steps.length}`;
+    const address = enrollment.to_email || enrollment.contacts?.email || company.email || "";
+
+    const waitOnTask = async (title: string, description: string) => {
+      const taskId = crypto.randomUUID();
+      await db.from("tasks").insert({
+        id: taskId,
+        user_id: userId,
+        company_id: company.id,
+        contact_id: enrollment.contact_id,
+        title,
+        description,
+        due_date: local.date,
+        has_reminder: false,
+        completed: false,
+      });
+      await db.from("sequence_enrollments").update({ status: "waiting", pending_task_id: taskId }).eq("id", enrollment.id);
+      totals.steps += 1;
+    };
+
+    if (step.channel === "call") {
+      await waitOnTask(`Call ${company.name}: ${step.label}`, `${position}\n\n${step.instructions}`.trim());
+      continue;
+    }
+    if (!address.includes("@")) {
+      await waitOnTask(
+        `Email ${company.name}: ${step.label}`,
+        `${position}\n\nNo email address on file. Find one (or call instead), then: ${step.instructions}`.trim(),
+      );
+      continue;
+    }
+    if (!anthropic || draftsLeft <= 0) continue; // drafted on a later run
+    draftsLeft -= 1;
+
+    const { data: previous } = enrollment.last_email_id
+      ? await db.from("emails").select("id, subject").eq("id", enrollment.last_email_id).maybeSingle()
+      : { data: null };
+    const inThread = Boolean(step.reply_in_thread && previous);
+    try {
+      const draft = await generateDraft(db, anthropic, {
+        userId,
+        companyId: company.id,
+        contactId: enrollment.contact_id,
+        instructions: [
+          `This is step ${enrollment.step_index + 1} of ${steps.length} of the play "${enrollment.sequences?.name}": ${step.label}.`,
+          step.instructions,
+          inThread
+            ? "Write it as a short reply in the same thread as the previous email in this play: don't repeat it, add one new thing."
+            : "",
+        ].filter(Boolean).join("\n"),
+      });
+      const subject = inThread && previous
+        ? (/^re:/i.test(previous.subject) ? previous.subject : `Re: ${previous.subject}`)
+        : draft.subject;
+      const { data: email } = await db.from("emails").insert({
+        user_id: userId,
+        company_id: company.id,
+        contact_id: enrollment.contact_id,
+        to_email: address,
+        subject,
+        body: draft.body,
+        ai_draft: draft.body,
+        attachments: draft.attachments,
+        status: "draft",
+        scheduled_for: new Date().toISOString(),
+        enrollment_id: enrollment.id,
+        step_index: enrollment.step_index,
+        reply_to_email_id: inThread ? previous?.id : null,
+      }).select("id").single();
+      await db.from("sequence_enrollments").update({ status: "waiting", pending_email_id: email?.id }).eq("id", enrollment.id);
+      totals.steps += 1;
+      totals.drafts += 1;
+    } catch (error) {
+      // Left as is; the next run tries again.
+      console.error("sequence draft failed", enrollment.id, error);
+    }
+  }
+  return totals;
+};
+
 const runSchedule = async (db: SupabaseClient) => {
   const now = new Date();
-  const [{ data: subscriptions, error }, { data: gmailAccounts }] = await Promise.all([
+  const [{ data: subscriptions, error }, { data: gmailAccounts }, { data: running }] = await Promise.all([
     db.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth"),
     db.from("gmail_accounts").select("user_id, email"),
+    db.from("sequence_enrollments").select("user_id").in("status", ["active", "waiting"]),
   ]);
+  const anthropic = Deno.env.get("ANTHROPIC_API_KEY") ? new Anthropic() : null;
   if (error) throw error;
 
   const subscriptionsByUser = new Map<string, Subscription[]>();
@@ -383,8 +646,10 @@ const runSchedule = async (db: SupabaseClient) => {
     subscriptionsByUser.set(subscription.user_id, [...(subscriptionsByUser.get(subscription.user_id) ?? []), subscription]);
   }
   const gmailByUser = new Map((gmailAccounts ?? []).map((account) => [account.user_id, account.email as string]));
-  const userIds = [...new Set([...subscriptionsByUser.keys(), ...gmailByUser.keys()])];
-  const totals = { users: userIds.length, emailsSent: 0, replies: 0, reminders: 0, digests: 0 };
+  const userIds = [
+    ...new Set([...subscriptionsByUser.keys(), ...gmailByUser.keys(), ...(running ?? []).map((row) => row.user_id)]),
+  ];
+  const totals = { users: userIds.length, emailsSent: 0, replies: 0, reminders: 0, digests: 0, sequenceSteps: 0, drafts: 0, sequencesStopped: 0 };
   if (userIds.length === 0) return totals;
 
   const { data: settingsRows } = await db
@@ -410,6 +675,16 @@ const runSchedule = async (db: SupabaseClient) => {
         // Typically GmailAuthError (access revoked); reminders below still run.
         console.error("gmail work failed", userId, error instanceof GmailAuthError ? error.message : error);
       }
+    }
+
+    // After reply detection, so a fresh reply stops a play before its next step.
+    try {
+      const sequences = await runSequences(db, anthropic, userId, local);
+      totals.sequenceSteps += sequences.steps;
+      totals.drafts += sequences.drafts;
+      totals.sequencesStopped += sequences.stopped;
+    } catch (error) {
+      console.error("sequences failed", userId, error);
     }
 
     totals.reminders += await sendTaskReminders(db, userId, local, channels);
