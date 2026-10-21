@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -96,7 +96,7 @@ export function GmailSettings() {
   const textChanged =
     settings &&
     savedSettings &&
-    (settings.ai_context !== savedSettings.ai_context || settings.email_signature !== savedSettings.email_signature);
+    settings.email_signature !== savedSettings.email_signature;
 
   return (
     <Card className="mt-6">
@@ -143,16 +143,13 @@ export function GmailSettings() {
               />
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="ai-context">About you and your offer</Label>
-              <Textarea
-                id="ai-context"
-                rows={5}
-                placeholder="Who you are, what you sell, who you sell to, your tone. Claude uses this for every draft."
-                value={settings.ai_context}
-                onChange={(event) => setSettings({ ...settings, ai_context: event.target.value })}
-              />
-            </div>
+            <p className="text-sm text-muted-foreground">
+              Claude drafts from your{' '}
+              <Link to="/brain" className="underline underline-offset-2 hover:text-foreground">
+                Company Brain
+              </Link>
+              : what you offer, who you sell to, and how you write.
+            </p>
             <div className="grid gap-2">
               <Label htmlFor="email-signature">Fallback signature</Label>
               <p className="text-xs text-muted-foreground">
@@ -170,7 +167,7 @@ export function GmailSettings() {
               variant="outline"
               disabled={!textChanged}
               onClick={async () => {
-                if (await save({ ai_context: settings.ai_context, email_signature: settings.email_signature })) {
+                if (await save({ email_signature: settings.email_signature })) {
                   toast('Saved');
                 }
               }}

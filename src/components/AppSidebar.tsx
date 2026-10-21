@@ -1,4 +1,4 @@
-import { CalendarCheck, Users, Kanban, Settings, MapPin, BookOpen, Info, Megaphone, Lightbulb, Stars } from 'lucide-react';
+import { CalendarCheck, Users, Kanban, Settings, MapPin, BookOpen, Info, Megaphone, Lightbulb, Stars, Brain } from 'lucide-react';
 import figtreeLogo from '@/assets/figtree-logo.png';
 import { NavLink } from '@/components/NavLink';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -26,6 +26,7 @@ const crmItems = [
 ];
 
 const operationsItems = [
+  { title: 'Company Brain', url: '/brain', icon: Brain },
   { title: 'Projects', url: '/projects', icon: MapPin },
   { title: 'Resources', url: '/resources', icon: BookOpen },
 ];

@@ -35,6 +35,7 @@ import ContactDetail from "./pages/ContactDetail";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Privacy from "./pages/Privacy";
+import Brain from "./pages/Brain";
 
 const queryClient = new QueryClient();
 const APP_ENTRY_BANNER_KEY = "simplecrm_app_entry_banner_seen";
@@ -130,6 +131,7 @@ function AppContent() {
     if (path.startsWith("/revenue")) return "Revenue";
     if (path.startsWith("/eisenhower")) return "Easy Eisenhower";
     if (path.startsWith("/resources")) return "Resources";
+    if (path.startsWith("/brain")) return "Company Brain";
     if (path.startsWith("/settings")) return "Settings";
     return "Figtree";
   })();
@@ -243,6 +245,7 @@ function AppContent() {
                 <Route path="/business-model" element={<Navigate to="/revenue" replace />} />
                 <Route path="/eisenhower" element={<Eisenhower />} />
                 <Route path="/resources" element={<Resources />} />
+                <Route path="/brain" element={<Brain />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

@@ -79,6 +79,7 @@ export function ContactEmails({ contact }: { contact: Contact }) {
   const [drafting, setDrafting] = useState(false);
   const [sending, setSending] = useState(false);
   const [attachments, setAttachments] = useState<EmailAttachment[]>([]);
+  const [aiDraft, setAiDraft] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const attachmentsBytes = attachments.reduce((total, attachment) => total + attachment.size, 0);
@@ -103,6 +104,7 @@ export function ContactEmails({ contact }: { contact: Contact }) {
     setInstructions('');
     setScheduleAt(toLocalInputValue(tomorrowAtNine()));
     setAttachments([]);
+    setAiDraft(null);
     setComposeOpen(true);
   };
 
@@ -140,6 +142,14 @@ export function ContactEmails({ contact }: { contact: Contact }) {
       const draft = await draftEmail(contact.id, instructions);
       setSubject(draft.subject);
       setBody(draft.body);
+      setAiDraft(draft.body);
+      if (draft.attachments?.length) {
+        setAttachments((current) => [
+          ...current,
+          ...draft.attachments.filter((file) => !current.some((item) => item.path === file.path)),
+        ]);
+        toast('Claude suggested attachments', { description: draft.attachments.map((file) => file.filename).join(', ') });
+      }
     } catch (error) {
       toast.error('Drafting failed', { description: errorMessage(error) });
     } finally {
@@ -157,7 +167,7 @@ export function ContactEmails({ contact }: { contact: Contact }) {
     }
     setSending(true);
     try {
-      const id = await queueEmail({ contactId: contact.id, to: to.trim(), subject, body, scheduledFor, attachments });
+      const id = await queueEmail({ contactId: contact.id, to: to.trim(), subject, body, scheduledFor, attachments, aiDraft });
       if (when === 'now') {
         await sendEmailNow(id);
         toast('Email sent', { description: `Logged on ${contact.fullName}.` });

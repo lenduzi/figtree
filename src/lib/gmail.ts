@@ -4,6 +4,9 @@ import { supabase } from "@/lib/supabase";
 export type EmailAttachment = { path: string; filename: string; mime_type: string; size: number };
 
 export const ATTACHMENTS_BUCKET = "email-attachments";
+/** Brain library files share the bucket, under <user id>/brain/; never delete them from an email. */
+export const isBrainFilePath = (path: string) => path.split("/")[1] === "brain";
+
 /** Gmail allows 25 MB of attachments per message. */
 export const MAX_ATTACHMENTS_BYTES = 25 * 1024 * 1024;
 
@@ -73,6 +76,8 @@ export const queueEmail = async (email: {
   body: string;
   scheduledFor: Date;
   attachments?: EmailAttachment[];
+  /** What Claude drafted, if anything, kept to learn from the user's edits. */
+  aiDraft?: string | null;
 }) => {
   const { data, error } = await getClient()
     .from("emails")
@@ -84,6 +89,7 @@ export const queueEmail = async (email: {
       status: "scheduled",
       scheduled_for: email.scheduledFor.toISOString(),
       attachments: email.attachments ?? [],
+      ai_draft: email.aiDraft ?? null,
     })
     .select("id")
     .single();
@@ -103,7 +109,7 @@ export const cancelEmail = async (emailId: string) => {
 };
 
 export const draftEmail = (contactId: string, instructions: string) =>
-  invoke<{ subject: string; body: string }>("draft-email", { contactId, instructions });
+  invoke<{ subject: string; body: string; attachments: EmailAttachment[] }>("draft-email", { contactId, instructions });
 
 /** Uploads a file to the user's private attachment folder. */
 export const uploadAttachment = async (file: File): Promise<EmailAttachment> => {
@@ -122,6 +128,7 @@ export const uploadAttachment = async (file: File): Promise<EmailAttachment> => 
 };
 
 export const removeAttachment = async (attachment: EmailAttachment) => {
+  if (isBrainFilePath(attachment.path)) return;
   await getClient().storage.from(ATTACHMENTS_BUCKET).remove([attachment.path]);
 };
 
