@@ -1,4 +1,5 @@
-// Drafts an email to a contact with Claude: POST {contactId, instructions?}
+// Drafts an email to a company (optionally a specific person there) with
+// Claude: POST {companyId, contactId?, instructions?}
 // -> {subject, body}. The user reviews and edits the draft before sending.
 
 import Anthropic from "npm:@anthropic-ai/sdk";
@@ -93,25 +94,37 @@ Deno.serve(async (req) => {
   if (!user) return json({ error: "unauthorized" }, 401);
   if (!Deno.env.get("ANTHROPIC_API_KEY")) return json({ error: "ANTHROPIC_API_KEY is not configured." }, 500);
 
-  const { contactId, instructions } = await req.json().catch(() => ({}));
-  if (!contactId) return json({ error: "contactId is required" }, 400);
+  const { companyId: requestedCompanyId, contactId, instructions } = await req.json().catch(() => ({}));
+  if (!requestedCompanyId && !contactId) return json({ error: "companyId or contactId is required" }, 400);
 
-  const { data: contact } = await db
-    .from("contacts")
-    .select("id, full_name, role, company, website, email, stage_id, notes, last_interaction_at")
-    .eq("id", contactId)
+  // The recipient (optional) and the company the email is about.
+  const { data: recipient } = contactId
+    ? await db
+      .from("contacts")
+      .select("id, full_name, role, email, notes, company_id")
+      .eq("id", contactId)
+      .eq("user_id", user.id)
+      .maybeSingle()
+    : { data: null };
+  const companyId = requestedCompanyId ?? recipient?.company_id;
+  if (!companyId) return json({ error: "That person isn't linked to a company yet." }, 400);
+
+  const { data: company } = await db
+    .from("companies")
+    .select("id, name, type, industry, city, website, lifecycle, lifecycle_changed_at, fit, fit_reason, lists, notes, last_activity_at")
+    .eq("id", companyId)
     .eq("user_id", user.id)
     .maybeSingle();
-  if (!contact) return json({ error: "Contact not found" }, 404);
+  if (!company) return json({ error: "Company not found" }, 404);
 
-  const [stage, activities, tasks, emails, settings, gmail, brainEntries, brainFiles, recentSent] = await Promise.all([
-    db.from("stages").select("name").eq("user_id", user.id).eq("id", contact.stage_id).maybeSingle(),
-    db.from("activities").select("type, description, occurred_at").eq("contact_id", contactId)
-      .order("occurred_at", { ascending: false }).limit(20),
-    db.from("tasks").select("title, description, due_date, completed").eq("contact_id", contactId)
+  const [people, activities, tasks, emails, settings, gmail, brainEntries, brainFiles, recentSent] = await Promise.all([
+    db.from("contacts").select("id, full_name, role").eq("company_id", companyId),
+    db.from("activities").select("type, description, occurred_at, contact_id").eq("company_id", companyId)
+      .order("occurred_at", { ascending: false }).limit(25),
+    db.from("tasks").select("title, description, due_date, completed").eq("company_id", companyId)
       .order("due_date", { ascending: false }).limit(10),
-    db.from("emails").select("subject, body, sent_at, replied_at").eq("contact_id", contactId).eq("status", "sent")
-      .order("sent_at", { ascending: false }).limit(3),
+    db.from("emails").select("subject, body, sent_at, replied_at, to_email").eq("company_id", companyId).eq("status", "sent")
+      .order("sent_at", { ascending: false }).limit(4),
     db.from("user_settings").select("ai_context").eq("user_id", user.id).maybeSingle(),
     db.from("gmail_accounts").select("email").eq("user_id", user.id).maybeSingle(),
     db.from("brain_entries").select("section, title, content").eq("user_id", user.id)
@@ -121,6 +134,7 @@ Deno.serve(async (req) => {
     db.from("emails").select("subject, body, ai_draft").eq("user_id", user.id).eq("status", "sent")
       .order("sent_at", { ascending: false }).limit(8),
   ]);
+  const nameOf = new Map((people.data ?? []).map((person) => [person.id, person.full_name]));
 
   const files = (brainFiles.data ?? []) as BrainFile[];
   const brain = renderBrain((brainEntries.data ?? []) as BrainEntry[], files, settings.data?.ai_context ?? "");
@@ -139,22 +153,33 @@ Deno.serve(async (req) => {
   const today = new Date().toISOString().slice(0, 10);
   const context = [
     section("sender", gmail.data?.email ? `Sends from: ${gmail.data.email}` : ""),
-    section("contact", [
-      `Name: ${contact.full_name}`,
-      contact.role && `Role: ${contact.role}`,
-      contact.company && `Company: ${contact.company}`,
-      contact.website && `Website: ${contact.website}`,
-      `Pipeline stage: ${stage.data?.name ?? contact.stage_id}`,
-      `Last interaction: ${contact.last_interaction_at?.slice(0, 10) ?? "never"}`,
+    section("company", [
+      `Name: ${company.name}`,
+      company.type !== "other" && `Type: ${company.type}`,
+      company.industry && `Industry: ${company.industry}`,
+      company.city && `City: ${company.city}`,
+      company.website && `Website: ${company.website}`,
+      `Stage: ${company.lifecycle} (since ${company.lifecycle_changed_at?.slice(0, 10)})`,
+      company.fit && `Fit: ${company.fit}${company.fit_reason ? ` - ${company.fit_reason}` : ""}`,
+      company.lists?.length && `Lists: ${company.lists.join(", ")}`,
+      `Last activity: ${company.last_activity_at?.slice(0, 10) ?? "never"}`,
     ].filter(Boolean).join("\n")),
-    section("notes", contact.notes ?? ""),
+    section("recipient", recipient
+      ? [`Name: ${recipient.full_name}`, recipient.role && `Role: ${recipient.role}`, recipient.notes && `Notes: ${recipient.notes}`]
+        .filter(Boolean).join("\n")
+      : "No specific person: write to the company (e.g. a general inbox)."),
+    section("other_people_at_the_company", (people.data ?? [])
+      .filter((person) => person.id !== recipient?.id)
+      .map((person) => `${person.full_name}${person.role ? ` (${person.role})` : ""}`).join("\n")),
+    section("notes", company.notes ?? ""),
     section("activity_log_newest_first", (activities.data ?? [])
-      .map((a) => `${a.occurred_at.slice(0, 10)} [${a.type}] ${a.description}`).join("\n")),
+      .map((a) => `${a.occurred_at.slice(0, 10)} [${a.type}] ${a.description}${a.contact_id && nameOf.get(a.contact_id) ? ` (${nameOf.get(a.contact_id)})` : ""}`)
+      .join("\n")),
     section("tasks", (tasks.data ?? [])
       .map((t) => `${t.due_date} ${t.completed ? "(done)" : "(open)"} ${t.title}${t.description ? ` - ${t.description}` : ""}`)
       .join("\n")),
-    section("previous_emails_to_this_contact_newest_first", (emails.data ?? [])
-      .map((e) => `Sent ${e.sent_at?.slice(0, 10)}${e.replied_at ? `, replied ${e.replied_at.slice(0, 10)}` : ", no reply yet"}\nSubject: ${e.subject}\n${e.body}`)
+    section("previous_emails_to_this_company_newest_first", (emails.data ?? [])
+      .map((e) => `Sent ${e.sent_at?.slice(0, 10)} to ${e.to_email}${e.replied_at ? `, replied ${e.replied_at.slice(0, 10)}` : ", no reply yet"}\nSubject: ${e.subject}\n${e.body}`)
       .join("\n---\n")),
   ].filter(Boolean).join("\n\n");
 

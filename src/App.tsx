@@ -9,26 +9,27 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { CRMProvider, useCRMContext } from "@/contexts/CRMContext";
+import { useParams } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { SignInScreen } from "@/components/SignInScreen";
 import { Button } from "@/components/ui/button";
 import { AppThemeProvider, useAppTheme } from "@/contexts/AppThemeContext";
 import type { AppTheme } from "@/contexts/AppThemeContext";
 import { CommandPalette } from "@/components/CommandPalette";
-import { AddContactDialog } from "@/components/AddContactDialog";
+import { AddCompanyDialog } from "@/components/AddCompanyDialog";
 import { AddTaskWithContactDialog } from "@/components/AddTaskWithContactDialog";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { FirstTaskBanner } from "@/components/FirstTaskBanner";
 import CloudSync from "@/components/CloudSync";
 import FollowUpToday from "./pages/FollowUpToday";
 import LandingHome from "./pages/LandingHome";
-import Contacts from "./pages/Contacts";
+import Companies from "./pages/Companies";
+import CompanyDetail from "./pages/CompanyDetail";
+import CallMode from "./pages/CallMode";
 import Pipeline from "./pages/Pipeline";
 import Projects from "./pages/Projects";
-import Planning from "./pages/Planning";
 import Eisenhower from "./pages/Eisenhower";
 import Resources from "./pages/Resources";
-import OutreachOps from "./pages/OutreachOps";
 import ProductDev from "./pages/ProductDev";
 import BusinessModel from "./pages/BusinessModel";
 import ContactDetail from "./pages/ContactDetail";
@@ -58,6 +59,15 @@ const setStoredThemeMode = (appTheme: AppTheme, mode: "light" | "dark") => {
     // ignore storage errors
   }
 };
+
+/** Old person links (/contacts/:id) open the person's company. */
+function ContactRedirect() {
+  const { id } = useParams<{ id: string }>();
+  const { contacts } = useCRMContext();
+  const contact = contacts.find((item) => item.id === id);
+  if (contact?.companyId) return <Navigate to={`/companies/${contact.companyId}`} replace />;
+  return contact ? <ContactDetail /> : <Navigate to="/companies" replace />;
+}
 
 function LoadingScreen() {
   return (
@@ -121,11 +131,10 @@ function AppContent() {
   const mobileTitle = (() => {
     const path = location.pathname;
     if (path === "/app" || path === "/") return "Tasks";
-    if (path.startsWith("/contacts/")) return "Contact";
-    if (path.startsWith("/contacts")) return "Contacts";
+    if (path.startsWith("/companies/")) return "Company";
+    if (path.startsWith("/companies") || path.startsWith("/contacts")) return "Companies";
     if (path.startsWith("/pipeline")) return "Pipeline";
-    if (path.startsWith("/outreach")) return "Outreach";
-    if (path.startsWith("/dream-clients") || path.startsWith("/planning")) return "Dream Clients";
+    if (path.startsWith("/calls")) return "Call Mode";
     if (path.startsWith("/projects")) return "Projects";
     if (path.startsWith("/product-dev")) return "Product Dev";
     if (path.startsWith("/revenue")) return "Revenue";
@@ -233,13 +242,16 @@ function AppContent() {
                 <Route path="/marketing" element={<LandingHome />} />
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/app" element={<FollowUpToday />} />
-                <Route path="/contacts" element={<Contacts />} />
-                <Route path="/contacts/:id" element={<ContactDetail />} />
+                <Route path="/companies" element={<Companies />} />
+                <Route path="/companies/:id" element={<CompanyDetail />} />
+                <Route path="/contacts" element={<Navigate to="/companies" replace />} />
+                <Route path="/contacts/:id" element={<ContactRedirect />} />
                 <Route path="/pipeline" element={<Pipeline />} />
-                <Route path="/outreach" element={<OutreachOps />} />
+                <Route path="/calls" element={<CallMode />} />
+                <Route path="/outreach" element={<Navigate to="/calls" replace />} />
                 <Route path="/projects" element={<Projects />} />
-                <Route path="/dream-clients" element={<Planning />} />
-                <Route path="/planning" element={<Navigate to="/dream-clients" replace />} />
+                <Route path="/dream-clients" element={<Navigate to="/companies" replace />} />
+                <Route path="/planning" element={<Navigate to="/companies" replace />} />
                 <Route path="/product-dev" element={<ProductDev />} />
                 <Route path="/revenue" element={<BusinessModel />} />
                 <Route path="/business-model" element={<Navigate to="/revenue" replace />} />
@@ -255,7 +267,7 @@ function AppContent() {
       </SidebarProvider>
       {showAppChrome && <MobileBottomNav />}
       {/* Hidden dialogs for command palette */}
-      <AddContactDialog open={addContactOpen} onOpenChange={setAddContactOpen} triggerless />
+      <AddCompanyDialog open={addContactOpen} onOpenChange={setAddContactOpen} triggerless />
       <AddTaskWithContactDialog open={addTaskOpen} onOpenChange={setAddTaskOpen} triggerless />
       {showAppChrome && showFirstTaskBanner && (
         <FirstTaskBanner

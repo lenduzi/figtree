@@ -1,11 +1,11 @@
 import type { Resource } from "@/lib/resources-store";
 import type { ProductIdea } from "@/lib/product-dev-store";
 import type { BusinessModelState } from "@/lib/business-model-store";
-import { importBackupIntoTables } from "@/lib/db";
 import { listOutreachActions, listOutreachImports, listOutreachLeads } from "@/lib/outreach-store";
 import type { OutreachActionLog, OutreachImportSummary, OutreachLead } from "@/types/outreach";
 import {
   Activity,
+  Company,
   Contact,
   EisenhowerItem,
   Project,
@@ -54,6 +54,7 @@ export type CRMBackup = {
   exportedAt: string;
   app: string;
   data: {
+    companies?: Company[];
     contacts: Contact[];
     tasks: Task[];
     activities: Activity[];
@@ -71,6 +72,7 @@ export type CRMBackup = {
 };
 
 type BackupInput = {
+  companies?: Company[];
   contacts: Contact[];
   tasks: Task[];
   activities: Activity[];
@@ -119,6 +121,7 @@ export const buildBackup = (input: BackupInput): CRMBackup => {
     exportedAt: new Date().toISOString(),
     app: "solo-crm",
     data: {
+      companies: input.companies ?? [],
       contacts: input.contacts,
       tasks: input.tasks,
       activities: input.activities,
@@ -282,17 +285,10 @@ export const applyBackup = (
 };
 
 /**
- * Full restore: replaces the Supabase CRM tables with the backup's contacts,
- * tasks, stages, activities and outreach, then writes the device-local parts.
+ * Restores the device-local parts of a backup. Companies, people, tasks and
+ * activities live in Supabase and are not overwritten from a backup file:
+ * the old table import predates companies and would break their links.
  */
 export const restoreBackup = async (
   backup: CRMBackup,
-): Promise<{ ok: true } | { ok: false; error: string }> => {
-  try {
-    await importBackupIntoTables(backup);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return { ok: false, error: `Restore failed: ${message}` };
-  }
-  return applyBackup(backup);
-};
+): Promise<{ ok: true } | { ok: false; error: string }> => applyBackup(backup);

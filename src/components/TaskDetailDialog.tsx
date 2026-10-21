@@ -3,6 +3,7 @@ import { format, parseISO } from 'date-fns';
 import { Calendar, Clock, Bell, BellOff, Edit2, X, Trash2, Check, User } from 'lucide-react';
 import { Task, Contact } from '@/types/crm';
 import { useCRMContext } from '@/contexts/CRMContext';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -40,7 +41,10 @@ export function TaskDetailDialog({
   onContactClick,
   showContact = false,
 }: TaskDetailDialogProps) {
-  const { updateTask, deleteTask, toggleTaskComplete, rescheduleTask } = useCRMContext();
+  const { updateTask, deleteTask, toggleTaskComplete, rescheduleTask, getCompanyById } = useCRMContext();
+  const navigate = useNavigate();
+  const company = getCompanyById(task?.companyId);
+  const linkLabel = [contact?.fullName, company?.name ?? contact?.company].filter(Boolean).join(' • ');
   
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({
@@ -242,16 +246,17 @@ export function TaskDetailDialog({
               </div>
             </div>
 
-            {showContact && contact && (
+            {showContact && linkLabel && (
               <button
                 onClick={() => {
-                  onContactClick?.(contact.id);
+                  if (company) navigate(`/companies/${company.id}`);
+                  else if (contact) onContactClick?.(contact.id);
                   onOpenChange(false);
                 }}
                 className="flex items-center gap-2 text-sm lg:text-base text-primary hover:underline"
               >
                 <User className="h-4 w-4 lg:h-5 lg:w-5" />
-                {contact.fullName} • {contact.company}
+                {linkLabel}
               </button>
             )}
 

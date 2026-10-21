@@ -1,392 +1,251 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, ArrowUp, ArrowDown, Check, X } from 'lucide-react';
-import { useCRMContext } from '@/contexts/CRMContext';
-import { ContactCard } from '@/components/ContactCard';
-import { AddContactDialog } from '@/components/AddContactDialog';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { formatDistanceToNow } from 'date-fns';
 import {
   DndContext,
   DragOverlay,
-  closestCorners,
   PointerSensor,
+  closestCorners,
+  useDraggable,
+  useDroppable,
   useSensor,
   useSensors,
-  DragStartEvent,
-  DragEndEvent,
+  type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core';
-import { Contact } from '@/types/crm';
-import { DroppableStage } from '@/components/DroppableStage';
-import { DraggableContact } from '@/components/DraggableContact';
+import { useCRMContext } from '@/contexts/CRMContext';
+import { AddCompanyDialog } from '@/components/AddCompanyDialog';
+import { LIFECYCLE_STYLES } from '@/components/LifecycleBadge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { COLD_AFTER_DAYS, getCompanyDaysSinceTouch } from '@/lib/follow-up-health';
 import { cn } from '@/lib/utils';
+import { LIFECYCLES, OPEN_DEAL_LIFECYCLES, type Company, type Lifecycle } from '@/types/crm';
+
+/** Columns on the board; "Sourced" is the backlog and lives in Companies. */
+const BOARD: Lifecycle[] = ['qualified', 'contacting', 'talking', 'meeting', 'proposal', 'pilot', 'customer'];
+const EXITS = LIFECYCLES.filter((stage) => stage.exit);
+const label = (lifecycle: Lifecycle) => LIFECYCLES.find((stage) => stage.id === lifecycle)?.label ?? lifecycle;
+
+function CompanyCard({ company, people, openTasks }: { company: Company; people: string[]; openTasks: number }) {
+  const days = getCompanyDaysSinceTouch(company);
+  const cold = OPEN_DEAL_LIFECYCLES.includes(company.lifecycle) && openTasks === 0 && days !== null && days >= COLD_AFTER_DAYS;
+  return (
+    <div className="rounded-lg border bg-card p-3 shadow-sm hover:shadow-md transition-shadow">
+      <p className="font-medium text-sm truncate">{company.name}</p>
+      <p className="text-xs text-muted-foreground truncate">
+        {[people[0], company.city].filter(Boolean).join(' · ') || company.industry || '—'}
+      </p>
+      <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+        <span className={cn(cold ? 'text-amber-600 dark:text-amber-300' : 'text-muted-foreground')}>
+          {company.lastActivityAt ? formatDistanceToNow(new Date(company.lastActivityAt), { addSuffix: true }) : 'No activity'}
+        </span>
+        {openTasks > 0 && (
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+            {openTasks} task{openTasks === 1 ? '' : 's'}
+          </Badge>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DraggableCompany({ id, onClick, children }: { id: string; onClick: () => void; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined}
+      {...listeners}
+      {...attributes}
+      className={cn('touch-none cursor-grab', isDragging && 'opacity-40')}
+      onClick={() => !isDragging && onClick()}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Column({ lifecycle, count, children, compact }: { lifecycle: Lifecycle; count: number; children?: React.ReactNode; compact?: boolean }) {
+  const { isOver, setNodeRef } = useDroppable({ id: lifecycle });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'rounded-lg p-3 transition-colors border',
+        compact ? 'bg-muted/20 border-dashed' : 'w-60 flex-shrink-0 bg-muted/30 border-transparent',
+        isOver && 'bg-primary/10 ring-2 ring-primary ring-inset',
+      )}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <span className={cn('rounded-full border px-2 py-0.5 text-xs font-medium', LIFECYCLE_STYLES[lifecycle])}>
+          {label(lifecycle)}
+        </span>
+        <span className="text-xs text-muted-foreground">{count}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
 
 export default function Pipeline() {
   const navigate = useNavigate();
-  const { contacts, stages, tasks, moveContactToStage, updateStage, reorderStages } = useCRMContext();
-  const [activeContact, setActiveContact] = useState<Contact | null>(null);
-  const [addContactOpen, setAddContactOpen] = useState(false);
-  const [moveContact, setMoveContact] = useState<Contact | null>(null);
-  const [stageEditorOpen, setStageEditorOpen] = useState(false);
-  const [editingStageId, setEditingStageId] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState('');
-  const isMobile = useMediaQuery("(max-width: 639px)");
-  const isLarge = useMediaQuery("(min-width: 1024px)");
+  const { companies, contacts, tasks, moveCompanyToLifecycle } = useCRMContext();
+  const [active, setActive] = useState<Company | null>(null);
+  const isMobile = useMediaQuery('(max-width: 639px)');
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    })
+  const peopleByCompany = useMemo(() => {
+    const map = new Map<string, string[]>();
+    contacts.forEach((contact) => {
+      if (contact.companyId) map.set(contact.companyId, [...(map.get(contact.companyId) ?? []), contact.fullName]);
+    });
+    return map;
+  }, [contacts]);
+
+  const openTasksByCompany = useMemo(() => {
+    const map = new Map<string, number>();
+    tasks.forEach((task) => {
+      if (!task.completed && task.companyId) map.set(task.companyId, (map.get(task.companyId) ?? 0) + 1);
+    });
+    return map;
+  }, [tasks]);
+
+  const byStage = useMemo(() => {
+    const map = new Map<Lifecycle, Company[]>();
+    companies.forEach((company) => map.set(company.lifecycle, [...(map.get(company.lifecycle) ?? []), company]));
+    map.forEach((list) =>
+      list.sort((a, b) => (b.lastActivityAt ?? b.createdAt).localeCompare(a.lastActivityAt ?? a.createdAt)),
+    );
+    return map;
+  }, [companies]);
+
+  const sourcedCount = byStage.get('sourced')?.length ?? 0;
+
+  const card = (company: Company) => (
+    <CompanyCard
+      company={company}
+      people={peopleByCompany.get(company.id) ?? []}
+      openTasks={openTasksByCompany.get(company.id) ?? 0}
+    />
   );
 
-  const sortedStages = [...stages].sort((a, b) => a.order - b.order);
-  const stageContacts = sortedStages.map((stage) => ({
-    stage,
-    contacts: contacts.filter(c => c.stageId === stage.id),
-  }));
-
-  const stageCount = sortedStages.length;
-  const stageColumnWidth = isLarge ? 240 : 224;
-  const stageGap = isLarge ? 16 : 12;
-  const stageRowWidth = stageCount > 0
-    ? stageCount * stageColumnWidth + (stageCount - 1) * stageGap
-    : null;
-
-  const getOpenTaskCount = (contactId: string) => {
-    return tasks.filter(t => t.contactId === contactId && !t.completed).length;
-  };
-
   const handleDragStart = (event: DragStartEvent) => {
-    const contact = contacts.find(c => c.id === event.active.id);
-    if (contact) {
-      setActiveContact(contact);
-    }
+    setActive(companies.find((company) => company.id === event.active.id) ?? null);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveContact(null);
-
-    if (over && active.id !== over.id) {
-      const contactId = active.id as string;
-      const newStageId = over.id as string;
-      
-      // Check if dropping on a stage
-      const isStage = stages.some(s => s.id === newStageId);
-      if (isStage) {
-        moveContactToStage(contactId, newStageId);
-      }
+    setActive(null);
+    const target = event.over?.id as Lifecycle | undefined;
+    const company = companies.find((item) => item.id === event.active.id);
+    if (company && target && LIFECYCLES.some((stage) => stage.id === target) && company.lifecycle !== target) {
+      moveCompanyToLifecycle(company.id, target);
     }
   };
 
-  const handleStageEditStart = (id: string, name: string) => {
-    setEditingStageId(id);
-    setEditValue(name);
-  };
+  const header = (
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Pipeline</h1>
+        <p className="text-sm text-muted-foreground">
+          Drag a company to move it.{' '}
+          {sourcedCount > 0 && (
+            <Link to="/companies?stage=sourced" className="underline underline-offset-2 hover:text-foreground">
+              {sourcedCount} sourced in the backlog
+            </Link>
+          )}
+        </p>
+      </div>
+      <AddCompanyDialog />
+    </div>
+  );
 
-  const handleStageEditSave = () => {
-    if (editingStageId && editValue.trim()) {
-      updateStage(editingStageId, { name: editValue.trim() });
-    }
-    setEditingStageId(null);
-    setEditValue('');
-  };
-
-  const handleStageEditCancel = () => {
-    setEditingStageId(null);
-    setEditValue('');
-  };
-
-  const moveStage = (index: number, direction: 'up' | 'down') => {
-    const newIndex = direction === 'up' ? index - 1 : index + 1;
-    if (newIndex < 0 || newIndex >= sortedStages.length) return;
-
-    const newStages = [...sortedStages];
-    [newStages[index], newStages[newIndex]] = [newStages[newIndex], newStages[index]];
-    reorderStages(newStages);
-  };
-
-  return (
-    <div className="p-6 lg:p-8 xl:p-10 max-w-none mx-auto h-full">
-      <AddContactDialog open={addContactOpen} onOpenChange={setAddContactOpen} triggerless />
-      <Dialog open={!!moveContact} onOpenChange={(open) => !open && setMoveContact(null)}>
-        <DialogContent className="sm:max-w-sm">
-          <div className="space-y-3">
-            <h2 className="text-base font-semibold text-foreground">Move to stage</h2>
-            <div className="grid gap-2">
-              {sortedStages.map((stage) => (
-                <Button
-                  key={stage.id}
-                  variant={moveContact?.stageId === stage.id ? "secondary" : "outline"}
-                  className="justify-start"
-                  onClick={() => {
-                    if (!moveContact) return;
-                    moveContactToStage(moveContact.id, stage.id);
-                    setMoveContact(null);
-                  }}
-                  disabled={moveContact?.stageId === stage.id}
-                >
-                  <span
-                    className="mr-2 h-2 w-2 rounded-full"
-                    style={{ backgroundColor: stage.color }}
-                    aria-hidden
-                  />
-                  {stage.name}
-                </Button>
-              ))}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={stageEditorOpen} onOpenChange={setStageEditorOpen}>
-        <DialogContent className="sm:max-w-md">
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">Edit stages</h2>
-              <p className="text-sm text-muted-foreground">Rename or reorder your pipeline stages.</p>
-            </div>
-            <div className="space-y-2">
-              {sortedStages.map((stage, index) => (
-                <div
-                  key={stage.id}
-                  className="flex items-center gap-3 rounded-lg border bg-background/50 p-3"
-                >
-                  <div className="flex flex-col gap-1">
-                    <button
-                      onClick={() => moveStage(index, 'up')}
-                      disabled={index === 0}
-                      className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                      aria-label="Move stage up"
-                    >
-                      <ArrowUp className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => moveStage(index, 'down')}
-                      disabled={index === sortedStages.length - 1}
-                      className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                      aria-label="Move stage down"
-                    >
-                      <ArrowDown className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-
-                  <div
-                    className="h-3 w-3 rounded-full shrink-0"
-                    style={{ backgroundColor: stage.color }}
-                  />
-
-                  {editingStageId === stage.id ? (
-                    <div className="flex-1 flex items-center gap-2">
-                      <Input
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        className="h-8"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleStageEditSave();
-                          if (e.key === 'Escape') handleStageEditCancel();
-                        }}
-                      />
-                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleStageEditSave}>
-                        <Check className="h-4 w-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleStageEditCancel}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <>
-                      <span className="flex-1 font-medium">{stage.name}</span>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8"
-                        onClick={() => handleStageEditStart(stage.id, stage.name)}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-end">
-              <Button variant="outline" onClick={() => setStageEditorOpen(false)}>
-                Done
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <div
-        className="mx-auto w-full"
-        style={!isMobile && stageRowWidth ? { maxWidth: stageRowWidth } : undefined}
-      >
-        <div className="flex items-center justify-between mb-6 lg:mb-8">
-        <div>
-          <h1 className="sr-only sm:not-sr-only text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground">Pipeline</h1>
-          <p className="text-muted-foreground lg:text-lg mt-1 hidden sm:block">
-            Drag contacts between stages or click to view details
-          </p>
-          <div className="sm:hidden flex items-center gap-2 mt-1">
-            <p className="text-muted-foreground">Tap a contact to view details</p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs text-primary"
-              onClick={() => setStageEditorOpen(true)}
-            >
-              Edit stages
-            </Button>
-          </div>
-        </div>
-        <div className="hidden sm:flex items-center gap-2">
-          <Button variant="outline" onClick={() => setStageEditorOpen(true)}>
-            Edit stages
-          </Button>
-          <Button onClick={() => setAddContactOpen(true)}>
-            Add Contact
-          </Button>
-        </div>
-        </div>
-
-        {isMobile ? (
-          <Accordion
-            type="multiple"
-            defaultValue={stageContacts.filter((item) => item.contacts.length > 0).map((item) => item.stage.id)}
-            className="space-y-2"
-          >
-            {stageContacts.map(({ stage, contacts }) => (
-              <AccordionItem key={stage.id} value={stage.id} className="rounded-xl border bg-card px-4">
-                <AccordionTrigger className="py-3 no-underline hover:no-underline">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
-                    <span className="font-semibold text-foreground">{stage.name}</span>
-                  </div>
-                  <Badge variant="secondary" className="ml-auto text-xs">
-                    {contacts.length}
-                  </Badge>
+  if (isMobile) {
+    return (
+      <div className="p-4">
+        {header}
+        <Accordion type="multiple" defaultValue={['talking', 'meeting', 'proposal', 'pilot']}>
+          {[...BOARD, ...EXITS.map((stage) => stage.id)].map((lifecycle) => {
+            const list = byStage.get(lifecycle) ?? [];
+            return (
+              <AccordionItem key={lifecycle} value={lifecycle}>
+                <AccordionTrigger className="py-3">
+                  <span className={cn('rounded-full border px-2 py-0.5 text-xs font-medium', LIFECYCLE_STYLES[lifecycle])}>
+                    {label(lifecycle)}
+                  </span>
+                  <span className="ml-auto mr-2 text-xs text-muted-foreground">{list.length}</span>
                 </AccordionTrigger>
-                <AccordionContent className="pb-4">
-                  <div className="space-y-2">
-                    {contacts.map((contact) => {
-                      const taskCount = getOpenTaskCount(contact.id);
-                      return (
-                        <div
-                          key={contact.id}
-                          className="rounded-lg border bg-background p-3 shadow-sm"
-                          onClick={() => navigate(`/contacts/${contact.id}`)}
-                          role="button"
-                          tabIndex={0}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              navigate(`/contacts/${contact.id}`);
-                            }
-                          }}
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold text-foreground truncate">
-                                {contact.fullName}
-                              </p>
-                              <p className="text-xs text-muted-foreground truncate">
-                                {contact.company || "No company"}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {taskCount > 0 && (
-                                <Badge variant="outline" className="text-xs">
-                                  {taskCount}
-                                </Badge>
-                              )}
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className={cn("h-8 px-2 text-xs")}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setMoveContact(contact);
-                                }}
-                              >
-                                Move
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {contacts.length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center py-6">
-                        No contacts in this stage
-                      </p>
-                    )}
-                  </div>
+                <AccordionContent className="space-y-2">
+                  {list.map((company) => (
+                    <div key={company.id} className="flex items-center gap-2">
+                      <button className="flex-1 min-w-0 text-left" onClick={() => navigate(`/companies/${company.id}`)}>
+                        {card(company)}
+                      </button>
+                      <Select value={company.lifecycle} onValueChange={(value) => moveCompanyToLifecycle(company.id, value as Lifecycle)}>
+                        <SelectTrigger className="w-24 h-8 text-xs">
+                          <SelectValue placeholder="Move" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {LIFECYCLES.map((stage) => (
+                            <SelectItem key={stage.id} value={stage.id}>
+                              {stage.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))}
+                  {list.length === 0 && <p className="text-xs text-muted-foreground py-2">Empty</p>}
                 </AccordionContent>
               </AccordionItem>
-            ))}
-          </Accordion>
-        ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCorners}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-          >
-            <ScrollArea className="w-full pb-4">
-              <div className="flex gap-3 lg:gap-4 min-w-max">
-                {stageContacts.map(({ stage, contacts }) => (
-                  <DroppableStage key={stage.id} stage={stage} contactCount={contacts.length}>
-                    <div className="space-y-3 lg:space-y-4">
-                      {contacts.map((contact) => (
-                        <DraggableContact
-                          key={contact.id}
-                          contact={contact}
-                          taskCount={getOpenTaskCount(contact.id)}
-                          onClick={() => navigate(`/contacts/${contact.id}`)}
-                        />
-                      ))}
-
-                      {contacts.length === 0 && (
-                        <p className="text-sm text-muted-foreground text-center py-8">
-                          No contacts in this stage
-                        </p>
-                      )}
-                    </div>
-                  </DroppableStage>
-                ))}
-              </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
-
-            <DragOverlay>
-              {activeContact ? (
-                <ContactCard
-                  contact={activeContact}
-                  taskCount={getOpenTaskCount(activeContact.id)}
-                  isDragging
-                />
-              ) : null}
-            </DragOverlay>
-          </DndContext>
-        )}
+            );
+          })}
+        </Accordion>
       </div>
+    );
+  }
 
-      <Button
-        className="sm:hidden fixed right-[calc(1.25rem+env(safe-area-inset-right))] bottom-[calc(4.5rem+env(safe-area-inset-bottom))] h-12 w-12 rounded-full p-0 shadow-lg"
-        onClick={() => setAddContactOpen(true)}
-        aria-label="Add Contact"
-      >
-        <Plus className="h-5 w-5" />
-      </Button>
+  return (
+    <div className="p-6 lg:p-8">
+      {header}
+      <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <ScrollArea className="w-full whitespace-nowrap pb-4">
+          <div className="flex gap-3 items-start">
+            {BOARD.map((lifecycle) => {
+              const list = byStage.get(lifecycle) ?? [];
+              return (
+                <Column key={lifecycle} lifecycle={lifecycle} count={list.length}>
+                  <div className="space-y-2 whitespace-normal max-h-[calc(100vh-18rem)] overflow-y-auto pr-1">
+                    {list.map((company) => (
+                      <DraggableCompany key={company.id} id={company.id} onClick={() => navigate(`/companies/${company.id}`)}>
+                        {card(company)}
+                      </DraggableCompany>
+                    ))}
+                    {list.length === 0 && <p className="text-xs text-muted-foreground text-center py-6">Drop here</p>}
+                  </div>
+                </Column>
+              );
+            })}
+          </div>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+        <div className="grid grid-cols-3 gap-3 mt-4 max-w-3xl">
+          {EXITS.map((stage) => (
+            <Column key={stage.id} lifecycle={stage.id} count={byStage.get(stage.id)?.length ?? 0} compact>
+              <Link
+                to={`/companies?stage=${stage.id}`}
+                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+              >
+                View all
+              </Link>
+            </Column>
+          ))}
+        </div>
+        <DragOverlay>{active ? <div className="w-56">{card(active)}</div> : null}</DragOverlay>
+      </DndContext>
     </div>
   );
 }

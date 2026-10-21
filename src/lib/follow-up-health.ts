@@ -1,5 +1,5 @@
 import { differenceInCalendarDays } from "date-fns";
-import type { Contact, Stage, Task } from "@/types/crm";
+import { OPEN_DEAL_LIFECYCLES, type Company, type Contact, type Stage, type Task } from "@/types/crm";
 
 export const COLD_AFTER_DAYS = 14;
 
@@ -56,5 +56,25 @@ export const getColdContacts = (
       }),
     )
     .map((contact) => ({ contact, daysSinceTouch: getDaysSinceTouch(contact, now) ?? 0 }))
+    .sort((a, b) => b.daysSinceTouch - a.daysSinceTouch);
+};
+
+/** Days since anything happened with a company (falls back to its last stage change). */
+export const getCompanyDaysSinceTouch = (company: Company, now = new Date()) => {
+  const last = new Date(company.lastActivityAt || company.lifecycleChangedAt || company.createdAt);
+  if (Number.isNaN(last.getTime())) return null;
+  return differenceInCalendarDays(now, last);
+};
+
+/**
+ * Open deals (talking → pilot) with no open task and no activity for
+ * COLD_AFTER_DAYS. Contacting is left out: the call cadence handles those.
+ */
+export const getColdCompanies = (companies: Company[], tasks: Task[], now = new Date()) => {
+  const withOpenTask = new Set(tasks.filter((task) => !task.completed && task.companyId).map((task) => task.companyId));
+  return companies
+    .filter((company) => OPEN_DEAL_LIFECYCLES.includes(company.lifecycle) && !withOpenTask.has(company.id))
+    .map((company) => ({ company, daysSinceTouch: getCompanyDaysSinceTouch(company, now) ?? 0 }))
+    .filter(({ daysSinceTouch }) => daysSinceTouch >= COLD_AFTER_DAYS)
     .sort((a, b) => b.daysSinceTouch - a.daysSinceTouch);
 };

@@ -5,9 +5,88 @@ export interface Stage {
   order: number;
 }
 
+export type Lifecycle =
+  | 'sourced'
+  | 'qualified'
+  | 'contacting'
+  | 'talking'
+  | 'meeting'
+  | 'proposal'
+  | 'pilot'
+  | 'customer'
+  | 'not_now'
+  | 'lost'
+  | 'disqualified';
+
+/** The funnel in order; `exit` stages sit outside the main flow. */
+export const LIFECYCLES: { id: Lifecycle; label: string; exit?: boolean }[] = [
+  { id: 'sourced', label: 'Sourced' },
+  { id: 'qualified', label: 'Qualified' },
+  { id: 'contacting', label: 'Contacting' },
+  { id: 'talking', label: 'Talking' },
+  { id: 'meeting', label: 'Meeting' },
+  { id: 'proposal', label: 'Proposal' },
+  { id: 'pilot', label: 'Pilot' },
+  { id: 'customer', label: 'Customer' },
+  { id: 'not_now', label: 'Not now', exit: true },
+  { id: 'lost', label: 'Lost', exit: true },
+  { id: 'disqualified', label: 'Disqualified', exit: true },
+];
+
+export const lifecycleLabel = (lifecycle: Lifecycle) =>
+  LIFECYCLES.find((entry) => entry.id === lifecycle)?.label ?? lifecycle;
+
+/** Deals in progress: someone is talking to them and it's not over. */
+export const OPEN_DEAL_LIFECYCLES: Lifecycle[] = ['talking', 'meeting', 'proposal', 'pilot'];
+
+export type CompanyType = 'venue' | 'brand' | 'chain' | 'partner' | 'other';
+
+export const COMPANY_TYPES: { id: CompanyType; label: string }[] = [
+  { id: 'venue', label: 'Venue' },
+  { id: 'brand', label: 'Brand' },
+  { id: 'chain', label: 'Chain' },
+  { id: 'partner', label: 'Partner' },
+  { id: 'other', label: 'Unspecified' },
+];
+
+export type FitGrade = 'A' | 'B' | 'C';
+
+export interface Company {
+  id: string;
+  name: string;
+  type: CompanyType;
+  industry: string;
+  city: string;
+  address: string;
+  website: string;
+  phone: string;
+  email: string;
+  instagram: string;
+  googleMapsUrl: string;
+  lifecycle: Lifecycle;
+  lifecycleChangedAt: string;
+  fit: FitGrade | null;
+  fitScore: number | null;
+  fitReason: string;
+  lists: string[];
+  source: string;
+  notes: string;
+  lostReason: string;
+  revisitOn: string | null;
+  nextAction: string | null;
+  nextActionAt: string | null;
+  cadenceStep: number;
+  lastActivityAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Task {
   id: string;
-  contactId: string;
+  /** Person the task is about, if any. */
+  contactId?: string | null;
+  /** Company the task is about; neither set means a personal task. */
+  companyId?: string | null;
   title: string;
   description?: string;
   dueDate: string;
@@ -29,6 +108,7 @@ export interface EisenhowerItem {
 
 export interface Contact {
   id: string;
+  companyId?: string | null;
   fullName: string;
   role?: string;
   company: string;
@@ -56,7 +136,8 @@ export type ActivityType = 'call' | 'call_attempted' | 'email' | 'meeting' | 'no
 
 export interface Activity {
   id: string;
-  contactId: string;
+  contactId?: string | null;
+  companyId?: string | null;
   type: ActivityType;
   description: string;
   timestamp: string;

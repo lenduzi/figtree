@@ -1,111 +1,68 @@
 import { useState } from 'react';
-import { Plus, User, UserPlus } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Check, ChevronsUpDown, Plus } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { useCRMContext } from '@/contexts/CRMContext';
-import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
-import { toLocalDateKey } from '@/lib/utils';
+import { cn, toLocalDateKey } from '@/lib/utils';
+
+const PERSONAL = '';
 
 interface AddTaskWithContactDialogProps {
   trigger?: React.ReactNode;
-  defaultContactId?: string;
+  /** Pre-select a company; leave empty for a personal task. */
+  defaultCompanyId?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   triggerless?: boolean;
 }
 
-export function AddTaskWithContactDialog({ 
-  trigger, 
-  defaultContactId,
+/** New task for a company, or a personal task when no company is picked. */
+export function AddTaskWithContactDialog({
+  trigger,
+  defaultCompanyId,
   open: controlledOpen,
   onOpenChange,
   triggerless = false,
 }: AddTaskWithContactDialogProps) {
-  const { addTask, addContact, contacts, stages, meContactId } = useCRMContext();
+  const { addTask, companies } = useCRMContext();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
-  
-  const isControlled = controlledOpen !== undefined;
-  const open = isControlled ? controlledOpen : uncontrolledOpen;
-  const setOpen = (value: boolean) => {
-    if (isControlled) {
-      onOpenChange?.(value);
-    } else {
-      setUncontrolledOpen(value);
-    }
-  };
-  const [showQuickAdd, setShowQuickAdd] = useState(false);
-  const [quickAddName, setQuickAddName] = useState('');
-  const [formData, setFormData] = useState({
-    contactId: defaultContactId || '',
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = (value: boolean) => (onOpenChange ? onOpenChange(value) : setUncontrolledOpen(value));
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const emptyForm = () => ({
+    companyId: defaultCompanyId ?? PERSONAL,
     title: '',
     description: '',
     dueDate: toLocalDateKey(),
     dueTime: '',
     hasReminder: true,
   });
+  const [formData, setFormData] = useState(emptyForm);
 
-  // Sort contacts alphabetically by name
-  const sortedContacts = [...contacts].sort((a, b) => a.fullName.localeCompare(b.fullName));
+  const sortedCompanies = [...companies].sort((a, b) => a.name.localeCompare(b.name));
+  const selectedCompany = companies.find((company) => company.id === formData.companyId);
 
-  const handleQuickAddContact = () => {
-    if (!quickAddName.trim()) return;
-    
-    const newContact = addContact({
-      fullName: quickAddName.trim(),
-      role: '',
-      company: '',
-      website: '',
-      email: '',
-      phone: '',
-      stageId: stages[0]?.id || '',
-      notes: '',
-    });
-    
-    setFormData({ ...formData, contactId: newContact.id });
-    setQuickAddName('');
-    setShowQuickAdd(false);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.title.trim() || !formData.contactId) return;
-
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!formData.title.trim()) return;
     addTask({
-      contactId: formData.contactId,
-      title: formData.title,
+      companyId: formData.companyId || null,
+      contactId: null,
+      title: formData.title.trim(),
       description: formData.description,
       dueDate: formData.dueDate,
       dueTime: formData.dueTime,
       hasReminder: formData.hasReminder,
       completed: false,
     });
-
-    setFormData({
-      contactId: '',
-      title: '',
-      description: '',
-      dueDate: toLocalDateKey(),
-      dueTime: '',
-      hasReminder: true,
-    });
+    setFormData(emptyForm());
     setOpen(false);
   };
 
@@ -123,147 +80,110 @@ export function AddTaskWithContactDialog({
       )}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add New Task</DialogTitle>
+          <DialogTitle>New task</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="contact">Contact *</Label>
-            {!showQuickAdd ? (
-              <div className="space-y-2">
-                <Select
-                  value={formData.contactId}
-                  onValueChange={(value) => setFormData({ ...formData, contactId: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a contact..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sortedContacts.map((contact) => {
-                      const isMeContact = contact.id === meContactId;
+            <Label>For</Label>
+            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                  <span className="truncate">{selectedCompany ? selectedCompany.name : 'Personal (no company)'}</span>
+                  <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
+                <Command>
+                  <CommandInput placeholder="Search companies…" />
+                  <CommandList>
+                    <CommandEmpty>No company found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="__personal__ personal my own"
+                        onSelect={() => {
+                          setFormData({ ...formData, companyId: PERSONAL });
+                          setPickerOpen(false);
+                        }}
+                      >
+                        <Check className={cn('mr-2 h-4 w-4', formData.companyId === PERSONAL ? 'opacity-100' : 'opacity-0')} />
+                        Personal (no company)
+                      </CommandItem>
+                      {sortedCompanies.map((company) => (
+                        <CommandItem
+                          key={company.id}
+                          value={`${company.name} ${company.city} ${company.id}`}
+                          onSelect={() => {
+                            setFormData({ ...formData, companyId: company.id });
+                            setPickerOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn('mr-2 h-4 w-4', formData.companyId === company.id ? 'opacity-100' : 'opacity-0')}
+                          />
+                          <span className="truncate">{company.name}</span>
+                          {company.city && <span className="ml-auto text-xs text-muted-foreground">{company.city}</span>}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
 
-                      return (
-                        <SelectItem key={contact.id} value={contact.id}>
-                          <span className="flex items-center gap-2">
-                            <span>
-                              {contact.fullName}{contact.company ? ` — ${contact.company}` : ''}
-                            </span>
-                            {isMeContact && (
-                              <Badge variant="outline" className="px-1.5 py-0.5">
-                                <User className="h-3 w-3" />
-                                <span className="sr-only">Me</span>
-                              </Badge>
-                            )}
-                          </span>
-                        </SelectItem>
-                      );
-                    })}
-                    <Separator className="my-1" />
-                    <button
-                      type="button"
-                      className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-primary hover:bg-accent rounded-sm cursor-pointer"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setShowQuickAdd(true);
-                      }}
-                    >
-                      <UserPlus className="h-4 w-4" />
-                      Add new contact
-                    </button>
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : (
-              <div className="space-y-2 p-3 border border-border rounded-md bg-muted/30">
-                <Label htmlFor="quickAddName" className="text-sm">New contact name</Label>
-                <Input
-                  id="quickAddName"
-                  value={quickAddName}
-                  onChange={(e) => setQuickAddName(e.target.value)}
-                  placeholder="Enter name..."
-                  autoFocus
-                />
-                <p className="text-xs text-muted-foreground">You can add more details later in Contacts.</p>
-                <div className="flex gap-2 pt-1">
-                  <Button 
-                    type="button" 
-                    size="sm" 
-                    variant="outline" 
-                    onClick={() => {
-                      setShowQuickAdd(false);
-                      setQuickAddName('');
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    type="button" 
-                    size="sm" 
-                    onClick={handleQuickAddContact}
-                    disabled={!quickAddName.trim()}
-                  >
-                    <UserPlus className="h-4 w-4 mr-1" />
-                    Add
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
           <div className="space-y-2">
-            <Label htmlFor="title">Title *</Label>
+            <Label htmlFor="task-title">Task *</Label>
             <Input
-              id="title"
+              id="task-title"
               value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              placeholder="Follow up call"
-              required
+              onChange={(event) => setFormData({ ...formData, title: event.target.value })}
+              placeholder={selectedCompany ? 'Follow up on the pilot offer' : 'Renew insurance'}
+              autoFocus
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="task-description">Details</Label>
             <Textarea
-              id="description"
+              id="task-description"
+              rows={2}
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Optional details..."
-              rows={3}
+              onChange={(event) => setFormData({ ...formData, description: event.target.value })}
             />
           </div>
-          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3 sm:gap-4">
-            <div className="space-y-2 min-w-0">
-              <Label htmlFor="dueDate">Due Date *</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="task-date">Due</Label>
               <Input
-                id="dueDate"
+                id="task-date"
                 type="date"
                 value={formData.dueDate}
-                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                required
+                onChange={(event) => setFormData({ ...formData, dueDate: event.target.value })}
               />
             </div>
-            <div className="space-y-2 min-w-0">
-              <Label htmlFor="dueTime">Time</Label>
+            <div className="space-y-2">
+              <Label htmlFor="task-time">Time</Label>
               <Input
-                id="dueTime"
+                id="task-time"
                 type="time"
                 value={formData.dueTime}
-                onChange={(e) => setFormData({ ...formData, dueTime: e.target.value })}
+                onChange={(event) => setFormData({ ...formData, dueTime: event.target.value })}
               />
             </div>
           </div>
           <div className="flex items-center justify-between">
-            <Label htmlFor="reminder">Enable Reminder</Label>
+            <Label htmlFor="task-reminder">Remind me at the due time</Label>
             <Switch
-              id="reminder"
+              id="task-reminder"
               checked={formData.hasReminder}
               onCheckedChange={(checked) => setFormData({ ...formData, hasReminder: checked })}
             />
           </div>
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!formData.contactId || !formData.title.trim()}>
-              Add Task
+            <Button type="submit" disabled={!formData.title.trim()}>
+              Add task
             </Button>
           </div>
         </form>

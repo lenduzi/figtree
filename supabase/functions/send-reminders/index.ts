@@ -32,8 +32,6 @@ const REMINDER_MAX_LATE_MINUTES = 6 * 60;
 // Don't send the digest if the job only gets to it hours after digest time.
 const DIGEST_WINDOW_MINUTES = 3 * 60;
 const COLD_AFTER_DAYS = 14;
-const CLOSED_STAGES = new Set(["won", "lost"]);
-const INACTIVE_OUTREACH_STATUSES = ["Won", "No", "Dead/Invalid", "Not Now"];
 
 type Subscription = { id: string; user_id: string; endpoint: string; p256dh: string; auth: string };
 type Settings = {
@@ -141,7 +139,7 @@ const sendTaskReminders = async (
 ) => {
   const { data: tasks, error } = await db
     .from("tasks")
-    .select("id, title, description, due_date, due_time, contact_id")
+    .select("id, title, description, due_date, due_time, contact_id, company_id")
     .eq("user_id", userId)
     .eq("has_reminder", true)
     .eq("completed", false)
@@ -155,9 +153,14 @@ const sendTaskReminders = async (
   const due = (tasks ?? []).filter((task) => minutesLate(task) >= 0);
   if (due.length === 0) return 0;
 
-  const contactIds = [...new Set(due.map((task) => task.contact_id))];
-  const { data: contacts } = await db.from("contacts").select("id, full_name, company").in("id", contactIds);
+  const contactIds = [...new Set(due.map((task) => task.contact_id).filter(Boolean))];
+  const companyIds = [...new Set(due.map((task) => task.company_id).filter(Boolean))];
+  const [{ data: contacts }, { data: companies }] = await Promise.all([
+    db.from("contacts").select("id, full_name").in("id", contactIds.length ? contactIds : ["00000000-0000-0000-0000-000000000000"]),
+    db.from("companies").select("id, name").in("id", companyIds.length ? companyIds : ["00000000-0000-0000-0000-000000000000"]),
+  ]);
   const contactById = new Map((contacts ?? []).map((contact) => [contact.id, contact]));
+  const companyById = new Map((companies ?? []).map((company) => [company.id, company]));
 
   let sent = 0;
   for (const task of due) {
@@ -165,13 +168,15 @@ const sendTaskReminders = async (
     await db.from("tasks").update({ reminded_at: new Date().toISOString() }).eq("id", task.id);
     if (minutesLate(task) > REMINDER_MAX_LATE_MINUTES) continue;
 
-    const contact = contactById.get(task.contact_id);
-    const who = contact ? [contact.full_name, contact.company].filter(Boolean).join(" · ") : "";
+    const who = [contactById.get(task.contact_id)?.full_name, companyById.get(task.company_id)?.name]
+      .filter(Boolean)
+      .join(" · ");
+    const link = task.company_id ? `${appUrl()}/companies/${task.company_id}` : `${appUrl()}/app`;
     const time = String(task.due_time).slice(0, 5);
     const push = await sendToSubscriptions(db, channels.subscriptions, {
       title: task.title || "Follow-up due",
       body: [who, `due ${time}`].filter(Boolean).join(" — "),
-      url: `/contacts/${task.contact_id}`,
+      url: task.company_id ? `/companies/${task.company_id}` : "/app",
       tag: `task-${task.id}`,
     });
     const emailed = await emailSelf(
@@ -183,7 +188,7 @@ const sendTaskReminders = async (
         who && `Contact: ${who}`,
         task.description,
         "",
-        `Open in Figtree: ${appUrl()}/contacts/${task.contact_id}`,
+        `Open in Figtree: ${link}`,
       ].filter((line) => typeof line === "string").join("\n"),
     );
     if (push.sent > 0 || emailed) sent += 1;
@@ -191,68 +196,69 @@ const sendTaskReminders = async (
   return sent;
 };
 
+const OPEN_DEAL_STAGES = ["talking", "meeting", "proposal", "pilot"];
+const CALL_STAGES = ["sourced", "qualified", "contacting", "talking"];
+
 const buildDigest = async (db: SupabaseClient, userId: string, local: { date: string }) => {
-  const [openTasks, stages, contacts, outreach] = await Promise.all([
-    db.from("tasks").select("title, due_date, contact_id").eq("user_id", userId).eq("completed", false)
-      .lte("due_date", local.date).order("due_date"),
-    db.from("stages").select("id, name").eq("user_id", userId),
-    db.from("contacts").select("id, full_name, company, stage_id, last_interaction_at, created_at").eq("user_id", userId),
+  const [openTasks, companies, callsDue] = await Promise.all([
+    db.from("tasks").select("title, due_date, company_id, contact_id").eq("user_id", userId).eq("completed", false)
+      .order("due_date"),
+    db.from("companies").select("id, name, city, lifecycle, last_activity_at, lifecycle_changed_at, created_at")
+      .eq("user_id", userId),
     // Due through the end of the user's local day; a day of slack either side
     // of UTC is fine for a count.
-    db.from("outreach_leads").select("id", { count: "exact", head: true })
+    db.from("companies").select("id", { count: "exact", head: true })
       .eq("user_id", userId)
-      .not("status", "in", `(${INACTIVE_OUTREACH_STATUSES.map((s) => `"${s}"`).join(",")})`)
+      .in("lifecycle", CALL_STAGES)
+      .neq("phone", "")
       .lt("next_action_at", `${addDays(local.date, 1)}T00:00:00Z`),
   ]);
-  const { data: anyOpenTasks } = await db.from("tasks").select("contact_id").eq("user_id", userId).eq("completed", false);
 
-  const contactById = new Map((contacts.data ?? []).map((contact) => [contact.id, contact]));
-  const closedStageIds = new Set(
-    (stages.data ?? [])
-      .filter((stage) => CLOSED_STAGES.has(stage.id) || CLOSED_STAGES.has(String(stage.name).trim().toLowerCase()))
-      .map((stage) => stage.id),
-  );
-  const withOpenTask = new Set((anyOpenTasks ?? []).map((task) => task.contact_id));
-  const goingCold = (contacts.data ?? [])
-    .map((contact) => {
-      const lastTouch = (contact.last_interaction_at ?? contact.created_at ?? "").slice(0, 10);
-      return { contact, days: lastTouch ? daysBetween(lastTouch, local.date) : 0 };
+  const tasks = openTasks.data ?? [];
+  const companyById = new Map((companies.data ?? []).map((company) => [company.id, company]));
+  const withOpenTask = new Set(tasks.map((task) => task.company_id).filter(Boolean));
+  const goingCold = (companies.data ?? [])
+    .filter((company) => OPEN_DEAL_STAGES.includes(company.lifecycle) && !withOpenTask.has(company.id))
+    .map((company) => {
+      const lastTouch = (company.last_activity_at ?? company.lifecycle_changed_at ?? company.created_at ?? "").slice(0, 10);
+      return { company, days: lastTouch ? daysBetween(lastTouch, local.date) : 0 };
     })
-    .filter(({ contact, days }) =>
-      contact.full_name !== "Me" && !closedStageIds.has(contact.stage_id) && !withOpenTask.has(contact.id) &&
-      days >= COLD_AFTER_DAYS
-    )
+    .filter(({ days }) => days >= COLD_AFTER_DAYS)
     .sort((a, b) => b.days - a.days);
 
-  const overdue = (openTasks.data ?? []).filter((task) => task.due_date < local.date);
-  const dueToday = (openTasks.data ?? []).filter((task) => task.due_date === local.date);
-  const outreachDue = outreach.count ?? 0;
+  const dueNow = tasks.filter((task) => task.due_date <= local.date);
+  const business = dueNow.filter((task) => task.company_id || task.contact_id);
+  const personal = dueNow.filter((task) => !task.company_id && !task.contact_id);
+  const overdue = business.filter((task) => task.due_date < local.date);
+  const dueToday = business.filter((task) => task.due_date === local.date);
+  const calls = callsDue.count ?? 0;
 
   const summary = [
     overdue.length && `${overdue.length} overdue`,
     dueToday.length && `${dueToday.length} due today`,
-    outreachDue && `${outreachDue} outreach due`,
+    calls && `${calls} calls due`,
     goingCold.length && `${goingCold.length} going cold`,
+    personal.length && `${personal.length} personal`,
   ].filter(Boolean).join(" · ");
 
-  const taskLine = (task: { title: string; due_date: string; contact_id: string }) => {
-    const contact = contactById.get(task.contact_id);
-    const who = contact ? ` — ${[contact.full_name, contact.company].filter(Boolean).join(", ")}` : "";
-    return `- ${task.title}${who}${task.due_date < local.date ? ` (due ${task.due_date})` : ""}`;
+  const taskLine = (task: { title: string; due_date: string; company_id: string | null }) => {
+    const company = task.company_id ? companyById.get(task.company_id) : null;
+    return `- ${task.title}${company ? ` — ${company.name}` : ""}${task.due_date < local.date ? ` (due ${task.due_date})` : ""}`;
   };
   const lines: string[] = ["Here's what needs your attention today.", ""];
   if (overdue.length) lines.push(`Overdue (${overdue.length})`, ...overdue.slice(0, 15).map(taskLine), "");
   if (dueToday.length) lines.push(`Due today (${dueToday.length})`, ...dueToday.slice(0, 15).map(taskLine), "");
+  if (calls) lines.push(`Calls due: ${calls} — ${appUrl()}/calls`, "");
   if (goingCold.length) {
     lines.push(
       `Going cold (${goingCold.length}) — open deals, no task planned, quiet ${COLD_AFTER_DAYS}+ days`,
-      ...goingCold.slice(0, 8).map(({ contact, days }) =>
-        `- ${contact.full_name}${contact.company ? `, ${contact.company}` : ""} (${days} days)`
+      ...goingCold.slice(0, 8).map(({ company, days }) =>
+        `- ${company.name}${company.city ? `, ${company.city}` : ""} (${days} days)`
       ),
       "",
     );
   }
-  if (outreachDue) lines.push(`Outreach: ${outreachDue} leads due`, "");
+  if (personal.length) lines.push(`Personal (${personal.length})`, ...personal.slice(0, 10).map(taskLine), "");
   lines.push(`Open Figtree: ${appUrl()}/app`);
 
   return { summary, emailBody: lines.join("\n") };
@@ -275,7 +281,7 @@ const processScheduledEmails = async (db: SupabaseClient, userId: string) => {
       .update({ status: "sending" })
       .eq("id", id)
       .eq("status", "scheduled")
-      .select("id, user_id, contact_id, to_email, subject, body, attachments")
+      .select("id, user_id, contact_id, company_id, to_email, subject, body, attachments")
       .maybeSingle();
     if (!email) continue;
     if ((await deliverEmailRow(db, email)).ok) sent += 1;
@@ -296,7 +302,7 @@ const checkReplies = async (
   const now = Date.now();
   const { data: emails } = await db
     .from("emails")
-    .select("id, contact_id, subject, sent_at, gmail_thread_id, reply_checked_at")
+    .select("id, contact_id, company_id, subject, sent_at, gmail_thread_id, reply_checked_at")
     .eq("user_id", userId)
     .eq("status", "sent")
     .is("replied_at", null)
@@ -328,14 +334,17 @@ const checkReplies = async (
     const repliedAt = new Date(reply.internalDate).toISOString();
     await db.from("emails").update({ replied_at: repliedAt, reply_checked_at: checkedAt }).eq("id", email.id);
     replies += 1;
-    if (!email.contact_id) continue;
+    if (!email.contact_id && !email.company_id) continue;
 
-    const { data: contact } = await db.from("contacts").select("full_name").eq("id", email.contact_id).maybeSingle();
+    const { data: contact } = email.contact_id
+      ? await db.from("contacts").select("full_name").eq("id", email.contact_id).maybeSingle()
+      : { data: null };
     const name = contact?.full_name || emailAddressOf(reply.from);
     await db.from("activities").insert({
       id: crypto.randomUUID(),
       user_id: userId,
       contact_id: email.contact_id,
+      company_id: email.company_id,
       type: "email",
       description: `Reply received: ${email.subject || "(no subject)"}`,
       occurred_at: repliedAt,
@@ -344,17 +353,18 @@ const checkReplies = async (
       id: crypto.randomUUID(),
       user_id: userId,
       contact_id: email.contact_id,
+      company_id: email.company_id,
       title: `Reply from ${name}`,
       description: `Re: ${email.subject || "(no subject)"} — detected in Gmail`,
       due_date: local.date,
       has_reminder: false,
       completed: false,
     });
-    // They replied: stop any follow-ups still queued for them.
+    // They replied: stop any follow-ups still queued for them (or their company).
     await db
       .from("emails")
       .update({ status: "cancelled", error: "Cancelled automatically: contact replied" })
-      .eq("contact_id", email.contact_id)
+      .eq(email.company_id ? "company_id" : "contact_id", email.company_id ?? email.contact_id)
       .eq("status", "scheduled");
   }
   return replies;

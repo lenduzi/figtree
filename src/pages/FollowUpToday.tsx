@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarCheck, AlertTriangle, Clock, CheckCircle2, Plus, Megaphone, Snowflake, ChevronRight } from 'lucide-react';
+import { CalendarCheck, AlertTriangle, Clock, CheckCircle2, Plus, Phone, Snowflake, ChevronRight, User } from 'lucide-react';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { TaskItem } from '@/components/TaskItem';
 import { TaskDetailDialog } from '@/components/TaskDetailDialog';
@@ -9,8 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Task } from '@/types/crm';
 import { addDays, differenceInCalendarDays } from 'date-fns';
-import { listDueOutreachLeads } from '@/lib/outreach-store';
-import { COLD_AFTER_DAYS, getColdContacts } from '@/lib/follow-up-health';
+import { COLD_AFTER_DAYS, getColdCompanies } from '@/lib/follow-up-health';
 import { cn, toLocalDateKey } from '@/lib/utils';
 
 interface RecentlyCompleted {
@@ -20,7 +19,8 @@ interface RecentlyCompleted {
 
 const FIRST_TASK_NUDGE_KEY = 'simplecrm_first_task_nudge_seen';
 const COLD_PREVIEW_LIMIT = 6;
-const OUTREACH_PREVIEW_LIMIT = 6;
+const CALLS_PREVIEW_LIMIT = 6;
+const CALL_STAGES = ['sourced', 'qualified', 'contacting', 'talking'];
 
 const formatOutreachDue = (nextActionAt: string | null) => {
   if (!nextActionAt) return '';
@@ -31,14 +31,16 @@ const formatOutreachDue = (nextActionAt: string | null) => {
 
 export default function FollowUpToday() {
   const navigate = useNavigate();
-  const { tasks, contacts, stages, meContactId, toggleTaskComplete, getContactById, rescheduleTask } = useCRMContext();
-  // Outreach leads live outside the CRM context; this page remounts on navigation, so reading once is enough.
-  // Most recently due first: long-overdue leads from old campaigns matter least.
-  const [dueOutreachLeads] = useState(() => listDueOutreachLeads().reverse());
-  const coldContacts = useMemo(
-    () => getColdContacts(contacts, tasks, stages, meContactId),
-    [contacts, tasks, stages, meContactId],
-  );
+  const { tasks, companies, toggleTaskComplete, getContactById, rescheduleTask } = useCRMContext();
+  // Calls due through today. Most recently due first: long-overdue leads from old campaigns matter least.
+  const dueCalls = useMemo(() => {
+    const endOfToday = addDays(new Date(new Date().setHours(0, 0, 0, 0)), 1);
+    return companies
+      .filter((company) => company.phone && CALL_STAGES.includes(company.lifecycle))
+      .filter((company) => company.nextActionAt && new Date(company.nextActionAt) < endOfToday)
+      .sort((a, b) => (b.nextActionAt ?? '').localeCompare(a.nextActionAt ?? ''));
+  }, [companies]);
+  const coldCompanies = useMemo(() => getColdCompanies(companies, tasks), [companies, tasks]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [recentlyCompleted, setRecentlyCompleted] = useState<RecentlyCompleted[]>([]);
   const [showFirstTaskNudge, setShowFirstTaskNudge] = useState(false);
@@ -109,14 +111,19 @@ export default function FollowUpToday() {
     setShowFirstTaskNudge(false);
   };
   
-  const openTasks = tasks.filter(t => !t.completed && t.dueDate);
+  const isPersonal = (task: Task) => !task.companyId && !task.contactId;
+  const openTasks = tasks.filter(t => !t.completed && t.dueDate && !isPersonal(t));
+  const personalTasks = tasks
+    .filter(t => !t.completed && t.dueDate && isPersonal(t) && t.dueDate <= comingUpEnd)
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   const overdueTasks = openTasks.filter(t => t.dueDate < today);
   const todayTasks = openTasks.filter(t => t.dueDate === today);
   const comingUpTasks = openTasks
     .filter(t => t.dueDate > today && t.dueDate <= comingUpEnd)
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
-  const totalActionItems = overdueTasks.length + todayTasks.length;
+  const totalActionItems =
+    overdueTasks.length + todayTasks.length + personalTasks.filter((task) => task.dueDate <= today).length;
 
   return (
     <div className="p-6 lg:p-8 xl:p-10 max-w-4xl lg:max-w-5xl 2xl:max-w-6xl mx-auto">
@@ -283,29 +290,29 @@ export default function FollowUpToday() {
         </Card>
       </div>
 
-      {(dueOutreachLeads.length > 0 || coldContacts.length > 0) && (
+      {(dueCalls.length > 0 || coldCompanies.length > 0) && (
         <div className="mt-4 lg:mt-8 grid gap-4 lg:gap-8 lg:grid-cols-2 items-stretch">
-          {dueOutreachLeads.length > 0 && (
+          {dueCalls.length > 0 && (
             <Card className="flex flex-col h-full">
               <CardHeader className="pb-3 lg:pb-4 lg:px-6">
                 <CardTitle className="flex items-center gap-2 text-foreground text-lg lg:text-xl">
-                  <Megaphone className="h-5 w-5 lg:h-6 lg:w-6" />
-                  Outreach Due ({dueOutreachLeads.length})
+                  <Phone className="h-5 w-5 lg:h-6 lg:w-6" />
+                  Calls Due ({dueCalls.length})
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex-1 space-y-2 lg:space-y-3 lg:px-6">
-                {dueOutreachLeads.slice(0, OUTREACH_PREVIEW_LIMIT).map((lead) => {
+                {dueCalls.slice(0, CALLS_PREVIEW_LIMIT).map((lead) => {
                   const dueLabel = formatOutreachDue(lead.nextActionAt);
                   return (
                     <button
                       key={lead.id}
-                      onClick={() => navigate(`/outreach?lead=${lead.id}`)}
+                      onClick={() => navigate(`/calls?company=${lead.id}`)}
                       className="w-full text-left p-3 lg:p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors"
                     >
                       <div className="flex items-center gap-3">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm lg:text-base font-medium text-foreground truncate">
-                            {lead.venueName || 'Untitled lead'}
+                            {lead.name || 'Untitled'}
                           </p>
                           <p className="text-xs lg:text-sm text-muted-foreground truncate">
                             {[lead.nextAction, lead.city].filter(Boolean).join(' • ')}
@@ -324,43 +331,43 @@ export default function FollowUpToday() {
                     </button>
                   );
                 })}
-                {dueOutreachLeads.length > OUTREACH_PREVIEW_LIMIT && (
+                {dueCalls.length > CALLS_PREVIEW_LIMIT && (
                   <button
-                    onClick={() => navigate('/outreach?due=1')}
+                    onClick={() => navigate('/calls')}
                     className="w-full text-center text-xs lg:text-sm text-muted-foreground hover:text-foreground py-1"
                   >
-                    +{dueOutreachLeads.length - OUTREACH_PREVIEW_LIMIT} more in Outreach
+                    +{dueCalls.length - CALLS_PREVIEW_LIMIT} more in Call Mode
                   </button>
                 )}
               </CardContent>
             </Card>
           )}
 
-          {coldContacts.length > 0 && (
+          {coldCompanies.length > 0 && (
             <Card className="flex flex-col h-full">
               <CardHeader className="pb-3 lg:pb-4 lg:px-6">
                 <CardTitle className="flex items-center gap-2 text-foreground text-lg lg:text-xl">
                   <Snowflake className="h-5 w-5 lg:h-6 lg:w-6" />
-                  Going Cold ({coldContacts.length})
+                  Going Cold ({coldCompanies.length})
                 </CardTitle>
                 <p className="text-xs lg:text-sm text-muted-foreground">
                   Open deals with no task planned and no touch in {COLD_AFTER_DAYS}+ days
                 </p>
               </CardHeader>
               <CardContent className="flex-1 space-y-2 lg:space-y-3 lg:px-6">
-                {coldContacts.slice(0, COLD_PREVIEW_LIMIT).map(({ contact, daysSinceTouch }) => (
+                {coldCompanies.slice(0, COLD_PREVIEW_LIMIT).map(({ company, daysSinceTouch }) => (
                   <button
-                    key={contact.id}
-                    onClick={() => navigate(`/contacts/${contact.id}`)}
+                    key={company.id}
+                    onClick={() => navigate(`/companies/${company.id}`)}
                     className="w-full text-left p-3 lg:p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm lg:text-base font-medium text-foreground truncate">
-                          {contact.fullName}
+                          {company.name}
                         </p>
                         <p className="text-xs lg:text-sm text-muted-foreground truncate">
-                          {contact.company || 'No company'}
+                          {[company.city, company.industry].filter(Boolean).join(' · ') || '—'}
                         </p>
                       </div>
                       <span className="text-xs lg:text-sm text-amber-600 dark:text-amber-300 shrink-0">
@@ -370,18 +377,48 @@ export default function FollowUpToday() {
                     </div>
                   </button>
                 ))}
-                {coldContacts.length > COLD_PREVIEW_LIMIT && (
+                {coldCompanies.length > COLD_PREVIEW_LIMIT && (
                   <button
-                    onClick={() => navigate('/contacts')}
+                    onClick={() => navigate('/pipeline')}
                     className="w-full text-center text-xs lg:text-sm text-muted-foreground hover:text-foreground py-1"
                   >
-                    +{coldContacts.length - COLD_PREVIEW_LIMIT} more in Contacts
+                    +{coldCompanies.length - COLD_PREVIEW_LIMIT} more in Pipeline
                   </button>
                 )}
               </CardContent>
             </Card>
           )}
         </div>
+      )}
+
+      {personalTasks.length > 0 && (
+        <Card className="mt-4 lg:mt-8">
+          <CardHeader className="pb-3 lg:pb-4 lg:px-6 flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-foreground text-lg lg:text-xl">
+              <User className="h-5 w-5 lg:h-6 lg:w-6" />
+              My Tasks
+            </CardTitle>
+            <AddTaskWithContactDialog
+              trigger={
+                <Button size="sm" variant="outline">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add
+                </Button>
+              }
+            />
+          </CardHeader>
+          <CardContent className="space-y-3 lg:px-6">
+            {personalTasks.map((task) => (
+              <TaskItem
+                key={task.id}
+                task={task}
+                onToggleComplete={handleToggleComplete}
+                onReschedule={rescheduleTask}
+                onTaskClick={setSelectedTask}
+              />
+            ))}
+          </CardContent>
+        </Card>
       )}
 
       {recentlyCompleted.length > 0 && (

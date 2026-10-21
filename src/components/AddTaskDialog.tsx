@@ -16,11 +16,12 @@ import { useCRMContext } from '@/contexts/CRMContext';
 import { toLocalDateKey } from '@/lib/utils';
 
 interface AddTaskDialogProps {
-  contactId: string;
+  contactId?: string;
+  companyId?: string;
   trigger?: React.ReactNode;
 }
 
-export function AddTaskDialog({ contactId, trigger }: AddTaskDialogProps) {
+export function AddTaskDialog({ contactId, companyId, trigger }: AddTaskDialogProps) {
   const { addTask } = useCRMContext();
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -37,7 +38,8 @@ export function AddTaskDialog({ contactId, trigger }: AddTaskDialogProps) {
 
     addTask({
       ...formData,
-      contactId,
+      contactId: contactId ?? null,
+      companyId: companyId ?? null,
       completed: false,
     });
 

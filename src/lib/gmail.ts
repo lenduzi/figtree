@@ -15,6 +15,7 @@ export type EmailStatus = "scheduled" | "sending" | "sent" | "failed" | "cancell
 export type EmailRecord = {
   id: string;
   contact_id: string | null;
+  company_id: string | null;
   to_email: string;
   subject: string;
   body: string;
@@ -59,18 +60,19 @@ export const connectGmail = async (returnTo = `${window.location.origin}/setting
 
 export const disconnectGmail = () => invoke("gmail-oauth", { action: "disconnect" });
 
-export const listContactEmails = async (contactId: string) => {
+export const listCompanyEmails = async (companyId: string) => {
   const { data, error } = await getClient()
     .from("emails")
-    .select("id, contact_id, to_email, subject, body, status, scheduled_for, sent_at, replied_at, error, attachments, created_at")
-    .eq("contact_id", contactId)
+    .select("id, contact_id, company_id, to_email, subject, body, status, scheduled_for, sent_at, replied_at, error, attachments, created_at")
+    .eq("company_id", companyId)
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as EmailRecord[];
 };
 
 export const queueEmail = async (email: {
-  contactId: string;
+  companyId: string;
+  contactId: string | null;
   to: string;
   subject: string;
   body: string;
@@ -82,6 +84,7 @@ export const queueEmail = async (email: {
   const { data, error } = await getClient()
     .from("emails")
     .insert({
+      company_id: email.companyId,
       contact_id: email.contactId,
       to_email: email.to,
       subject: email.subject,
@@ -108,8 +111,12 @@ export const cancelEmail = async (emailId: string) => {
   if (error) throw error;
 };
 
-export const draftEmail = (contactId: string, instructions: string) =>
-  invoke<{ subject: string; body: string; attachments: EmailAttachment[] }>("draft-email", { contactId, instructions });
+export const draftEmail = (companyId: string, contactId: string | null, instructions: string) =>
+  invoke<{ subject: string; body: string; attachments: EmailAttachment[] }>("draft-email", {
+    companyId,
+    contactId,
+    instructions,
+  });
 
 /** Uploads a file to the user's private attachment folder. */
 export const uploadAttachment = async (file: File): Promise<EmailAttachment> => {

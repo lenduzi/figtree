@@ -765,3 +765,45 @@ export const buildWhatsAppLink = (phoneE164: string, text: string) => {
   const encoded = encodeURIComponent(text);
   return `https://wa.me/${normalized}?text=${encoded}`;
 };
+
+export type LeadCandidate = {
+  name: string;
+  city: string;
+  address: string;
+  phone: string;
+  website: string;
+  googleMapsUrl: string;
+  industry: string;
+  fit: OutreachBucket;
+  fitScore: number;
+};
+
+/**
+ * Parses a lead CSV (e.g. a Google Maps export) into company candidates with
+ * a fit score. Rows without a name are skipped and counted.
+ */
+export const parseLeadCandidates = (csvText: string) => {
+  const { records } = parseCsvRecords(csvText);
+  const candidates: LeadCandidate[] = [];
+  let skipped = 0;
+  records.forEach((record) => {
+    const mapped = mapRecordToLead(record);
+    if (!mapped.venueName.trim()) {
+      skipped += 1;
+      return;
+    }
+    const score = mapped.priorityScore > 0 ? mapped.priorityScore : computeScore(mapped);
+    candidates.push({
+      name: mapped.venueName.trim(),
+      city: mapped.city.trim(),
+      address: mapped.address.trim(),
+      phone: mapped.phoneE164 ?? mapped.phoneRaw.trim(),
+      website: mapped.websiteUrl,
+      googleMapsUrl: mapped.googleMapsUrl,
+      industry: mapped.keywordsFoundBy[0] ?? mapped.types[0] ?? "",
+      fit: mapped.bucket ?? bucketFromScore(score),
+      fitScore: score,
+    });
+  });
+  return { candidates, skipped, total: records.length };
+};

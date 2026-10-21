@@ -21,6 +21,7 @@ const PULL_POLL_MS = 45000;
 export default function CloudSync() {
   const {
     dataStatus,
+    companies,
     contacts,
     tasks,
     stages,
@@ -169,6 +170,7 @@ export default function CloudSync() {
   const backup = useMemo(
     () =>
       buildBackup({
+        companies,
         contacts,
         tasks,
         activities,
@@ -180,7 +182,7 @@ export default function CloudSync() {
         projectVisits,
         creators,
       }),
-    [contacts, tasks, activities, researchEntries, stages, researchLists, eisenhowerItems, projects, projectVisits, creators, tick],
+    [companies, contacts, tasks, activities, researchEntries, stages, researchLists, eisenhowerItems, projects, projectVisits, creators, tick],
   );
 
   const dataHash = useMemo(() => JSON.stringify(backup.data), [backup]);

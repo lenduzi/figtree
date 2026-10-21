@@ -47,6 +47,7 @@ export default function Settings() {
   const { appTheme, setAppTheme } = useAppTheme();
   const {
     stages,
+    companies,
     contacts,
     tasks,
     activities,
@@ -265,6 +266,7 @@ export default function Settings() {
     if (!supabase || !session) return;
     setSyncStatus('syncing');
     const backup = buildBackup({
+      companies,
       contacts,
       tasks,
       activities,
@@ -347,6 +349,7 @@ export default function Settings() {
 
   const handleExport = () => {
     const backup = buildBackup({
+      companies,
       contacts,
       tasks,
       activities,
@@ -542,7 +545,7 @@ export default function Settings() {
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Sync runs in the background after your first upload or restore. Use restore when setting up a new device.
+                  Companies, people, tasks and emails are always saved to your account. Cloud sync covers projects, resources and planning tools; use restore when setting up a new device.
                 </p>
               </div>
             </div>

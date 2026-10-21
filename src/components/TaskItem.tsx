@@ -12,6 +12,8 @@ import {
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useNavigate } from 'react-router-dom';
+import { useCRMContext } from '@/contexts/CRMContext';
 
 interface TaskItemProps {
   task: Task;
@@ -34,6 +36,10 @@ export function TaskItem({
   onTaskClick,
   showContact = false 
 }: TaskItemProps) {
+  const navigate = useNavigate();
+  const { getCompanyById } = useCRMContext();
+  const company = getCompanyById(task.companyId);
+  const linkLabel = [contact?.fullName, company?.name ?? contact?.company].filter(Boolean).join(' • ');
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const isMobile = useMediaQuery("(max-width: 639px)");
@@ -172,12 +178,12 @@ export function TaskItem({
           </p>
         )}
 
-        {showContact && contact && (
+        {showContact && linkLabel && (
           <button
-            onClick={() => onContactClick?.(contact.id)}
+            onClick={() => (company ? navigate(`/companies/${company.id}`) : contact && onContactClick?.(contact.id))}
             className="text-sm lg:text-sm text-primary hover:underline mt-2 block"
           >
-            {contact.fullName} • {contact.company}
+            {linkLabel}
           </button>
         )}
 

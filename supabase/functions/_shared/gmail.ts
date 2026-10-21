@@ -251,6 +251,7 @@ export const deliverEmailRow = async (
     id: string;
     user_id: string;
     contact_id: string | null;
+    company_id?: string | null;
     to_email: string;
     subject: string;
     body: string;
@@ -300,7 +301,7 @@ export const deliverEmailRow = async (
         error: null,
       })
       .eq("id", email.id);
-    if (email.contact_id) {
+    if (email.contact_id || email.company_id) {
       const attachmentNote = attachments.length
         ? ` (${attachments.length} attachment${attachments.length === 1 ? "" : "s"})`
         : "";
@@ -308,6 +309,7 @@ export const deliverEmailRow = async (
         id: crypto.randomUUID(),
         user_id: email.user_id,
         contact_id: email.contact_id,
+        company_id: email.company_id ?? null,
         type: "email",
         description: `Email sent: ${email.subject || "(no subject)"}${attachmentNote}`,
         occurred_at: sentAt,

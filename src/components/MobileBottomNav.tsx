@@ -1,4 +1,4 @@
-import { BookOpen, CalendarCheck, MapPin, Kanban, MoreHorizontal, Settings, Users, Megaphone, Lightbulb, Stars } from "lucide-react";
+import { BookOpen, Brain, Building2, CalendarCheck, MapPin, Kanban, MoreHorizontal, Settings, Phone, Lightbulb } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { cn } from "@/lib/utils";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -11,7 +11,7 @@ import {
 
 const navItems = [
   { label: "Tasks", to: "/app", icon: CalendarCheck },
-  { label: "Contacts", to: "/contacts", icon: Users },
+  { label: "Companies", to: "/companies", icon: Building2 },
   { label: "Settings", to: "/settings", icon: Settings },
 ];
 
@@ -23,7 +23,7 @@ const isActiveRoute = (pathname: string, to: string) => {
 export function MobileBottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
-  const isOthersActive = ["/pipeline", "/outreach", "/dream-clients", "/planning", "/projects", "/product-dev", "/resources"].some((route) =>
+  const isOthersActive = ["/pipeline", "/calls", "/brain", "/projects", "/product-dev", "/resources"].some((route) =>
     location.pathname.startsWith(route),
   );
 
@@ -70,17 +70,17 @@ export function MobileBottomNav() {
               <Kanban className="h-4 w-4 mr-2" />
               Pipeline
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/outreach")}>
-              <Megaphone className="h-4 w-4 mr-2" />
-              Outreach Ops
+            <DropdownMenuItem onClick={() => navigate("/calls")}>
+              <Phone className="h-4 w-4 mr-2" />
+              Call Mode
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/projects")}>
               <MapPin className="h-4 w-4 mr-2" />
               Projects
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/dream-clients")}>
-              <Stars className="h-4 w-4 mr-2" />
-              Dream Clients
+            <DropdownMenuItem onClick={() => navigate("/brain")}>
+              <Brain className="h-4 w-4 mr-2" />
+              Company Brain
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/resources")}>
               <BookOpen className="h-4 w-4 mr-2" />

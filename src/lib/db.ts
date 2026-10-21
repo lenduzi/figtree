@@ -1,5 +1,15 @@
 import { supabase } from "@/lib/supabase";
-import type { Activity, ActivityType, Contact, Stage, Task } from "@/types/crm";
+import type {
+  Activity,
+  ActivityType,
+  Company,
+  CompanyType,
+  Contact,
+  FitGrade,
+  Lifecycle,
+  Stage,
+  Task,
+} from "@/types/crm";
 import type {
   OutreachActionLog,
   OutreachActionType,
@@ -154,8 +164,69 @@ export const stageToRow = (stage: Stage): Row => ({
   sort_order: stage.order,
 });
 
+const nullableNum = (value: unknown) => (value === null || value === undefined ? null : num(value));
+
+export const companyFromRow = (row: Row): Company => ({
+  id: str(row.id),
+  name: str(row.name),
+  type: (str(row.type) || "other") as CompanyType,
+  industry: str(row.industry),
+  city: str(row.city),
+  address: str(row.address),
+  website: str(row.website),
+  phone: str(row.phone),
+  email: str(row.email),
+  instagram: str(row.instagram),
+  googleMapsUrl: str(row.google_maps_url),
+  lifecycle: (str(row.lifecycle) || "sourced") as Lifecycle,
+  lifecycleChangedAt: str(row.lifecycle_changed_at),
+  fit: nullableStr(row.fit) as FitGrade | null,
+  fitScore: nullableNum(row.fit_score),
+  fitReason: str(row.fit_reason),
+  lists: strArray(row.lists),
+  source: str(row.source),
+  notes: str(row.notes),
+  lostReason: str(row.lost_reason),
+  revisitOn: nullableStr(row.revisit_on),
+  nextAction: nullableStr(row.next_action),
+  nextActionAt: nullableStr(row.next_action_at),
+  cadenceStep: num(row.cadence_step),
+  lastActivityAt: nullableStr(row.last_activity_at),
+  createdAt: str(row.created_at),
+  updatedAt: str(row.updated_at),
+});
+
+// lifecycle_changed_at and last_activity_at are maintained by triggers.
+export const companyToRow = (company: Company): Row => ({
+  id: company.id,
+  name: company.name ?? "",
+  type: company.type,
+  industry: company.industry ?? "",
+  city: company.city ?? "",
+  address: company.address ?? "",
+  website: company.website ?? "",
+  phone: company.phone ?? "",
+  email: company.email ?? "",
+  instagram: company.instagram ?? "",
+  google_maps_url: company.googleMapsUrl ?? "",
+  lifecycle: company.lifecycle,
+  fit: company.fit,
+  fit_score: company.fitScore,
+  fit_reason: company.fitReason ?? "",
+  lists: company.lists ?? [],
+  source: company.source ?? "",
+  notes: company.notes ?? "",
+  lost_reason: company.lostReason ?? "",
+  revisit_on: company.revisitOn || null,
+  next_action: company.nextAction,
+  next_action_at: company.nextActionAt,
+  cadence_step: company.cadenceStep ?? 0,
+  created_at: company.createdAt,
+});
+
 export const contactFromRow = (row: Row): Contact => ({
   id: str(row.id),
+  companyId: nullableStr(row.company_id),
   fullName: str(row.full_name),
   role: str(row.role),
   company: str(row.company),
@@ -172,6 +243,7 @@ export const contactFromRow = (row: Row): Contact => ({
 
 export const contactToRow = (contact: Contact): Row => ({
   id: contact.id,
+  company_id: contact.companyId || null,
   full_name: contact.fullName ?? "",
   role: contact.role ?? "",
   company: contact.company ?? "",
@@ -188,7 +260,8 @@ export const contactToRow = (contact: Contact): Row => ({
 
 export const taskFromRow = (row: Row): Task => ({
   id: str(row.id),
-  contactId: str(row.contact_id),
+  contactId: nullableStr(row.contact_id),
+  companyId: nullableStr(row.company_id),
   title: str(row.title),
   description: str(row.description),
   dueDate: str(row.due_date),
@@ -201,7 +274,8 @@ export const taskFromRow = (row: Row): Task => ({
 
 export const taskToRow = (task: Task): Row => ({
   id: task.id,
-  contact_id: task.contactId,
+  contact_id: task.contactId || null,
+  company_id: task.companyId || null,
   title: task.title ?? "",
   description: task.description ?? "",
   due_date: task.dueDate,
@@ -213,7 +287,8 @@ export const taskToRow = (task: Task): Row => ({
 
 export const activityFromRow = (row: Row): Activity => ({
   id: str(row.id),
-  contactId: str(row.contact_id),
+  contactId: nullableStr(row.contact_id),
+  companyId: nullableStr(row.company_id),
   type: str(row.type) as ActivityType,
   description: str(row.description),
   timestamp: str(row.occurred_at),
@@ -221,7 +296,8 @@ export const activityFromRow = (row: Row): Activity => ({
 
 export const activityToRow = (activity: Activity): Row => ({
   id: activity.id,
-  contact_id: activity.contactId,
+  contact_id: activity.contactId || null,
+  company_id: activity.companyId || null,
   type: activity.type,
   description: activity.description ?? "",
   occurred_at: activity.timestamp,

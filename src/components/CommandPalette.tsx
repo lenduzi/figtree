@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, CheckSquare, Plus } from 'lucide-react';
+import { Building2, User, CheckSquare, Plus } from 'lucide-react';
 import {
   CommandDialog,
   CommandEmpty,
@@ -20,7 +20,9 @@ interface CommandPaletteProps {
 export function CommandPalette({ onAddContact, onAddTask }: CommandPaletteProps) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
-  const { contacts, tasks, getStageById } = useCRMContext();
+  const { companies, contacts, tasks } = useCRMContext();
+  const recentCompanies = [...companies]
+    .sort((a, b) => (b.lastActivityAt ?? b.createdAt).localeCompare(a.lastActivityAt ?? a.createdAt));
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -43,7 +45,7 @@ export function CommandPalette({ onAddContact, onAddTask }: CommandPaletteProps)
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Search contacts, tasks, or navigate..." />
+      <CommandInput placeholder="Search companies, people, tasks…" />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
         
@@ -51,7 +53,7 @@ export function CommandPalette({ onAddContact, onAddTask }: CommandPaletteProps)
           {onAddContact && (
             <CommandItem onSelect={() => handleSelect(onAddContact)}>
               <Plus className="mr-2 h-4 w-4" />
-              Add New Contact
+              Add Company
             </CommandItem>
           )}
           {onAddTask && (
@@ -63,26 +65,44 @@ export function CommandPalette({ onAddContact, onAddTask }: CommandPaletteProps)
         </CommandGroup>
 
 
+        {companies.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Companies">
+              {recentCompanies.map((company) => (
+                <CommandItem
+                  key={company.id}
+                  value={`${company.name} ${company.city} ${company.id}`}
+                  onSelect={() => handleSelect(() => navigate(`/companies/${company.id}`))}
+                >
+                  <Building2 className="mr-2 h-4 w-4" />
+                  <span>{company.name}</span>
+                  {company.city && <span className="ml-2 text-muted-foreground text-xs">{company.city}</span>}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
+
         {contacts.length > 0 && (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Contacts">
-              {contacts.slice(0, 5).map((contact) => {
-                const stage = getStageById(contact.stageId);
-                return (
-                  <CommandItem
-                    key={contact.id}
-                    onSelect={() => handleSelect(() => navigate(`/contacts/${contact.id}`))}
-                  >
-                    <User className="mr-2 h-4 w-4" />
-                    <span>{contact.fullName}</span>
-                    <span className="ml-2 text-muted-foreground text-xs">
-                      {contact.company}
-                      {stage && ` • ${stage.name}`}
-                    </span>
-                  </CommandItem>
-                );
-              })}
+            <CommandGroup heading="People">
+              {contacts.map((contact) => (
+                <CommandItem
+                  key={contact.id}
+                  value={`${contact.fullName} ${contact.company} ${contact.id}`}
+                  onSelect={() =>
+                    handleSelect(() =>
+                      navigate(contact.companyId ? `/companies/${contact.companyId}` : `/contacts/${contact.id}`),
+                    )
+                  }
+                >
+                  <User className="mr-2 h-4 w-4" />
+                  <span>{contact.fullName}</span>
+                  <span className="ml-2 text-muted-foreground text-xs">{contact.company}</span>
+                </CommandItem>
+              ))}
             </CommandGroup>
           </>
         )}
@@ -92,19 +112,16 @@ export function CommandPalette({ onAddContact, onAddTask }: CommandPaletteProps)
             <CommandSeparator />
             <CommandGroup heading="Open Tasks">
               {openTasks.slice(0, 5).map((task) => {
-                const contact = contacts.find(c => c.id === task.contactId);
+                const company = companies.find(c => c.id === task.companyId);
                 return (
                   <CommandItem
                     key={task.id}
-                    onSelect={() => handleSelect(() => navigate(`/contacts/${task.contactId}`))}
+                    value={`${task.title} ${company?.name ?? ''} ${task.id}`}
+                    onSelect={() => handleSelect(() => navigate(company ? `/companies/${company.id}` : '/app'))}
                   >
                     <CheckSquare className="mr-2 h-4 w-4" />
                     <span>{task.title}</span>
-                    {contact && (
-                      <span className="ml-2 text-muted-foreground text-xs">
-                        {contact.fullName}
-                      </span>
-                    )}
+                    <span className="ml-2 text-muted-foreground text-xs">{company?.name ?? 'Personal'}</span>
                   </CommandItem>
                 );
               })}

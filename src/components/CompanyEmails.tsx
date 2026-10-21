@@ -23,7 +23,7 @@ import {
   draftEmail,
   formatFileSize,
   getGmailAccount,
-  listContactEmails,
+  listCompanyEmails,
   MAX_ATTACHMENTS_BYTES,
   queueEmail,
   removeAttachment,
@@ -32,7 +32,10 @@ import {
   type EmailAttachment,
   type EmailRecord,
 } from '@/lib/gmail';
-import type { Contact } from '@/types/crm';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { Company, Contact } from '@/types/crm';
+
+const OTHER_RECIPIENT = 'other';
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
@@ -64,7 +67,7 @@ const statusDetail = (email: EmailRecord) => {
   return email.error ?? '';
 };
 
-export function ContactEmails({ contact }: { contact: Contact }) {
+export function CompanyEmails({ company, people }: { company: Company; people: Contact[] }) {
   const { refreshData } = useCRMContext();
   const [emails, setEmails] = useState<EmailRecord[]>([]);
   const [gmail, setGmail] = useState<{ email: string } | null | undefined>(undefined);
@@ -72,6 +75,9 @@ export function ContactEmails({ contact }: { contact: Contact }) {
 
   const [composeOpen, setComposeOpen] = useState(false);
   const [to, setTo] = useState('');
+  const [recipientId, setRecipientId] = useState<string>(OTHER_RECIPIENT);
+  const recipients = people.filter((person) => person.email?.includes('@'));
+  const recipient = people.find((person) => person.id === recipientId) ?? null;
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [instructions, setInstructions] = useState('');
@@ -85,10 +91,10 @@ export function ContactEmails({ contact }: { contact: Contact }) {
   const attachmentsBytes = attachments.reduce((total, attachment) => total + attachment.size, 0);
 
   const loadEmails = useCallback(() => {
-    listContactEmails(contact.id)
+    listCompanyEmails(company.id)
       .then(setEmails)
       .catch((error) => toast.error('Could not load emails', { description: errorMessage(error) }));
-  }, [contact.id]);
+  }, [company.id]);
 
   useEffect(() => {
     loadEmails();
@@ -97,8 +103,16 @@ export function ContactEmails({ contact }: { contact: Contact }) {
       .catch(() => setGmail(null));
   }, [loadEmails]);
 
-  const openCompose = () => {
-    setTo(contact.email || '');
+  const chooseRecipient = (id: string) => {
+    setRecipientId(id);
+    const person = people.find((item) => item.id === id);
+    if (person) setTo(person.email);
+  };
+
+  const openCompose = (personId?: string) => {
+    const preferred = recipients.find((person) => person.id === personId) ?? recipients[0];
+    setRecipientId(preferred?.id ?? OTHER_RECIPIENT);
+    setTo(preferred?.email || company.email || '');
     setSubject('');
     setBody('');
     setInstructions('');
@@ -139,7 +153,7 @@ export function ContactEmails({ contact }: { contact: Contact }) {
   const handleDraft = async () => {
     setDrafting(true);
     try {
-      const draft = await draftEmail(contact.id, instructions);
+      const draft = await draftEmail(company.id, recipient?.id ?? null, instructions);
       setSubject(draft.subject);
       setBody(draft.body);
       setAiDraft(draft.body);
@@ -167,10 +181,19 @@ export function ContactEmails({ contact }: { contact: Contact }) {
     }
     setSending(true);
     try {
-      const id = await queueEmail({ contactId: contact.id, to: to.trim(), subject, body, scheduledFor, attachments, aiDraft });
+      const id = await queueEmail({
+        companyId: company.id,
+        contactId: recipient?.id ?? null,
+        to: to.trim(),
+        subject,
+        body,
+        scheduledFor,
+        attachments,
+        aiDraft,
+      });
       if (when === 'now') {
         await sendEmailNow(id);
-        toast('Email sent', { description: `Logged on ${contact.fullName}.` });
+        toast('Email sent', { description: `Logged on ${company.name}.` });
         refreshData();
       } else {
         toast('Email scheduled', { description: format(scheduledFor, "EEE d MMM 'at' HH:mm") });
@@ -198,7 +221,7 @@ export function ContactEmails({ contact }: { contact: Contact }) {
       <CardHeader className="flex flex-row items-center justify-between lg:p-6">
         <CardTitle className="text-lg lg:text-xl">Emails</CardTitle>
         {gmail && (
-          <Button size="sm" onClick={openCompose}>
+          <Button size="sm" onClick={() => openCompose()}>
             <Mail className="h-4 w-4 mr-2" />
             Write email
           </Button>
@@ -254,7 +277,7 @@ export function ContactEmails({ contact }: { contact: Contact }) {
       <Dialog open={composeOpen} onOpenChange={(open) => !sending && setComposeOpen(open)}>
         <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Email {contact.fullName}</DialogTitle>
+            <DialogTitle>Email {recipient ? `${recipient.fullName} at ${company.name}` : company.name}</DialogTitle>
             <DialogDescription>Sent from {gmail?.email}. Replies are detected automatically.</DialogDescription>
           </DialogHeader>
 
@@ -282,7 +305,31 @@ export function ContactEmails({ contact }: { contact: Contact }) {
 
             <div className="grid gap-2">
               <Label htmlFor="email-to">To</Label>
-              <Input id="email-to" type="email" value={to} onChange={(event) => setTo(event.target.value)} />
+              {recipients.length > 0 && (
+                <Select value={recipientId} onValueChange={chooseRecipient}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {recipients.map((person) => (
+                      <SelectItem key={person.id} value={person.id}>
+                        {person.fullName}
+                        {person.role ? ` (${person.role})` : ''}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={OTHER_RECIPIENT}>Other address…</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+              <Input
+                id="email-to"
+                type="email"
+                value={to}
+                onChange={(event) => {
+                  setTo(event.target.value);
+                  if (recipient && event.target.value !== recipient.email) setRecipientId(OTHER_RECIPIENT);
+                }}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="email-subject">Subject</Label>

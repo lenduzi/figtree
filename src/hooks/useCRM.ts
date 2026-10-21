@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
-import { Contact, Task, Stage, Activity, ActivityType, DEFAULT_STAGES, ResearchList, ResearchEntry, ResearchStatus, ResearchPriority, EisenhowerItem, Project, ProjectVisit, ProjectStatus, VisitStatus, Creator } from '@/types/crm';
+import { Company, Lifecycle, lifecycleLabel, Contact, Task, Stage, Activity, ActivityType, DEFAULT_STAGES, ResearchList, ResearchEntry, ResearchStatus, ResearchPriority, EisenhowerItem, Project, ProjectVisit, ProjectStatus, VisitStatus, Creator } from '@/types/crm';
 import { addDays, format } from 'date-fns';
 import { toLocalDateKey } from '@/lib/utils';
 import {
   activityFromRow,
   activityToRow,
+  companyFromRow,
+  companyToRow,
   contactFromRow,
   contactToRow,
   createTableSync,
@@ -20,7 +22,6 @@ import {
   taskToRow,
   waitForWrites,
 } from '@/lib/db';
-import { loadOutreachData } from '@/lib/outreach-store';
 
 // Contacts, tasks, stages and activities live in Supabase (see lib/db.ts);
 // the rest is still stored on the device.
@@ -75,19 +76,22 @@ const stagesSync = createTableSync<Stage>({
   toRow: stageToRow,
   onConflict: 'user_id,id',
 });
+const companiesSync = createTableSync<Company>({ table: 'companies', keyOf: (c) => c.id, toRow: companyToRow });
 const contactsSync = createTableSync<Contact>({ table: 'contacts', keyOf: (c) => c.id, toRow: contactToRow });
 const tasksSync = createTableSync<Task>({ table: 'tasks', keyOf: (t) => t.id, toRow: taskToRow });
 const activitiesSync = createTableSync<Activity>({ table: 'activities', keyOf: (a) => a.id, toRow: activityToRow });
 
 const fetchCoreData = async () => {
-  const [stageRows, contactRows, taskRows, activityRows] = await Promise.all([
+  const [stageRows, companyRows, contactRows, taskRows, activityRows] = await Promise.all([
     fetchAll('stages', 'sort_order'),
+    fetchAll('companies', 'created_at'),
     fetchAll('contacts', 'created_at'),
     fetchAll('tasks', 'created_at'),
     fetchAll('activities', 'occurred_at'),
   ]);
   return {
     stages: stageRows.map(stageFromRow),
+    companies: companyRows.map(companyFromRow),
     contacts: contactRows.map(contactFromRow),
     tasks: taskRows.map(taskFromRow),
     // The app keeps activities newest first.
@@ -98,7 +102,11 @@ const fetchCoreData = async () => {
 export type CRMDataStatus = 'loading' | 'ready' | 'error';
 
 export function useCRM(userId: string | null) {
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  // Latest contacts for callbacks that only need to look one up.
+  const contactsRef = useRef<Contact[]>([]);
+  contactsRef.current = contacts;
   const [tasks, setTasks] = useState<Task[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -187,14 +195,15 @@ export function useCRM(userId: string | null) {
         data = await fetchCoreData();
       }
     }
-    await loadOutreachData();
 
     stagesSync.reset(data.stages);
+    companiesSync.reset(data.companies);
     contactsSync.reset(data.contacts);
     tasksSync.reset(data.tasks);
     activitiesSync.reset(data.activities);
     // A brand-new account has no stages yet; the sync effect below saves the defaults.
     setStages(data.stages.length > 0 ? data.stages : DEFAULT_STAGES);
+    setCompanies(data.companies);
     setContacts(data.contacts);
     setTasks(data.tasks);
     setActivities(data.activities);
@@ -267,10 +276,14 @@ export function useCRM(userId: string | null) {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [userId, loadData]);
 
-  // Save changes. Order matters: stages before contacts before tasks/activities.
+  // Save changes. Order matters: stages and companies before contacts before tasks/activities.
   useEffect(() => {
     if (dataStatus === 'ready') stagesSync.sync(stages);
   }, [stages, dataStatus]);
+
+  useEffect(() => {
+    if (dataStatus === 'ready') companiesSync.sync(companies);
+  }, [companies, dataStatus]);
 
   useEffect(() => {
     if (dataStatus === 'ready') contactsSync.sync(contacts);
@@ -314,42 +327,6 @@ export function useCRM(userId: string | null) {
       return filtered.length === prev.length ? prev : filtered;
     });
   }, []);
-
-  useEffect(() => {
-    if (dataStatus !== 'ready' || contacts.length > 0) return;
-    let hasCreated = false;
-    try {
-      hasCreated = localStorage.getItem(ME_CONTACT_CREATED_KEY) === '1';
-    } catch {
-      hasCreated = false;
-    }
-    if (hasCreated) return;
-
-    const now = new Date().toISOString();
-    const stageId = stages[0]?.id || DEFAULT_STAGES[0]?.id || '';
-    const newContact: Contact = {
-      id: crypto.randomUUID(),
-      fullName: 'Me',
-      role: '',
-      company: '',
-      website: '',
-      email: '',
-      phone: '',
-      stageId,
-      notes: '',
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    try {
-      localStorage.setItem(ME_CONTACT_CREATED_KEY, '1');
-      localStorage.setItem(ME_CONTACT_ID_KEY, newContact.id);
-    } catch {
-      // ignore storage errors
-    }
-    setMeContactId(newContact.id);
-    setContacts(prev => (prev.length === 0 ? [newContact] : prev));
-  }, [contacts.length, stages, dataStatus]);
 
   const defaultProjectStatus: ProjectStatus = 'Preparing';
 
@@ -411,33 +388,57 @@ export function useCRM(userId: string | null) {
   }, [contacts, stages, defaultProjectStatus]);
 
   // Activity operations
-  const addActivity = useCallback((contactId: string, type: ActivityType, description: string, timestamp?: Date) => {
+  /**
+   * Logs an activity on a company and/or a person. A person's activity also
+   * counts for their company.
+   */
+  const logActivity = useCallback((
+    target: { contactId?: string | null; companyId?: string | null },
+    type: ActivityType,
+    description: string,
+    timestamp?: Date,
+  ) => {
     const resolvedTimestamp = timestamp ? timestamp.toISOString() : new Date().toISOString();
+    const contactId = target.contactId || null;
+    const companyId =
+      target.companyId || contactsRef.current.find((contact) => contact.id === contactId)?.companyId || null;
     const newActivity: Activity = {
       id: crypto.randomUUID(),
       contactId,
+      companyId,
       type,
       description,
       timestamp: resolvedTimestamp,
     };
     setActivities(prev => [newActivity, ...prev]);
-    
-    // Update last interaction date
-    setContacts(prev => prev.map(c =>
-      c.id === contactId ? (() => {
-        const currentLast = c.lastInteractionDate ? new Date(c.lastInteractionDate).getTime() : 0;
-        const nextTime = new Date(resolvedTimestamp).getTime();
-        const shouldUpdateLast = !Number.isNaN(nextTime) && nextTime >= currentLast;
-        return {
-          ...c,
-          lastInteractionDate: shouldUpdateLast ? resolvedTimestamp : c.lastInteractionDate,
-          updatedAt: new Date().toISOString(),
-        };
-      })() : c
-    ));
-    
+
+    const isNewer = (current?: string | null) => {
+      const nextTime = new Date(resolvedTimestamp).getTime();
+      return !Number.isNaN(nextTime) && nextTime >= (current ? new Date(current).getTime() : 0);
+    };
+    if (contactId) {
+      setContacts(prev => prev.map(c =>
+        c.id === contactId && isNewer(c.lastInteractionDate)
+          ? { ...c, lastInteractionDate: resolvedTimestamp, updatedAt: new Date().toISOString() }
+          : c
+      ));
+    }
+    if (companyId) {
+      // Display only; the database keeps last_activity_at itself.
+      setCompanies(prev => prev.map(company =>
+        company.id === companyId && isNewer(company.lastActivityAt)
+          ? { ...company, lastActivityAt: resolvedTimestamp }
+          : company
+      ));
+    }
     return newActivity;
   }, []);
+
+  const addActivity = useCallback(
+    (contactId: string, type: ActivityType, description: string, timestamp?: Date) =>
+      logActivity({ contactId }, type, description, timestamp),
+    [logActivity],
+  );
 
   const deleteActivity = useCallback((id: string) => {
     setActivities(prev => prev.filter(a => a.id !== id));
@@ -535,6 +536,10 @@ export function useCRM(userId: string | null) {
   const addTask = useCallback((task: Omit<Task, 'id' | 'createdAt'>) => {
     const newTask: Task = {
       ...task,
+      companyId:
+        task.companyId ||
+        contactsRef.current.find((contact) => contact.id === task.contactId)?.companyId ||
+        null,
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
     };
@@ -554,14 +559,14 @@ export function useCRM(userId: string | null) {
 
   const toggleTaskComplete = useCallback((id: string) => {
     const task = tasks.find(t => t.id === id);
-    if (task && !task.completed) {
-      // Log activity when completing a task
-      addActivity(task.contactId, 'task_completed', `Completed: ${task.title}`);
+    if (task && !task.completed && (task.contactId || task.companyId)) {
+      // Log activity when completing a task (personal tasks have nowhere to log to)
+      logActivity({ contactId: task.contactId, companyId: task.companyId }, 'task_completed', `Completed: ${task.title}`);
     }
     setTasks(prev => prev.map(t => 
       t.id === id ? { ...t, completed: !t.completed } : t
     ));
-  }, [tasks, addActivity]);
+  }, [tasks, logActivity]);
 
   useEffect(() => {
     if (eisenhowerItems.length === 0) return;
@@ -831,6 +836,132 @@ export function useCRM(userId: string | null) {
     return newContact;
   }, [researchEntries, addContact, updateResearchEntry, addTask]);
 
+  // Company operations
+  const buildCompany = (fields: Partial<Company> & { name: string }): Company => {
+    const now = new Date().toISOString();
+    return {
+      type: 'other',
+      industry: '',
+      city: '',
+      address: '',
+      website: '',
+      phone: '',
+      email: '',
+      instagram: '',
+      googleMapsUrl: '',
+      lifecycle: 'sourced',
+      fit: null,
+      fitScore: null,
+      fitReason: '',
+      lists: [],
+      source: 'manual',
+      notes: '',
+      lostReason: '',
+      revisitOn: null,
+      nextAction: null,
+      nextActionAt: null,
+      cadenceStep: 0,
+      lastActivityAt: null,
+      ...fields,
+      id: crypto.randomUUID(),
+      lifecycleChangedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+  };
+
+  const addCompany = useCallback((fields: Partial<Company> & { name: string }) => {
+    const company = buildCompany(fields);
+    setCompanies(prev => [...prev, company]);
+    markHasUsed();
+    markFirstAction();
+    return company;
+  }, [markFirstAction]);
+
+  /** Adds many at once (CSV import) in a single save. */
+  const addCompanies = useCallback((list: (Partial<Company> & { name: string })[]) => {
+    const created = list.map(buildCompany);
+    setCompanies(prev => [...prev, ...created]);
+    return created;
+  }, []);
+
+  const updateCompany = useCallback((id: string, updates: Partial<Company>) => {
+    const current = companies.find(company => company.id === id);
+    if (!current) return;
+    const now = new Date().toISOString();
+    const lifecycleChanged = updates.lifecycle && updates.lifecycle !== current.lifecycle;
+    setCompanies(prev => prev.map(company =>
+      company.id === id
+        ? {
+            ...company,
+            ...updates,
+            updatedAt: now,
+            lifecycleChangedAt: lifecycleChanged ? now : company.lifecycleChangedAt,
+          }
+        : company
+    ));
+    if (lifecycleChanged && updates.lifecycle) {
+      logActivity(
+        { companyId: id },
+        'stage_change',
+        `Moved from ${lifecycleLabel(current.lifecycle)} to ${lifecycleLabel(updates.lifecycle)}`,
+      );
+    }
+  }, [companies, logActivity]);
+
+  const moveCompanyToLifecycle = useCallback((id: string, lifecycle: Lifecycle) => {
+    updateCompany(id, { lifecycle });
+  }, [updateCompany]);
+
+  const deleteCompany = useCallback((id: string) => {
+    setCompanies(prev => prev.filter(company => company.id !== id));
+    // The database cascades tasks/activities and unlinks people; mirror that.
+    setTasks(prev => prev.filter(task => task.companyId !== id));
+    setActivities(prev => prev.filter(activity => activity.companyId !== id));
+    setContacts(prev => prev.map(contact => (contact.companyId === id ? { ...contact, companyId: null } : contact)));
+  }, []);
+
+  const getCompanyById = useCallback((id: string | null | undefined) => {
+    return id ? companies.find(company => company.id === id) : undefined;
+  }, [companies]);
+
+  const getCompanyPeople = useCallback((companyId: string) => {
+    return contacts.filter(contact => contact.companyId === companyId);
+  }, [contacts]);
+
+  const getCompanyTasks = useCallback((companyId: string) => {
+    return tasks.filter(task => task.companyId === companyId);
+  }, [tasks]);
+
+  const getCompanyActivities = useCallback((companyId: string) => {
+    return activities
+      .filter(activity => activity.companyId === companyId)
+      .slice()
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [activities]);
+
+  /** Adds a person, linked to a company when given. */
+  const addPerson = useCallback((companyId: string | null, fields: Partial<Contact> & { fullName: string }) => {
+    const company = companies.find(item => item.id === companyId);
+    const now = new Date().toISOString();
+    const person: Contact = {
+      role: '',
+      website: '',
+      email: '',
+      phone: '',
+      notes: '',
+      ...fields,
+      company: fields.company ?? company?.name ?? '',
+      stageId: fields.stageId ?? stages[0]?.id ?? 'lead',
+      companyId,
+      id: crypto.randomUUID(),
+      createdAt: now,
+      updatedAt: now,
+    };
+    setContacts(prev => [...prev, person]);
+    return person;
+  }, [companies, stages]);
+
   // Computed values
   const getContactTasks = useCallback((contactId: string) => {
     return tasks.filter(t => t.contactId === contactId);
@@ -883,6 +1014,18 @@ export function useCRM(userId: string | null) {
     dataStatus,
     reloadData,
     refreshData,
+    companies,
+    addCompany,
+    addCompanies,
+    updateCompany,
+    moveCompanyToLifecycle,
+    deleteCompany,
+    getCompanyById,
+    getCompanyPeople,
+    getCompanyTasks,
+    getCompanyActivities,
+    addPerson,
+    logActivity,
     contacts,
     tasks,
     stages,

@@ -1,4 +1,4 @@
-import { CalendarCheck, Users, Kanban, Settings, MapPin, BookOpen, Info, Megaphone, Lightbulb, Stars, Brain } from 'lucide-react';
+import { CalendarCheck, Building2, Kanban, Settings, MapPin, BookOpen, Info, Phone, Lightbulb, Brain } from 'lucide-react';
 import figtreeLogo from '@/assets/figtree-logo.png';
 import { NavLink } from '@/components/NavLink';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -19,10 +19,9 @@ import { Badge } from '@/components/ui/badge';
 
 const crmItems = [
   { title: 'Follow-Up Today', url: '/app', icon: CalendarCheck },
-  { title: 'Contacts', url: '/contacts', icon: Users },
+  { title: 'Companies', url: '/companies', icon: Building2 },
   { title: 'Pipeline', url: '/pipeline', icon: Kanban },
-  { title: 'Outreach Ops', url: '/outreach', icon: Megaphone },
-  { title: 'Dream Clients', url: '/dream-clients', icon: Stars },
+  { title: 'Call Mode', url: '/calls', icon: Phone },
 ];
 
 const operationsItems = [

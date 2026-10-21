@@ -18,7 +18,10 @@ import { ActivityType } from '@/types/crm';
 import { cn } from '@/lib/utils';
 
 interface AddActivityDialogProps {
-  contactId: string;
+  /** Log against a person (their company is linked automatically)… */
+  contactId?: string;
+  /** …or directly against a company. */
+  companyId?: string;
 }
 
 const activityTypes: { type: ActivityType; label: string; icon: React.ElementType }[] = [
@@ -29,8 +32,9 @@ const activityTypes: { type: ActivityType; label: string; icon: React.ElementTyp
   { type: 'note', label: 'Note', icon: FileText },
 ];
 
-export function AddActivityDialog({ contactId }: AddActivityDialogProps) {
-  const { addActivity } = useCRMContext();
+export function AddActivityDialog({ contactId, companyId }: AddActivityDialogProps) {
+  const { logActivity } = useCRMContext();
+  const target = { contactId, companyId };
   const [open, setOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<ActivityType>('call');
   const [description, setDescription] = useState('');
@@ -46,7 +50,7 @@ export function AddActivityDialog({ contactId }: AddActivityDialogProps) {
     e.preventDefault();
     if (!description.trim()) return;
 
-    addActivity(contactId, selectedType, description, activityDate);
+    logActivity(target, selectedType, description, activityDate);
     resetForm();
     setOpen(false);
   };
@@ -61,7 +65,7 @@ export function AddActivityDialog({ contactId }: AddActivityDialogProps) {
       stage_change: '',
       task_completed: '',
     };
-    addActivity(contactId, type, defaultDescriptions[type]);
+    logActivity(target, type, defaultDescriptions[type]);
   };
 
   const handleDateSelect = (date: Date | undefined) => {
