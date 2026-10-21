@@ -28,11 +28,17 @@ export type EmailRecord = {
   ai_draft: string | null;
   enrollment_id: string | null;
   step_index: number | null;
+  draft_history: DraftVersion[];
+  draft_instructions: string;
   created_at: string;
 };
 
+/** An earlier version of a draft, kept so redrafting never loses a good one. */
+export type DraftVersion = { subject: string; body: string; instructions: string; saved_at: string };
+export const MAX_DRAFT_VERSIONS = 10;
+
 const EMAIL_COLUMNS =
-  "id, contact_id, company_id, to_email, subject, body, status, scheduled_for, sent_at, replied_at, error, attachments, ai_draft, enrollment_id, step_index, created_at";
+  "id, contact_id, company_id, to_email, subject, body, status, scheduled_for, sent_at, replied_at, error, attachments, ai_draft, enrollment_id, step_index, draft_history, draft_instructions, created_at";
 
 const getClient = () => {
   if (!supabase) throw new Error("Supabase is not configured");
@@ -154,6 +160,7 @@ export const listDraftEmails = async () => {
     .from("emails")
     .select(EMAIL_COLUMNS)
     .eq("status", "draft")
+    .not("enrollment_id", "is", null)
     .order("created_at", { ascending: true });
   if (error) throw error;
   return (data ?? []) as EmailRecord[];
@@ -188,4 +195,66 @@ export const skipDraft = async (emailId: string) => {
     .eq("id", emailId)
     .eq("status", "draft");
   if (error) throw error;
+};
+
+export type DraftFields = {
+  companyId: string;
+  contactId: string | null;
+  to: string;
+  subject: string;
+  body: string;
+  attachments: EmailAttachment[];
+  aiDraft: string | null;
+  instructions: string;
+  history: DraftVersion[];
+};
+
+/** Creates or updates a draft (status 'draft'); returns its id. */
+export const saveDraft = async (id: string | null, fields: DraftFields) => {
+  const row = {
+    company_id: fields.companyId,
+    contact_id: fields.contactId,
+    to_email: fields.to,
+    subject: fields.subject,
+    body: fields.body,
+    attachments: fields.attachments,
+    ai_draft: fields.aiDraft,
+    draft_instructions: fields.instructions,
+    draft_history: fields.history.slice(0, MAX_DRAFT_VERSIONS),
+  };
+  const client = getClient();
+  if (id) {
+    const { error } = await client.from("emails").update(row).eq("id", id).eq("status", "draft");
+    if (error) throw error;
+    return id;
+  }
+  const { data, error } = await client
+    .from("emails")
+    .insert({ ...row, status: "draft", scheduled_for: new Date().toISOString() })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return data.id as string;
+};
+
+/** The unsent email you were writing for this company, if any (not sequence drafts). */
+export const getOpenDraft = async (companyId: string) => {
+  const { data, error } = await getClient()
+    .from("emails")
+    .select(EMAIL_COLUMNS)
+    .eq("company_id", companyId)
+    .eq("status", "draft")
+    .is("enrollment_id", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data as EmailRecord | null;
+};
+
+/** Deletes a draft you were writing, and its uploaded attachments. */
+export const discardDraft = async (email: Pick<EmailRecord, "id" | "attachments">) => {
+  const { error } = await getClient().from("emails").delete().eq("id", email.id).eq("status", "draft");
+  if (error) throw error;
+  await Promise.all((email.attachments ?? []).map((attachment) => removeAttachment(attachment).catch(() => undefined)));
 };

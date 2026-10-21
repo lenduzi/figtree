@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { addDays, format, formatDistanceToNow, setHours, setMinutes, startOfDay } from 'date-fns';
-import { Loader2, Mail, Paperclip, Send, SkipForward, Sparkles, X } from 'lucide-react';
+import { History, Loader2, Mail, Paperclip, Send, SkipForward, Sparkles, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { Badge } from '@/components/ui/badge';
@@ -22,16 +22,20 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   approveDraft,
   cancelEmail,
+  discardDraft,
   draftEmail,
   formatFileSize,
   getGmailAccount,
+  getOpenDraft,
   listCompanyEmails,
   MAX_ATTACHMENTS_BYTES,
-  queueEmail,
+  MAX_DRAFT_VERSIONS,
   removeAttachment,
+  saveDraft,
   sendEmailNow,
   skipDraft,
   uploadAttachment,
+  type DraftVersion,
   type EmailAttachment,
   type EmailRecord,
 } from '@/lib/gmail';
@@ -48,7 +52,7 @@ const statusBadge = (email: EmailRecord) => {
   if (email.replied_at) return <Badge>Replied</Badge>;
   switch (email.status) {
     case 'draft':
-      return <Badge variant="outline">To approve</Badge>;
+      return <Badge variant="outline">{email.enrollment_id ? 'To approve' : 'Draft'}</Badge>;
     case 'scheduled':
       return <Badge variant="outline">Scheduled</Badge>;
     case 'sending':
@@ -64,7 +68,11 @@ const statusBadge = (email: EmailRecord) => {
 
 const statusDetail = (email: EmailRecord) => {
   if (email.replied_at) return `Replied ${formatDistanceToNow(new Date(email.replied_at), { addSuffix: true })}`;
-  if (email.status === 'draft') return 'Drafted by a sequence, waiting for you in Today';
+  if (email.status === 'draft') {
+    return email.enrollment_id
+      ? 'Drafted by a sequence, waiting for you in Today'
+      : `Not sent yet · last edited ${formatDistanceToNow(new Date(email.created_at), { addSuffix: true })}`;
+  }
   if (email.status === 'scheduled') return `Sends ${format(new Date(email.scheduled_for), 'EEE d MMM, HH:mm')}`;
   if (email.status === 'sent' && email.sent_at) {
     return `Sent ${formatDistanceToNow(new Date(email.sent_at), { addSuffix: true })} · no reply yet`;
@@ -78,13 +86,20 @@ type EmailComposeDialogProps = {
   company: Company;
   people: Contact[];
   gmailAddress?: string;
-  /** A sequence draft to review and approve instead of a new email. */
+  /** A specific draft to open (a sequence draft to approve, or one you were writing). */
   draft?: EmailRecord | null;
-  /** Called after an email was sent, scheduled or skipped. */
+  /** Called after an email was sent, scheduled, skipped, saved or discarded. */
   onDone?: () => void;
 };
 
-/** Compose (or approve) an email to a company, with Claude drafting and attachments. */
+type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+const AUTOSAVE_DELAY_MS = 800;
+
+/**
+ * Compose (or approve) an email to a company, with Claude drafting and
+ * attachments. Everything is autosaved as a draft, so closing the window
+ * never loses it; reopening continues where you left off.
+ */
 export function EmailComposeDialog({ open, onOpenChange, company, people, gmailAddress, draft, onDone }: EmailComposeDialogProps) {
   const { refreshData } = useCRMContext();
   const recipients = people.filter((person) => person.email?.includes('@'));
@@ -99,34 +114,144 @@ export function EmailComposeDialog({ open, onOpenChange, company, people, gmailA
   const [sending, setSending] = useState(false);
   const [attachments, setAttachments] = useState<EmailAttachment[]>([]);
   const [aiDraft, setAiDraft] = useState<string | null>(null);
+  const [history, setHistory] = useState<DraftVersion[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const attachmentsBytes = attachments.reduce((total, attachment) => total + attachment.size, 0);
 
-  // Reset the form whenever the dialog opens.
+  // Draft persistence
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [isSequenceDraft, setIsSequenceDraft] = useState(false);
+  const [resumedAt, setResumedAt] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>('idle');
+  const loadedRef = useRef(false);
+  const dirtyRef = useRef(false);
+  const saveTimer = useRef<number | null>(null);
+  const savePromise = useRef<Promise<string | null>>(Promise.resolve(null));
+  const draftIdRef = useRef<string | null>(null);
+  draftIdRef.current = draftId;
+
+  const hasContent = subject.trim() !== '' || body.trim() !== '' || attachments.length > 0;
+
+  const resetForm = (preferredRecipient = recipients[0]) => {
+    setRecipientId(preferredRecipient?.id ?? OTHER_RECIPIENT);
+    setTo(preferredRecipient?.email || company.email || '');
+    setSubject('');
+    setBody('');
+    setAttachments([]);
+    setAiDraft(null);
+    setHistory([]);
+    setInstructions('');
+    setDraftId(null);
+    setIsSequenceDraft(false);
+    setResumedAt(null);
+    setSaveState('idle');
+  };
+
+  const loadDraft = (record: EmailRecord) => {
+    const person = people.find((item) => item.id === record.contact_id);
+    setRecipientId(person && person.email === record.to_email ? person.id : OTHER_RECIPIENT);
+    setTo(record.to_email);
+    setSubject(record.subject);
+    setBody(record.body);
+    setAttachments(record.attachments ?? []);
+    setAiDraft(record.ai_draft);
+    setHistory(record.draft_history ?? []);
+    setInstructions(record.draft_instructions ?? '');
+    setDraftId(record.id);
+    setIsSequenceDraft(Boolean(record.enrollment_id));
+    setSaveState('saved');
+  };
+
+  // On open: the given draft, else the email you were writing for this company, else blank.
   useEffect(() => {
     if (!open) return;
-    if (draft) {
-      const person = people.find((item) => item.id === draft.contact_id);
-      setRecipientId(person?.email === draft.to_email ? person.id : OTHER_RECIPIENT);
-      setTo(draft.to_email);
-      setSubject(draft.subject);
-      setBody(draft.body);
-      setAttachments(draft.attachments ?? []);
-      setAiDraft(draft.ai_draft);
-    } else {
-      const preferred = recipients[0];
-      setRecipientId(preferred?.id ?? OTHER_RECIPIENT);
-      setTo(preferred?.email || company.email || '');
-      setSubject('');
-      setBody('');
-      setAttachments([]);
-      setAiDraft(null);
-    }
-    setInstructions('');
+    loadedRef.current = false;
+    dirtyRef.current = false;
     setScheduleAt(toLocalInputValue(tomorrowAtNine()));
+    if (draft) {
+      loadDraft(draft);
+      setResumedAt(null);
+      loadedRef.current = true;
+      return;
+    }
+    resetForm();
+    setLoading(true);
+    getOpenDraft(company.id)
+      .then((existing) => {
+        if (existing) {
+          loadDraft(existing);
+          setResumedAt(existing.created_at);
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        setLoading(false);
+        loadedRef.current = true;
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, draft?.id]);
+  }, [open, draft?.id, company.id]);
+
+  const persist = useCallback(() => {
+    if (saveTimer.current) {
+      window.clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    if (!dirtyRef.current) return savePromise.current;
+    dirtyRef.current = false;
+    setSaveState('saving');
+    const fields = {
+      companyId: company.id,
+      contactId: recipient?.id ?? null,
+      to: to.trim(),
+      subject,
+      body,
+      attachments,
+      aiDraft,
+      instructions,
+      history,
+    };
+    // Chained so saves never overlap (the first one creates the row).
+    savePromise.current = savePromise.current
+      .catch(() => null)
+      .then(() => saveDraft(draftIdRef.current, fields))
+      .then((id) => {
+        draftIdRef.current = id;
+        setDraftId(id);
+        setSaveState('saved');
+        return id;
+      })
+      .catch((error) => {
+        dirtyRef.current = true;
+        setSaveState('error');
+        console.error('Figtree: draft save failed', error);
+        return draftIdRef.current;
+      });
+    return savePromise.current;
+  }, [company.id, recipient?.id, to, subject, body, attachments, aiDraft, instructions, history]);
+
+  // Autosave shortly after any change, once there is something worth keeping.
+  useEffect(() => {
+    if (!open || !loadedRef.current) return;
+    if (!hasContent && !draftIdRef.current) return;
+    dirtyRef.current = true;
+    setSaveState('idle');
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => persist(), AUTOSAVE_DELAY_MS);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [to, recipientId, subject, body, attachments, instructions, history]);
+
+  const close = async () => {
+    if (sending) return;
+    const pending = dirtyRef.current;
+    await persist();
+    onOpenChange(false);
+    if ((pending || draftIdRef.current) && hasContent && !isSequenceDraft) {
+      toast('Draft saved', { description: `Continue anytime from ${company.name}'s emails.` });
+    }
+    onDone?.();
+  };
 
   const chooseRecipient = (id: string) => {
     setRecipientId(id);
@@ -162,10 +287,17 @@ export function EmailComposeDialog({ open, onOpenChange, company, people, gmailA
     removeAttachment(attachment).catch(() => undefined);
   };
 
+  /** Keeps the current text as an earlier version before it gets replaced. */
+  const pushCurrentToHistory = (current: DraftVersion[]) =>
+    subject.trim() || body.trim()
+      ? [{ subject, body, instructions, saved_at: new Date().toISOString() }, ...current].slice(0, MAX_DRAFT_VERSIONS)
+      : current;
+
   const handleDraft = async () => {
     setDrafting(true);
     try {
       const result = await draftEmail(company.id, recipient?.id ?? null, instructions);
+      setHistory((current) => pushCurrentToHistory(current));
       setSubject(result.subject);
       setBody(result.body);
       setAiDraft(result.body);
@@ -183,6 +315,30 @@ export function EmailComposeDialog({ open, onOpenChange, company, people, gmailA
     }
   };
 
+  const restoreVersion = (index: number) => {
+    const version = history[index];
+    if (!version) return;
+    setHistory((current) => pushCurrentToHistory(current.filter((_, i) => i !== index)));
+    setSubject(version.subject);
+    setBody(version.body);
+  };
+
+  const handleDiscard = async (keepOpen: boolean) => {
+    if (hasContent && !window.confirm('Discard this draft? This can’t be undone.')) return;
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    dirtyRef.current = false;
+    const id = await savePromise.current.catch(() => draftIdRef.current);
+    try {
+      if (id ?? draftIdRef.current) await discardDraft({ id: (id ?? draftIdRef.current)!, attachments });
+    } catch (error) {
+      toast.error('Could not discard', { description: errorMessage(error) });
+      return;
+    }
+    resetForm();
+    onDone?.();
+    if (!keepOpen) onOpenChange(false);
+  };
+
   const canSend = to.trim().includes('@') && subject.trim() !== '' && body.trim() !== '' && !sending && !uploading;
 
   const handleSend = async (when: 'now' | 'scheduled') => {
@@ -193,29 +349,18 @@ export function EmailComposeDialog({ open, onOpenChange, company, people, gmailA
     }
     setSending(true);
     try {
-      let id: string;
-      if (draft) {
-        await approveDraft(draft.id, {
-          to: to.trim(),
-          contactId: recipient?.id ?? draft.contact_id,
-          subject,
-          body,
-          attachments,
-          scheduledFor,
-        });
-        id = draft.id;
-      } else {
-        id = await queueEmail({
-          companyId: company.id,
-          contactId: recipient?.id ?? null,
-          to: to.trim(),
-          subject,
-          body,
-          scheduledFor,
-          attachments,
-          aiDraft,
-        });
-      }
+      // Every email goes out from its saved draft row.
+      dirtyRef.current = true;
+      const id = await persist();
+      if (!id) throw new Error('Could not save the draft before sending.');
+      await approveDraft(id, {
+        to: to.trim(),
+        contactId: recipient?.id ?? draft?.contact_id ?? null,
+        subject,
+        body,
+        attachments,
+        scheduledFor,
+      });
       if (when === 'now') {
         await sendEmailNow(id);
         toast('Email sent', { description: `Logged on ${company.name}.` });
@@ -223,6 +368,7 @@ export function EmailComposeDialog({ open, onOpenChange, company, people, gmailA
       } else {
         toast('Email scheduled', { description: format(scheduledFor, "EEE d MMM 'at' HH:mm") });
       }
+      resetForm();
       onOpenChange(false);
     } catch (error) {
       toast.error(when === 'now' ? 'Sending failed' : 'Scheduling failed', { description: errorMessage(error) });
@@ -233,10 +379,13 @@ export function EmailComposeDialog({ open, onOpenChange, company, people, gmailA
   };
 
   const handleSkip = async () => {
-    if (!draft) return;
+    if (!draftId) return;
     try {
-      await skipDraft(draft.id);
+      if (saveTimer.current) window.clearTimeout(saveTimer.current);
+      dirtyRef.current = false;
+      await skipDraft(draftId);
       toast('Step skipped', { description: 'The sequence moves on to its next step.' });
+      resetForm();
       onOpenChange(false);
       onDone?.();
     } catch (error) {
@@ -244,111 +393,156 @@ export function EmailComposeDialog({ open, onOpenChange, company, people, gmailA
     }
   };
 
+  const saveLabel =
+    saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Draft saved' : saveState === 'error' ? 'Not saved — retrying' : '';
+
   return (
-    <Dialog open={open} onOpenChange={(next) => !sending && onOpenChange(next)}>
+    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
       <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {draft ? 'Approve: ' : 'Email '}
+            {isSequenceDraft ? 'Approve: ' : 'Email '}
             {recipient ? `${recipient.fullName} at ${company.name}` : company.name}
           </DialogTitle>
           <DialogDescription>
-            {draft
+            {isSequenceDraft
               ? 'Drafted by a sequence. Edit as needed, then send or schedule. Skipping moves the sequence on.'
               : `Sent from ${gmailAddress ?? 'your Gmail'}. Replies are detected automatically.`}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="rounded-lg border border-border p-3 space-y-2">
-            <Label htmlFor="draft-instructions" className="text-sm">
-              {draft ? 'Redraft with Claude' : 'Draft with Claude'}
-            </Label>
-            <div className="flex flex-col sm:flex-row gap-2">
+        {resumedAt && (
+          <div className="rounded-md bg-muted/50 px-3 py-2 text-xs flex items-center justify-between gap-2">
+            <span>Continuing your draft from {formatDistanceToNow(new Date(resumedAt), { addSuffix: true })}.</span>
+            <button className="underline underline-offset-2 hover:text-foreground" onClick={() => handleDiscard(true)}>
+              Start over
+            </button>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-border p-3 space-y-2">
+              <Label htmlFor="draft-instructions" className="text-sm">
+                {body ? 'Redraft with Claude' : 'Draft with Claude'}
+              </Label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Input
+                  id="draft-instructions"
+                  placeholder="Optional: e.g. follow up on the pilot offer, propose a call next week"
+                  value={instructions}
+                  onChange={(event) => setInstructions(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !drafting) handleDraft();
+                  }}
+                />
+                <Button variant="outline" onClick={handleDraft} disabled={drafting}>
+                  {drafting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                  {drafting ? 'Drafting…' : body ? 'Redraft' : 'Draft'}
+                </Button>
+              </div>
+              {history.length > 0 && (
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-muted-foreground flex items-center gap-1">
+                    <History className="h-3 w-3" /> Earlier versions ({history.length})
+                  </summary>
+                  <div className="mt-2 space-y-1">
+                    {history.map((version, index) => (
+                      <button
+                        key={`${version.saved_at}-${index}`}
+                        onClick={() => restoreVersion(index)}
+                        className="w-full text-left rounded-md border border-border px-2 py-1.5 hover:bg-muted/50"
+                      >
+                        <span className="font-medium">{version.subject || '(no subject)'}</span>
+                        <span className="text-muted-foreground">
+                          {' '}
+                          · {formatDistanceToNow(new Date(version.saved_at), { addSuffix: true })}
+                          {version.instructions ? ` · "${version.instructions}"` : ''}
+                        </span>
+                        <span className="block text-muted-foreground truncate">{version.body}</span>
+                      </button>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="email-to">To</Label>
+              {recipients.length > 0 && (
+                <Select value={recipientId} onValueChange={chooseRecipient}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {recipients.map((person) => (
+                      <SelectItem key={person.id} value={person.id}>
+                        {person.fullName}
+                        {person.role ? ` (${person.role})` : ''}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={OTHER_RECIPIENT}>Other address…</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
               <Input
-                id="draft-instructions"
-                placeholder="Optional: e.g. follow up on the pilot offer, propose a call next week"
-                value={instructions}
-                onChange={(event) => setInstructions(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !drafting) handleDraft();
+                id="email-to"
+                type="email"
+                value={to}
+                onChange={(event) => {
+                  setTo(event.target.value);
+                  if (recipient && event.target.value !== recipient.email) setRecipientId(OTHER_RECIPIENT);
                 }}
               />
-              <Button variant="outline" onClick={handleDraft} disabled={drafting}>
-                {drafting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                {drafting ? 'Drafting…' : body ? 'Redraft' : 'Draft'}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="email-subject">Subject</Label>
+              <Input id="email-subject" value={subject} onChange={(event) => setSubject(event.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="email-body">Message</Label>
+              <Textarea id="email-body" rows={10} value={body} onChange={(event) => setBody(event.target.value)} />
+              <p className="text-xs text-muted-foreground flex justify-between gap-2">
+                <span>Your Gmail signature is added automatically when sending.</span>
+                <span>{saveLabel}</span>
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {attachments.map((attachment) => (
+                <div key={attachment.path} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+                  <Paperclip className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="truncate flex-1">{attachment.filename}</span>
+                  <span className="text-xs text-muted-foreground shrink-0">{formatFileSize(attachment.size)}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0"
+                    aria-label={`Remove ${attachment.filename}`}
+                    onClick={() => handleRemoveAttachment(attachment)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(event) => handleFilesSelected(event.target.files)}
+              />
+              <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading || sending}>
+                {uploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Paperclip className="h-4 w-4 mr-2" />}
+                {uploading ? 'Uploading…' : 'Attach files'}
               </Button>
             </div>
           </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="email-to">To</Label>
-            {recipients.length > 0 && (
-              <Select value={recipientId} onValueChange={chooseRecipient}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {recipients.map((person) => (
-                    <SelectItem key={person.id} value={person.id}>
-                      {person.fullName}
-                      {person.role ? ` (${person.role})` : ''}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value={OTHER_RECIPIENT}>Other address…</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-            <Input
-              id="email-to"
-              type="email"
-              value={to}
-              onChange={(event) => {
-                setTo(event.target.value);
-                if (recipient && event.target.value !== recipient.email) setRecipientId(OTHER_RECIPIENT);
-              }}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="email-subject">Subject</Label>
-            <Input id="email-subject" value={subject} onChange={(event) => setSubject(event.target.value)} />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="email-body">Message</Label>
-            <Textarea id="email-body" rows={10} value={body} onChange={(event) => setBody(event.target.value)} />
-            <p className="text-xs text-muted-foreground">Your Gmail signature is added automatically when sending.</p>
-          </div>
-
-          <div className="space-y-2">
-            {attachments.map((attachment) => (
-              <div key={attachment.path} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
-                <Paperclip className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="truncate flex-1">{attachment.filename}</span>
-                <span className="text-xs text-muted-foreground shrink-0">{formatFileSize(attachment.size)}</span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 shrink-0"
-                  aria-label={`Remove ${attachment.filename}`}
-                  onClick={() => handleRemoveAttachment(attachment)}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            ))}
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={(event) => handleFilesSelected(event.target.files)}
-            />
-            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading || sending}>
-              {uploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Paperclip className="h-4 w-4 mr-2" />}
-              {uploading ? 'Uploading…' : 'Attach files'}
-            </Button>
-          </div>
-        </div>
+        )}
 
         <DialogFooter className="flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div className="flex items-end gap-2">
@@ -369,11 +563,18 @@ export function EmailComposeDialog({ open, onOpenChange, company, people, gmailA
             </Button>
           </div>
           <div className="flex gap-2">
-            {draft && (
+            {isSequenceDraft ? (
               <Button variant="ghost" onClick={handleSkip} disabled={sending}>
                 <SkipForward className="h-4 w-4 mr-2" />
                 Skip step
               </Button>
+            ) : (
+              (draftId || hasContent) && (
+                <Button variant="ghost" onClick={() => handleDiscard(false)} disabled={sending}>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Discard
+                </Button>
+              )
             )}
             <Button onClick={() => handleSend('now')} disabled={!canSend}>
               {sending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
@@ -472,7 +673,7 @@ export function CompanyEmails({ company, people }: { company: Company; people: C
                     setComposeOpen(true);
                   }}
                 >
-                  Review & send
+                  {email.enrollment_id ? 'Review & send' : 'Continue'}
                 </Button>
               </div>
             )}
