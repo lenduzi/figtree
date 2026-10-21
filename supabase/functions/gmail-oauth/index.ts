@@ -5,7 +5,7 @@
 //   POST {action: "disconnect"}         (signed in)  -> revokes and deletes the tokens
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { GMAIL_SCOPES, googleClientId, googleClientSecret } from "../_shared/gmail.ts";
+import { GMAIL_SCOPES, GMAIL_SIGNATURE_SCOPE, googleClientId, googleClientSecret } from "../_shared/gmail.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -137,7 +137,8 @@ Deno.serve(async (req) => {
       client_id: googleClientId(),
       redirect_uri: REDIRECT_URI,
       response_type: "code",
-      scope: GMAIL_SCOPES.join(" "),
+      // The signature scope is optional; the callback only requires GMAIL_SCOPES.
+      scope: [...GMAIL_SCOPES, GMAIL_SIGNATURE_SCOPE].join(" "),
       access_type: "offline",
       // Always ask, so Google returns a refresh token even on reconnect.
       prompt: "consent",

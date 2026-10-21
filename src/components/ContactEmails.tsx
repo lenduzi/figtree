@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { addDays, format, formatDistanceToNow, setHours, setMinutes, startOfDay } from 'date-fns';
-import { Loader2, Mail, Send, Sparkles } from 'lucide-react';
+import { Loader2, Mail, Paperclip, Send, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { Badge } from '@/components/ui/badge';
@@ -21,10 +21,15 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   cancelEmail,
   draftEmail,
+  formatFileSize,
   getGmailAccount,
   listContactEmails,
+  MAX_ATTACHMENTS_BYTES,
   queueEmail,
+  removeAttachment,
   sendEmailNow,
+  uploadAttachment,
+  type EmailAttachment,
   type EmailRecord,
 } from '@/lib/gmail';
 import type { Contact } from '@/types/crm';
@@ -73,6 +78,10 @@ export function ContactEmails({ contact }: { contact: Contact }) {
   const [scheduleAt, setScheduleAt] = useState(toLocalInputValue(tomorrowAtNine()));
   const [drafting, setDrafting] = useState(false);
   const [sending, setSending] = useState(false);
+  const [attachments, setAttachments] = useState<EmailAttachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const attachmentsBytes = attachments.reduce((total, attachment) => total + attachment.size, 0);
 
   const loadEmails = useCallback(() => {
     listContactEmails(contact.id)
@@ -93,7 +102,36 @@ export function ContactEmails({ contact }: { contact: Contact }) {
     setBody('');
     setInstructions('');
     setScheduleAt(toLocalInputValue(tomorrowAtNine()));
+    setAttachments([]);
     setComposeOpen(true);
+  };
+
+  const handleFilesSelected = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const selected = Array.from(files);
+    const addedBytes = selected.reduce((total, file) => total + file.size, 0);
+    if (attachmentsBytes + addedBytes > MAX_ATTACHMENTS_BYTES) {
+      toast.error('Attachments are too large', { description: 'Gmail allows 25 MB per email in total.' });
+      return;
+    }
+    setUploading(true);
+    try {
+      const uploaded: EmailAttachment[] = [];
+      for (const file of selected) {
+        uploaded.push(await uploadAttachment(file));
+      }
+      setAttachments((current) => [...current, ...uploaded]);
+    } catch (error) {
+      toast.error('Upload failed', { description: errorMessage(error) });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveAttachment = (attachment: EmailAttachment) => {
+    setAttachments((current) => current.filter((item) => item.path !== attachment.path));
+    removeAttachment(attachment).catch(() => undefined);
   };
 
   const handleDraft = async () => {
@@ -109,7 +147,7 @@ export function ContactEmails({ contact }: { contact: Contact }) {
     }
   };
 
-  const canSend = to.trim().includes('@') && subject.trim() !== '' && body.trim() !== '' && !sending;
+  const canSend = to.trim().includes('@') && subject.trim() !== '' && body.trim() !== '' && !sending && !uploading;
 
   const handleSend = async (when: 'now' | 'scheduled') => {
     const scheduledFor = when === 'now' ? new Date() : new Date(scheduleAt);
@@ -119,7 +157,7 @@ export function ContactEmails({ contact }: { contact: Contact }) {
     }
     setSending(true);
     try {
-      const id = await queueEmail({ contactId: contact.id, to: to.trim(), subject, body, scheduledFor });
+      const id = await queueEmail({ contactId: contact.id, to: to.trim(), subject, body, scheduledFor, attachments });
       if (when === 'now') {
         await sendEmailNow(id);
         toast('Email sent', { description: `Logged on ${contact.fullName}.` });
@@ -184,6 +222,12 @@ export function ContactEmails({ contact }: { contact: Contact }) {
               <div className="mt-3 space-y-2">
                 <p className="text-xs text-muted-foreground">To: {email.to_email}</p>
                 <p className="text-sm whitespace-pre-wrap text-foreground">{email.body}</p>
+                {email.attachments?.length > 0 && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Paperclip className="h-3 w-3" />
+                    {email.attachments.map((attachment) => attachment.filename).join(', ')}
+                  </p>
+                )}
               </div>
             )}
             {email.status === 'scheduled' && (
@@ -242,6 +286,45 @@ export function ContactEmails({ contact }: { contact: Contact }) {
                 value={body}
                 onChange={(event) => setBody(event.target.value)}
               />
+              <p className="text-xs text-muted-foreground">Your Gmail signature is added automatically when sending.</p>
+            </div>
+
+            <div className="space-y-2">
+              {attachments.map((attachment) => (
+                <div
+                  key={attachment.path}
+                  className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
+                >
+                  <Paperclip className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="truncate flex-1">{attachment.filename}</span>
+                  <span className="text-xs text-muted-foreground shrink-0">{formatFileSize(attachment.size)}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0"
+                    aria-label={`Remove ${attachment.filename}`}
+                    onClick={() => handleRemoveAttachment(attachment)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(event) => handleFilesSelected(event.target.files)}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading || sending}
+              >
+                {uploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Paperclip className="h-4 w-4 mr-2" />}
+                {uploading ? 'Uploading…' : 'Attach files'}
+              </Button>
             </div>
           </div>
 

@@ -125,7 +125,7 @@ const emailSelf = async (db: SupabaseClient, userId: string, channels: Channels,
   if (!channels.notifyEmail) return false;
   try {
     const accessToken = await getAccessToken(db, userId);
-    await sendGmail(accessToken, { to: channels.notifyEmail, subject, body });
+    await sendGmail(accessToken, { to: channels.notifyEmail, subject, text: body });
     return true;
   } catch (error) {
     console.error("self email failed", error);
@@ -275,7 +275,7 @@ const processScheduledEmails = async (db: SupabaseClient, userId: string) => {
       .update({ status: "sending" })
       .eq("id", id)
       .eq("status", "scheduled")
-      .select("id, user_id, contact_id, to_email, subject, body")
+      .select("id, user_id, contact_id, to_email, subject, body, attachments")
       .maybeSingle();
     if (!email) continue;
     if ((await deliverEmailRow(db, email)).ok) sent += 1;

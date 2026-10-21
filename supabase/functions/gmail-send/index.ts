@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
     .eq("id", emailId)
     .eq("user_id", userData.user.id)
     .eq("status", "scheduled")
-    .select("id, user_id, contact_id, to_email, subject, body")
+    .select("id, user_id, contact_id, to_email, subject, body, attachments")
     .maybeSingle();
   if (error) return json({ error: error.message }, 500);
   if (!email) return json({ error: "Email not found or already sent." }, 404);

@@ -8,6 +8,9 @@ export const GMAIL_SCOPES = [
   // Headers only (From/Date/Subject) - enough to detect replies, never bodies.
   "https://www.googleapis.com/auth/gmail.metadata",
 ];
+// Read-only access to Gmail settings, used to append the user's real Gmail
+// signature. Optional: without it Figtree falls back to its own signature.
+export const GMAIL_SIGNATURE_SCOPE = "https://www.googleapis.com/auth/gmail.settings.basic";
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
@@ -59,8 +62,9 @@ export const getAccessToken = async (db: SupabaseClient, userId: string) => {
   return body.access_token as string;
 };
 
-const utf8ToBase64 = (text: string) => {
-  const bytes = new TextEncoder().encode(text);
+const utf8ToBase64 = (text: string) => bytesToBase64(new TextEncoder().encode(text));
+
+const bytesToBase64 = (bytes: Uint8Array) => {
   let binary = "";
   for (let i = 0; i < bytes.length; i += 0x8000) {
     binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
@@ -68,7 +72,8 @@ const utf8ToBase64 = (text: string) => {
   return btoa(binary);
 };
 
-const base64Url = (base64: string) => base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+// Base64 bodies in MIME are wrapped at 76 characters.
+const wrapBase64 = (base64: string) => base64.replace(/.{76}/g, "$&\r\n");
 
 // Header values must not contain line breaks (header injection).
 const headerValue = (value: string) => value.replace(/[\r\n]+/g, " ").trim();
@@ -77,36 +82,134 @@ const encodeHeaderWord = (value: string) =>
   // deno-lint-ignore no-control-regex
   /^[\x00-\x7F]*$/.test(value) ? headerValue(value) : `=?UTF-8?B?${utf8ToBase64(headerValue(value))}?=`;
 
-export const buildMimeMessage = (message: { to: string; subject: string; body: string }) => {
-  const encodedBody = utf8ToBase64(message.body.replace(/\r?\n/g, "\r\n")).replace(/.{76}/g, "$&\r\n");
-  return [
-    `To: ${headerValue(message.to)}`,
-    `Subject: ${encodeHeaderWord(message.subject)}`,
-    "MIME-Version: 1.0",
+const escapeHtml = (text: string) =>
+  text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+const linkify = (escaped: string) =>
+  escaped.replace(/\bhttps?:\/\/[^\s<]+[^\s<.,;:!?)\]]/g, (url) => `<a href="${url}">${url}</a>`);
+
+/**
+ * Plain text -> HTML in the shape Gmail's own composer produces (one div per
+ * line, empty div between paragraphs), so it reads like a hand-written email.
+ */
+export const textToGmailHtml = (text: string) =>
+  text
+    .replace(/\r\n/g, "\n")
+    .trim()
+    .split("\n")
+    .map((line) => (line.trim() ? `<div>${linkify(escapeHtml(line))}</div>` : "<div><br></div>"))
+    .join("");
+
+/** Rough HTML -> text for the plain-text alternative of a signature. */
+export const htmlToText = (html: string) =>
+  html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(div|p|tr|li|h\d)>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+export type MailAttachment = { filename: string; mimeType: string; data: Uint8Array };
+
+export const buildMimeMessage = (message: {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+  attachments?: MailAttachment[];
+}) => {
+  const boundary = (label: string) => `figtree_${label}_${crypto.randomUUID().replace(/-/g, "")}`;
+  const alternativeBoundary = boundary("alt");
+  const alternative = [
+    `Content-Type: multipart/alternative; boundary="${alternativeBoundary}"`,
+    "",
+    `--${alternativeBoundary}`,
     'Content-Type: text/plain; charset="UTF-8"',
     "Content-Transfer-Encoding: base64",
     "",
-    encodedBody,
+    wrapBase64(utf8ToBase64(message.text.replace(/\r?\n/g, "\r\n"))),
+    `--${alternativeBoundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    wrapBase64(utf8ToBase64(`<div dir="ltr">${message.html}</div>`)),
+    `--${alternativeBoundary}--`,
+  ];
+
+  const headers = [
+    `To: ${headerValue(message.to)}`,
+    `Subject: ${encodeHeaderWord(message.subject)}`,
+    "MIME-Version: 1.0",
+  ];
+
+  const attachments = message.attachments ?? [];
+  if (attachments.length === 0) return [...headers, ...alternative].join("\r\n");
+
+  const mixedBoundary = boundary("mixed");
+  const parts = attachments.flatMap((attachment) => {
+    const name = encodeHeaderWord(attachment.filename.replace(/"/g, ""));
+    return [
+      `--${mixedBoundary}`,
+      `Content-Type: ${headerValue(attachment.mimeType || "application/octet-stream")}; name="${name}"`,
+      `Content-Disposition: attachment; filename="${name}"`,
+      "Content-Transfer-Encoding: base64",
+      "",
+      wrapBase64(bytesToBase64(attachment.data)),
+    ];
+  });
+  return [
+    ...headers,
+    `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
+    "",
+    `--${mixedBoundary}`,
+    ...alternative,
+    ...parts,
+    `--${mixedBoundary}--`,
   ].join("\r\n");
 };
 
+/**
+ * Sends a message. Uses the media upload endpoint, which accepts messages up
+ * to 35 MB (the JSON endpoint is limited to a few MB).
+ */
 export const sendGmail = async (
   accessToken: string,
-  message: { to: string; subject: string; body: string; threadId?: string | null },
+  message: { to: string; subject: string; text: string; html?: string; attachments?: MailAttachment[] },
 ) => {
-  const response = await fetch(`${GMAIL_API}/messages/send`, {
+  const raw = buildMimeMessage({ ...message, html: message.html ?? textToGmailHtml(message.text) });
+  const response = await fetch("https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media", {
     method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      raw: base64Url(utf8ToBase64(buildMimeMessage(message))),
-      ...(message.threadId ? { threadId: message.threadId } : {}),
-    }),
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "message/rfc822" },
+    body: raw,
   });
   const body = await response.json();
   if (!response.ok) {
     throw new Error(`Gmail send failed: ${body?.error?.message ?? response.status}`);
   }
   return { id: body.id as string, threadId: body.threadId as string };
+};
+
+/** The HTML signature Gmail would add for this address, or "" if unavailable. */
+export const getGmailSignature = async (accessToken: string, address: string) => {
+  const response = await fetch(`${GMAIL_API}/settings/sendAs`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  // 403 = the optional settings scope wasn't granted.
+  if (!response.ok) return "";
+  const body = await response.json();
+  const sendAs: { sendAsEmail: string; signature?: string; isDefault?: boolean; isPrimary?: boolean }[] =
+    body.sendAs ?? [];
+  const match =
+    sendAs.find((entry) => entry.sendAsEmail.toLowerCase() === address.toLowerCase()) ??
+    sendAs.find((entry) => entry.isDefault) ??
+    sendAs.find((entry) => entry.isPrimary);
+  return match?.signature?.trim() ?? "";
 };
 
 export type ThreadMessage = { id: string; internalDate: number; from: string };
@@ -132,17 +235,60 @@ export const getThreadMessages = async (accessToken: string, threadId: string): 
 export const emailAddressOf = (from: string) =>
   (from.match(/<([^>]+)>/)?.[1] ?? from).trim().toLowerCase();
 
+export type EmailAttachmentRef = { path: string; filename: string; mime_type: string; size: number };
+
+const ATTACHMENTS_BUCKET = "email-attachments";
+
 /**
  * Sends one row of public.emails (already claimed as status 'sending') and
  * records the result, logging an activity on the contact when it went out.
+ * Appends the user's Gmail signature (or Figtree's fallback signature) and
+ * any attachments from storage.
  */
 export const deliverEmailRow = async (
   db: SupabaseClient,
-  email: { id: string; user_id: string; contact_id: string | null; to_email: string; subject: string; body: string },
+  email: {
+    id: string;
+    user_id: string;
+    contact_id: string | null;
+    to_email: string;
+    subject: string;
+    body: string;
+    attachments?: EmailAttachmentRef[] | null;
+  },
 ) => {
   try {
     const accessToken = await getAccessToken(db, email.user_id);
-    const sent = await sendGmail(accessToken, { to: email.to_email, subject: email.subject, body: email.body });
+
+    const [{ data: account }, { data: settings }] = await Promise.all([
+      db.from("gmail_accounts").select("email").eq("user_id", email.user_id).maybeSingle(),
+      db.from("user_settings").select("email_signature").eq("user_id", email.user_id).maybeSingle(),
+    ]);
+    const gmailSignature = account?.email ? await getGmailSignature(accessToken, account.email) : "";
+    const fallbackSignature = settings?.email_signature?.trim() ?? "";
+
+    let text = email.body.trim();
+    let html = textToGmailHtml(text);
+    if (gmailSignature) {
+      text += `\n\n-- \n${htmlToText(gmailSignature)}`;
+      html += `<br><div dir="ltr" class="gmail_signature" data-smartmail="gmail_signature">${gmailSignature}</div>`;
+    } else if (fallbackSignature) {
+      text += `\n\n${fallbackSignature}`;
+      html += `<div><br></div>${textToGmailHtml(fallbackSignature)}`;
+    }
+
+    const attachments: MailAttachment[] = [];
+    for (const ref of email.attachments ?? []) {
+      const { data: file, error } = await db.storage.from(ATTACHMENTS_BUCKET).download(ref.path);
+      if (error || !file) throw new Error(`Attachment "${ref.filename}" could not be loaded.`);
+      attachments.push({
+        filename: ref.filename,
+        mimeType: ref.mime_type,
+        data: new Uint8Array(await file.arrayBuffer()),
+      });
+    }
+
+    const sent = await sendGmail(accessToken, { to: email.to_email, subject: email.subject, text, html, attachments });
     const sentAt = new Date().toISOString();
     await db
       .from("emails")
@@ -155,12 +301,15 @@ export const deliverEmailRow = async (
       })
       .eq("id", email.id);
     if (email.contact_id) {
+      const attachmentNote = attachments.length
+        ? ` (${attachments.length} attachment${attachments.length === 1 ? "" : "s"})`
+        : "";
       await db.from("activities").insert({
         id: crypto.randomUUID(),
         user_id: email.user_id,
         contact_id: email.contact_id,
         type: "email",
-        description: `Email sent: ${email.subject || "(no subject)"}`,
+        description: `Email sent: ${email.subject || "(no subject)"}${attachmentNote}`,
         occurred_at: sentAt,
       });
     }

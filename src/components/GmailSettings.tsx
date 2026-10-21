@@ -154,7 +154,10 @@ export function GmailSettings() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="email-signature">Email signature</Label>
+              <Label htmlFor="email-signature">Fallback signature</Label>
+              <p className="text-xs text-muted-foreground">
+                Emails use your Gmail signature automatically. This is only used if your Gmail account has none.
+              </p>
               <Textarea
                 id="email-signature"
                 rows={3}
