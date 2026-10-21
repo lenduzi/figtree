@@ -6,10 +6,31 @@ import Anthropic from "npm:@anthropic-ai/sdk";
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { renderBrain, section, type BrainEntry, type BrainFile } from "./drafting.ts";
 
-const MODEL = "claude-opus-5-5";
+// Sonnet: research is mostly reading and extracting, and costs half of Opus.
+const MODEL = "claude-sonnet-5-5";
 const MAX_TURNS = 8;
 
-type Usage = { input_tokens: number; output_tokens: number; web_searches: number; web_fetches: number };
+// Claude Sonnet 5.5 list prices (USD per token / per search) and a rough EUR rate.
+const PRICE = { input: 2 / 1e6, cacheWrite: 2.5 / 1e6, cacheRead: 0.2 / 1e6, output: 10 / 1e6, search: 0.01 };
+const USD_TO_EUR = 0.93;
+
+export type Usage = {
+  input_tokens: number;
+  cache_write_tokens: number;
+  cache_read_tokens: number;
+  output_tokens: number;
+  web_searches: number;
+  web_fetches: number;
+  /** Error codes returned by the web tools, for diagnosing bad runs. */
+  tool_errors?: string[];
+};
+
+export const usageCostEur = (usage: Usage) =>
+  (usage.input_tokens * PRICE.input +
+    usage.cache_write_tokens * PRICE.cacheWrite +
+    usage.cache_read_tokens * PRICE.cacheRead +
+    usage.output_tokens * PRICE.output +
+    usage.web_searches * PRICE.search) * USD_TO_EUR;
 
 type ResearchTool = Anthropic.Beta.BetaTool;
 
@@ -36,12 +57,20 @@ const runResearch = async (
       user_location: { type: "approximate", country: "DE", timezone: "Europe/Berlin" },
     },
     // Pages are capped: long sites otherwise dominate the cost.
-    { type: "web_fetch_20260209", name: "web_fetch", max_uses: maxFetches, max_content_tokens: 6000 },
+    { type: "web_fetch_20260209", name: "web_fetch", max_uses: maxFetches, max_content_tokens: 5000 },
     { ...tool, strict: true },
   ];
   // deno-lint-ignore no-explicit-any
   const messages: any[] = [{ role: "user", content: prompt }];
-  const usage: Usage = { input_tokens: 0, output_tokens: 0, web_searches: 0, web_fetches: 0 };
+  const usage: Usage = {
+    input_tokens: 0,
+    cache_write_tokens: 0,
+    cache_read_tokens: 0,
+    output_tokens: 0,
+    web_searches: 0,
+    web_fetches: 0,
+    tool_errors: [],
+  };
   let nudged = false;
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
@@ -57,10 +86,19 @@ const runResearch = async (
       cache_control: { type: "ephemeral" },
       messages,
     });
-    usage.input_tokens += response.usage.input_tokens + (response.usage.cache_read_input_tokens ?? 0);
+    usage.input_tokens += response.usage.input_tokens;
+    usage.cache_write_tokens += response.usage.cache_creation_input_tokens ?? 0;
+    usage.cache_read_tokens += response.usage.cache_read_input_tokens ?? 0;
     usage.output_tokens += response.usage.output_tokens;
     usage.web_searches += response.usage.server_tool_use?.web_search_requests ?? 0;
     usage.web_fetches += response.usage.server_tool_use?.web_fetch_requests ?? 0;
+
+    // Server tool failures come back as result blocks with an error object.
+    for (const block of response.content as unknown as { type: string; content?: unknown }[]) {
+      if (block.type !== "web_search_tool_result" && block.type !== "web_fetch_tool_result") continue;
+      const content = block.content as { type?: string; error_code?: string } | unknown[];
+      if (!Array.isArray(content) && content?.error_code) usage.tool_errors!.push(`${block.type}: ${content.error_code}`);
+    }
 
     const call = response.content.find((block) => block.type === "tool_use" && block.name === tool.name);
     if (call && call.type === "tool_use") return { input: call.input as Record<string, unknown>, usage };
@@ -97,13 +135,13 @@ const RESEARCH_RULES = `Rules:
 - Contact details: record the business's own phone number and general email (e.g. info@...). Never guess or construct email addresses.
 - People: only business roles that are publicly listed (e.g. Inhaber/Geschäftsführer in the Impressum, or a named marketing/events contact on the website). Include their email only if it is published.
 - If something can't be verified, leave it empty rather than guessing.
-- Search efficiently: start with the business name and city; open the website and the Impressum.`;
+- Always verify on the business's own website first: open its homepage and Impressum/imprint, follow links you find there (e.g. Kontakt, Team), then search the web only for what's still missing. Don't just restate what is already known.`;
 
-const FIT_RULES = `Fit against the company brain's target customers and offer:
-- A: clear fit and promising (an experience people film and share, local customers, active or promising on social media, the right size).
-- B: fits, with a caveat (e.g. small, little social presence, unclear decision-maker).
+const FIT_RULES = `Fit against the company brain's target customers and offer (any industry can fit):
+- A: clear fit and promising. A visible buying signal (they are building or running an ambassador, creator or UGC program, or hiring for one) is an A on its own.
+- B: fits, with a caveat (e.g. small, little social presence, unclear decision-maker, budget doubtful).
 - C: weak or no fit.
-The fit reason is one or two concrete sentences.`;
+The fit reason is one or two concrete sentences; name the buying signal if there is one.`;
 
 // ---------------------------------------------------------------------------
 // Enrichment
@@ -179,6 +217,14 @@ export const enrichCompany = async (db: SupabaseClient, anthropic: Anthropic, us
   const { data: people } = await db.from("contacts").select("full_name, role, email").eq("company_id", companyId);
 
   const brain = await loadBrain(db, userId);
+  // web_fetch can only open URLs present in the conversation: list the likely pages.
+  let openable: string[] = [];
+  try {
+    const origin = new URL(/^https?:\/\//i.test(company.website) ? company.website : `https://${company.website}`).origin;
+    if (company.website) openable = [origin, `${origin}/impressum`];
+  } catch {
+    openable = [];
+  }
   const known = [
     `Name: ${company.name}`,
     company.city && `City: ${company.city}`,
@@ -194,11 +240,14 @@ export const enrichCompany = async (db: SupabaseClient, anthropic: Anthropic, us
   const { input, usage } = await runResearch(anthropic, {
     system: `You research businesses for a B2B sales CRM, so the user knows who they are and whether they fit before reaching out.\n\n${RESEARCH_RULES}\n\n${FIT_RULES}\n\n${brain}`,
     prompt: `Research this company and save your findings.\n\n${section("known_so_far", known)}${
+      openable.length ? `\n\n${section("pages_you_can_open", openable.join("\n"))}` : ""
+    }${
       company.notes ? `\n\n${section("user_notes", company.notes.slice(0, 2000))}` : ""
     }`,
     tool: ENRICH_TOOL,
-    maxSearches: 4,
-    maxFetches: 3,
+    // Fetches are cheap with capped pages; some get spent on links that don't exist.
+    maxSearches: 3,
+    maxFetches: 5,
   });
   const result = input as EnrichResult;
 
@@ -275,8 +324,13 @@ const PROSPECT_TOOL: ResearchTool = {
             phone: { type: "string" },
             instagram: { type: "string" },
             why: { type: "string", description: "One sentence on why this business fits." },
+            signal: {
+              type: "string",
+              description: "Buying-signal searches: the concrete evidence (e.g. 'Hiring an Ambassador Program Manager', 'Landing page: Werde Markenbotschafter'). Otherwise empty.",
+            },
+            signal_url: { type: "string", description: "Link to that evidence, or empty." },
           },
-          required: ["name", "website", "city", "address", "phone", "instagram", "why"],
+          required: ["name", "website", "city", "address", "phone", "instagram", "why", "signal", "signal_url"],
           additionalProperties: false,
         },
       },
@@ -307,7 +361,7 @@ const digits = (value: string) => value.replace(/\D/g, "");
 export const runProspectSearch = async (db: SupabaseClient, anthropic: Anthropic, userId: string, searchId: string) => {
   const { data: search } = await db
     .from("prospect_searches")
-    .select("id, name, query, location, company_type, weekly_target")
+    .select("id, name, query, location, company_type, weekly_target, strategy")
     .eq("id", searchId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -320,24 +374,35 @@ export const runProspectSearch = async (db: SupabaseClient, anthropic: Anthropic
   ]);
   const known = existing ?? [];
   const location = search.location.trim().toLowerCase();
-  const nearby = known
-    .filter((company) => !location || (company.city ?? "").toLowerCase().includes(location))
-    .map((company) => company.name)
-    .slice(0, 300);
+  const inLocation = known.filter((company) => location && (company.city ?? "").toLowerCase().includes(location));
+  // Region-wide or industry-agnostic searches: skip-list everything we know.
+  const skipList = (inLocation.length ? inLocation : known).map((company) => company.name).slice(0, 400);
 
   const brain = await loadBrain(db, userId);
   const target = Math.max(1, Math.min(search.weekly_target, 25));
+  const intent = search.strategy === "intent";
+  const where = search.location ? ` in ${search.location}` : "";
+  const ask = intent
+    ? [
+      `Find up to ${target} companies${where} that show a buying signal: ${search.query}.`,
+      `Buying signals to look for (search in German and English): job ads for roles like "Brand Ambassador Manager", "Ambassador Program Manager", "Community Manager (Ambassador)", "Influencer & Ambassador Marketing"; pages like "Werde Markenbotschafter", "Ambassador Programm", "Brand Ambassador werden", "Creator-Programm", "UGC Creator gesucht"; posts recruiting ambassadors or creators; companies using ambassador software (e.g. Brandbassador, Duel, Gatsby, Social Snowball).`,
+      "Any industry is fine. Prefer companies whose customers buy and use the product in a way that is easy to film, and recent signals (this year). For each, record the evidence and its link.",
+      `Work from search results: run several targeted searches (different phrasings, German and English, different industries) and collect every qualifying company the results show. A signal visible in a search result snippet is enough; only open a page when you need to confirm it. Aim for ${target} companies.`,
+    ]
+    : [
+      `Find up to ${target} businesses: ${search.query}${where}.`,
+      "Only include businesses that fit the target customers in the company brain, and prefer the most promising ones.",
+    ];
   const { input, usage } = await runResearch(anthropic, {
     system: `You find new prospects for a B2B sales CRM: real, currently operating businesses that fit the user's target customers.\n\n${RESEARCH_RULES}\n\n${brain}`,
     prompt: [
-      `Find up to ${target} businesses: ${search.query}${search.location ? ` in ${search.location}` : ""}.`,
-      "Only include businesses that fit the target customers in the company brain, and prefer the most promising ones (active on social media, experiences people like to film).",
-      section("already_in_crm_skip_these", nearby.join("\n")),
+      ...ask,
+      section("already_in_crm_skip_these", skipList.join("\n")),
       section("rejected_before_avoid_similar", (rejected ?? []).map((company) => `${company.name}: ${company.lost_reason}`).join("\n")),
       "Then save them.",
     ].filter(Boolean).join("\n\n"),
     tool: PROSPECT_TOOL,
-    maxSearches: 6,
+    maxSearches: intent ? 10 : 6,
     maxFetches: 2,
   });
 
@@ -345,7 +410,17 @@ export const runProspectSearch = async (db: SupabaseClient, anthropic: Anthropic
   const knownNames = new Set(known.map((company) => normalizeName(company.name)));
   const knownHosts = new Set(known.map((company) => hostOf(company.website ?? "")).filter(Boolean));
   const knownPhones = new Set(known.map((company) => digits(company.phone ?? "")).filter((phone) => phone.length >= 6));
-  const prospects = ((input.prospects ?? []) as { name: string; website: string; city: string; address: string; phone: string; instagram: string; why: string }[])
+  const prospects = ((input.prospects ?? []) as {
+    name: string;
+    website: string;
+    city: string;
+    address: string;
+    phone: string;
+    instagram: string;
+    why: string;
+    signal: string;
+    signal_url: string;
+  }[])
     .filter((prospect) => {
       const name = normalizeName(prospect.name);
       const host = hostOf(prospect.website);
@@ -364,16 +439,20 @@ export const runProspectSearch = async (db: SupabaseClient, anthropic: Anthropic
     id: crypto.randomUUID(),
     user_id: userId,
     name: prospect.name.trim(),
-    type: search.company_type,
+    // 'any': the research classifies it (it only sets the type while it's 'other').
+    type: search.company_type === "any" ? "other" : search.company_type,
     website: prospect.website.trim(),
-    city: prospect.city.trim() || search.location,
+    city: prospect.city.trim() || (intent ? "" : search.location),
     address: prospect.address.trim(),
     phone: prospect.phone.trim(),
     instagram: normalizeInstagram(prospect.instagram),
     lifecycle: "sourced",
     source: "ai_prospecting",
     lists: [search.name],
-    notes: prospect.why.trim(),
+    notes: [
+      prospect.signal.trim() && `Signal: ${prospect.signal.trim()}${prospect.signal_url.trim() ? ` (${prospect.signal_url.trim()})` : ""}`,
+      prospect.why.trim(),
+    ].filter(Boolean).join("\n"),
     needs_review: true,
     created_at: now,
   }));

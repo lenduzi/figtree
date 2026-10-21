@@ -8,6 +8,8 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { connectGmail, disconnectGmail, getGmailAccount } from '@/lib/gmail';
 import { loadUserSettings, saveUserSettings, type UserSettings } from '@/lib/notifications';
+import { getResearchBudget } from '@/lib/research';
+import { Input } from '@/components/ui/input';
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
@@ -17,7 +19,7 @@ const CONNECT_ERRORS: Record<string, string> = {
   expired: 'The sign-in took too long. Try again.',
 };
 
-type AiSettings = Pick<UserSettings, 'email_notifications' | 'ai_context' | 'email_signature'>;
+type AiSettings = Pick<UserSettings, 'email_notifications' | 'ai_context' | 'email_signature' | 'research_budget_eur'>;
 
 export function GmailSettings() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -25,6 +27,7 @@ export function GmailSettings() {
   const [settings, setSettings] = useState<AiSettings | null>(null);
   const [savedSettings, setSavedSettings] = useState<AiSettings | null>(null);
   const [busy, setBusy] = useState(false);
+  const [researchSpent, setResearchSpent] = useState<number | null>(null);
 
   useEffect(() => {
     getGmailAccount()
@@ -36,11 +39,15 @@ export function GmailSettings() {
           email_notifications: loaded?.email_notifications ?? true,
           ai_context: loaded?.ai_context ?? '',
           email_signature: loaded?.email_signature ?? '',
+          research_budget_eur: loaded?.research_budget_eur ?? 20,
         };
         setSettings(values);
         setSavedSettings(values);
       })
       .catch((error) => toast.error('Could not load email settings', { description: errorMessage(error) }));
+    getResearchBudget()
+      .then((budget) => setResearchSpent(budget.spent))
+      .catch(() => setResearchSpent(null));
   }, []);
 
   // Google sends the user back here with ?gmail=connected or ?gmail=error&reason=...
@@ -162,6 +169,34 @@ export function GmailSettings() {
                 value={settings.email_signature}
                 onChange={(event) => setSettings({ ...settings, email_signature: event.target.value })}
               />
+            </div>
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <Label htmlFor="research-budget" className="text-sm font-medium">
+                  AI research budget per month
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Research and prospecting pause once it's reached.
+                  {researchSpent !== null ? ` €${researchSpent.toFixed(2)} used this month.` : ''}
+                </p>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-sm text-muted-foreground">€</span>
+                <Input
+                  id="research-budget"
+                  type="number"
+                  min={0}
+                  step={5}
+                  className="w-24"
+                  defaultValue={settings.research_budget_eur}
+                  onBlur={(event) => {
+                    const value = Math.max(0, Number(event.target.value) || 0);
+                    if (value === settings.research_budget_eur) return;
+                    setSettings({ ...settings, research_budget_eur: value });
+                    save({ research_budget_eur: value }).then((ok) => ok && toast(`Research budget: €${value}/month`));
+                  }}
+                />
+              </div>
             </div>
             <Button
               variant="outline"

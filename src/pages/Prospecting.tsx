@@ -15,18 +15,36 @@ import { Switch } from '@/components/ui/switch';
 import {
   deleteSearch,
   ESTIMATED_COST_EUR,
+  getResearchBudget,
   listRecentJobs,
   listSearches,
   runSearchNow,
   saveSearch,
   type ProspectSearch,
   type ResearchJob,
+  type SearchStrategy,
 } from '@/lib/research';
 import { COMPANY_TYPES, type Company, type CompanyType } from '@/types/crm';
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-const EMPTY_SEARCH = { name: '', query: '', location: '', company_type: 'venue' as CompanyType, weekly_target: 10, active: true };
+const EMPTY_SEARCH = {
+  name: '',
+  query: '',
+  location: '',
+  company_type: 'venue' as CompanyType | 'any',
+  strategy: 'lookalike' as SearchStrategy,
+  weekly_target: 10,
+  active: true,
+};
+
+const INTENT_PRESET = {
+  strategy: 'intent' as SearchStrategy,
+  query: 'companies building or running a brand ambassador, creator or UGC program',
+  location: 'DACH (Germany, Austria, Switzerland)',
+  company_type: 'any' as const,
+  name: 'Building an ambassador program',
+};
 
 function SearchDialog({
   search,
@@ -52,6 +70,7 @@ function SearchDialog({
         query: fields.query.trim(),
         location: fields.location.trim(),
         company_type: fields.company_type,
+        strategy: fields.strategy,
         weekly_target: Math.min(50, Math.max(1, Math.round(fields.weekly_target))),
         active: fields.active,
       });
@@ -69,6 +88,29 @@ function SearchDialog({
           <DialogTitle>{search ? 'Edit search' : 'New prospect search'}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-3">
+          <div className="grid gap-1.5">
+            <Label>Kind of search</Label>
+            <Select
+              value={fields.strategy}
+              onValueChange={(value) =>
+                setFields(value === 'intent' && !fields.query ? { ...fields, ...INTENT_PRESET } : { ...fields, strategy: value as SearchStrategy })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="intent">Buying signals (e.g. building an ambassador program)</SelectItem>
+                <SelectItem value="lookalike">Look-alike businesses (e.g. Paint & Sip in Hamburg)</SelectItem>
+              </SelectContent>
+            </Select>
+            {fields.strategy === 'intent' && (
+              <p className="text-xs text-muted-foreground">
+                Looks for job ads, "become an ambassador" pages, creator recruiting and ambassador software, in any
+                industry, and saves the evidence with a link.
+              </p>
+            )}
+          </div>
           <div className="grid gap-1.5">
             <Label>What to look for</Label>
             <Input
@@ -89,12 +131,13 @@ function SearchDialog({
             </div>
             <div className="grid gap-1.5">
               <Label>Type</Label>
-              <Select value={fields.company_type} onValueChange={(value) => setFields({ ...fields, company_type: value as CompanyType })}>
+              <Select value={fields.company_type} onValueChange={(value) => setFields({ ...fields, company_type: value as CompanyType | 'any' })}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {COMPANY_TYPES.map((type) => (
+                  <SelectItem value="any">Any (let research decide)</SelectItem>
+                  {COMPANY_TYPES.filter((type) => type.id !== 'other').map((type) => (
                     <SelectItem key={type.id} value={type.id}>
                       {type.label}
                     </SelectItem>
@@ -218,12 +261,14 @@ export default function Prospecting() {
   const [searches, setSearches] = useState<ProspectSearch[] | null>(null);
   const [jobs, setJobs] = useState<ResearchJob[]>([]);
   const [dialog, setDialog] = useState<{ open: boolean; search: ProspectSearch | null }>({ open: false, search: null });
+  const [budget, setBudget] = useState<{ spent: number; budget: number } | null>(null);
 
   const load = useCallback(() => {
-    Promise.all([listSearches(), listRecentJobs(30)])
-      .then(([loadedSearches, loadedJobs]) => {
+    Promise.all([listSearches(), listRecentJobs(30), getResearchBudget()])
+      .then(([loadedSearches, loadedJobs, loadedBudget]) => {
         setSearches(loadedSearches);
         setJobs(loadedJobs);
+        setBudget(loadedBudget);
       })
       .catch((error) => toast.error('Could not load prospecting', { description: errorMessage(error) }));
   }, []);
@@ -269,6 +314,12 @@ export default function Prospecting() {
             Claude searches the web for companies that fit your target customers, researches them, and queues them here
             for your review.
           </p>
+          {budget && (
+            <p className={`text-xs mt-1 ${budget.spent >= budget.budget ? 'text-destructive-foreground' : 'text-muted-foreground'}`}>
+              €{budget.spent.toFixed(2)} of €{budget.budget.toFixed(0)} research budget used this month
+              {budget.spent >= budget.budget ? ': paused until next month (raise it in Settings)' : ''}
+            </p>
+          )}
         </div>
         <Button onClick={() => setDialog({ open: true, search: null })}>
           <Plus className="h-4 w-4 mr-2" />
@@ -325,6 +376,7 @@ export default function Prospecting() {
                     <div className="min-w-0">
                       <p className="font-medium text-sm">{search.name}</p>
                       <p className="text-xs text-muted-foreground">
+                        {search.strategy === 'intent' ? 'Buying signals · ' : ''}
                         {search.query}
                         {search.location ? ` · ${search.location}` : ''} · {search.weekly_target}/week
                         {search.active ? '' : ' · paused'}

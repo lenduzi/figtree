@@ -50,7 +50,7 @@ export function CompanyResearchCard({ company }: { company: Company }) {
         ) : (
           <p className="text-sm text-muted-foreground">
             Claude looks them up on the web: contact details, decision-makers, social presence, fit against your
-            target customers, and the best angle for a first message. Roughly 25–60 cents per company.
+            target customers, and the best angle for a first message. Roughly 10–25 cents per company.
           </p>
         )}
         {company.enrichedAt && (

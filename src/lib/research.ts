@@ -2,12 +2,15 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import type { CompanyType } from "@/types/crm";
 
+export type SearchStrategy = "lookalike" | "intent";
+
 export type ProspectSearch = {
   id: string;
   name: string;
   query: string;
   location: string;
-  company_type: CompanyType;
+  company_type: CompanyType | "any";
+  strategy: SearchStrategy;
   weekly_target: number;
   active: boolean;
   last_run_at: string | null;
@@ -26,8 +29,22 @@ export type ResearchJob = {
   finished_at: string | null;
 };
 
-/** Rough average cost per job on Claude Opus 5.5 with web search (measured), for the UI. */
-export const ESTIMATED_COST_EUR = { enrich: 0.4, prospectRun: 0.7 };
+/** Rough average cost per job on Claude Sonnet 5.5 with web search, for the UI. */
+export const ESTIMATED_COST_EUR = { enrich: 0.15, prospectRun: 0.35 };
+
+/** What research cost this calendar month, and the monthly cap. */
+export const getResearchBudget = async () => {
+  const client = getClient();
+  const { data: session } = await client.auth.getSession();
+  const userId = session.session?.user.id;
+  if (!userId) throw new Error("Not signed in");
+  const [{ data: spent, error }, { data: settings }] = await Promise.all([
+    client.rpc("research_spend_this_month", { target_user: userId }),
+    client.from("user_settings").select("research_budget_eur").maybeSingle(),
+  ]);
+  if (error) throw error;
+  return { spent: Number(spent ?? 0), budget: Number(settings?.research_budget_eur ?? 20) };
+};
 
 const getClient = () => {
   if (!supabase) throw new Error("Supabase is not configured");
@@ -93,7 +110,7 @@ export const listRecentJobs = async (limit = 20) => {
 export const listSearches = async () => {
   const { data, error } = await getClient()
     .from("prospect_searches")
-    .select("id, name, query, location, company_type, weekly_target, active, last_run_at, created_at")
+    .select("id, name, query, location, company_type, strategy, weekly_target, active, last_run_at, created_at")
     .order("created_at");
   if (error) throw error;
   return (data ?? []) as ProspectSearch[];

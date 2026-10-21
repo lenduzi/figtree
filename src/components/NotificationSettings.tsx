@@ -40,6 +40,7 @@ export function NotificationSettings() {
             email_notifications: true,
             ai_context: '',
             email_signature: '',
+            research_budget_eur: 20,
           },
         ),
       )

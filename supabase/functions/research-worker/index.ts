@@ -2,10 +2,12 @@
 // weekly prospect searches that are due and works through the job queue for
 // ~2 minutes. A signed-in user can also run one enrichment right away:
 // POST {action: "enrich_now", companyId}.
+// Each user has a monthly research budget (user_settings.research_budget_eur);
+// once it's spent, their jobs wait in the queue until next month.
 
 import Anthropic from "npm:@anthropic-ai/sdk";
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
-import { enrichCompany, runProspectSearch } from "../_shared/research.ts";
+import { enrichCompany, runProspectSearch, usageCostEur } from "../_shared/research.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -27,6 +29,15 @@ const json = (body: unknown, status = 200) =>
 const errorMessage = (error: unknown) =>
   error instanceof Anthropic.APIError ? `Claude API error ${error.status}: ${error.message}` : error instanceof Error ? error.message : String(error);
 
+/** Euros left in the user's research budget this month. */
+const budgetLeft = async (db: SupabaseClient, userId: string) => {
+  const [{ data: settings }, { data: spent }] = await Promise.all([
+    db.from("user_settings").select("research_budget_eur").eq("user_id", userId).maybeSingle(),
+    db.rpc("research_spend_this_month", { target_user: userId }),
+  ]);
+  return Number(settings?.research_budget_eur ?? 20) - Number(spent ?? 0);
+};
+
 type Job = { id: string; user_id: string; kind: "enrich" | "prospect"; company_id: string | null; search_id: string | null };
 
 const runJob = async (db: SupabaseClient, anthropic: Anthropic, job: Job) => {
@@ -34,7 +45,12 @@ const runJob = async (db: SupabaseClient, anthropic: Anthropic, job: Job) => {
     const result = job.kind === "enrich"
       ? await enrichCompany(db, anthropic, job.user_id, job.company_id!)
       : await runProspectSearch(db, anthropic, job.user_id, job.search_id!);
-    await db.from("research_jobs").update({ status: "done", result, finished_at: new Date().toISOString() }).eq("id", job.id);
+    await db.from("research_jobs").update({
+      status: "done",
+      result,
+      cost_eur: Number(usageCostEur(result.usage).toFixed(4)),
+      finished_at: new Date().toISOString(),
+    }).eq("id", job.id);
     return { ok: true as const, result };
   } catch (error) {
     console.error("research job failed", job.id, error);
@@ -55,6 +71,12 @@ const runQueue = async (db: SupabaseClient, anthropic: Anthropic) => {
     .eq("status", "running")
     .lt("started_at", new Date(started - STALE_RUNNING_MS).toISOString());
 
+  const budgets = new Map<string, number>();
+  const hasBudget = async (userId: string) => {
+    if (!budgets.has(userId)) budgets.set(userId, await budgetLeft(db, userId));
+    return (budgets.get(userId) ?? 0) > 0;
+  };
+
   // Weekly prospect searches that are due.
   const { data: searches } = await db
     .from("prospect_searches")
@@ -62,6 +84,7 @@ const runQueue = async (db: SupabaseClient, anthropic: Anthropic) => {
     .eq("active", true);
   for (const search of searches ?? []) {
     if (search.last_run_at && Date.parse(search.last_run_at) > started - PROSPECT_INTERVAL_MS) continue;
+    if (!(await hasBudget(search.user_id))) continue;
     const { count } = await db.from("research_jobs").select("id", { count: "exact", head: true })
       .eq("search_id", search.id).in("status", ["queued", "running"]);
     if (count) continue;
@@ -72,8 +95,16 @@ const runQueue = async (db: SupabaseClient, anthropic: Anthropic) => {
   }
 
   while (Date.now() - started < RUN_BUDGET_MS) {
-    const { data: next } = await db.from("research_jobs").select("id").eq("status", "queued")
-      .order("created_at").limit(1).maybeSingle();
+    // The oldest queued job of a user who still has budget this month.
+    const { data: queued } = await db.from("research_jobs").select("id, user_id").eq("status", "queued")
+      .order("created_at").limit(25);
+    let next: { id: string; user_id: string } | null = null;
+    for (const candidate of queued ?? []) {
+      if (await hasBudget(candidate.user_id)) {
+        next = candidate;
+        break;
+      }
+    }
     if (!next) break;
     // Claim it, so an overlapping run can't take the same job.
     const { data: job } = await db.from("research_jobs")
@@ -84,6 +115,7 @@ const runQueue = async (db: SupabaseClient, anthropic: Anthropic) => {
     const outcome = await runJob(db, anthropic, job as Job);
     if (outcome.ok) totals.jobsDone += 1;
     else totals.jobsFailed += 1;
+    budgets.delete(job.user_id); // re-read after spending
   }
   return totals;
 };
@@ -107,6 +139,11 @@ Deno.serve(async (req) => {
 
   const body = await req.json().catch(() => ({}));
   if (body?.action !== "enrich_now" || !body.companyId) return json({ error: "unsupported request" }, 400);
+
+  const left = await budgetLeft(db, user.id);
+  if (left <= 0) {
+    return json({ error: "This month's research budget is used up. Raise it in Settings or wait until next month." }, 402);
+  }
 
   // Recorded as a job too, so history and the queue's de-duplication see it.
   await db.from("research_jobs").delete().eq("company_id", body.companyId).eq("kind", "enrich").eq("status", "queued");
