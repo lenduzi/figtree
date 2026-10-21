@@ -217,7 +217,9 @@ const buildDigest = async (db: SupabaseClient, userId: string, local: { date: st
       .in("lifecycle", CALL_STAGES)
       .neq("phone", "")
       .lt("next_action_at", `${addDays(local.date, 1)}T00:00:00Z`),
-    db.from("emails").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "draft"),
+    // Sequence drafts only; emails you're still writing yourself aren't "to approve".
+    db.from("emails").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "draft")
+      .not("enrollment_id", "is", null),
     db.from("companies").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("needs_review", true)
       .not("fit", "is", null),
   ]);
