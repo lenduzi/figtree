@@ -55,6 +55,12 @@ export const BUILT_IN_REWRITES: RewritePreset[] = [
     rule: "End with one concrete, low-effort ask that's easy to say yes to.",
   },
   {
+    key: "first_email",
+    label: "First-email rules",
+    instruction:
+      "Rewrite it as a strong first email: 40-80 words in short paragraphs. Open with why you're writing to them specifically (the referral, the call, or an observation about them). Then one tentative guess at a problem they likely have, one plain sentence on what's offered framed as their outcome, at most one similar proof point already in the email, and one easy yes/no question about interest. Cut the self-introduction, how it works, pricing details, feature lists, links and meeting requests. Subject: 1-4 plain words, no question mark.",
+  },
+  {
     key: "du_sie",
     label: "Du ↔ Sie",
     instruction: "Switch the form of address: if the email uses 'du', rewrite it with 'Sie'; if it uses 'Sie', rewrite it with 'du'. Adjust the greeting and closing to match. If it isn't in German, make it more formal or more casual accordingly.",

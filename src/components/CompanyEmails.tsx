@@ -81,6 +81,42 @@ const statusDetail = (email: EmailRecord) => {
   return email.error ?? '';
 };
 
+const URL_PATTERN = /\bhttps?:\/\/\S+|\bwww\.\S+/gi;
+
+/** Quick signals for a first email: under ~80 words, no links, a short plain subject. */
+function EmailCheck({ subject, body }: { subject: string; body: string }) {
+  if (!body.trim()) return null;
+  const words = body.trim().split(/\s+/).length;
+  const links = body.match(URL_PATTERN)?.length ?? 0;
+  const subjectWords = subject.trim() ? subject.trim().split(/\s+/).length : 0;
+  const warn = 'text-amber-600 dark:text-amber-400';
+  return (
+    <span className="flex flex-wrap gap-x-2">
+      <span
+        className={words > 120 ? 'text-destructive' : words > 80 ? warn : undefined}
+        title="First emails get the most replies at 40-80 words; follow-ups shorter."
+      >
+        {words} words
+      </span>
+      <span>·</span>
+      <span className={links > 0 ? warn : undefined} title="Links in a first email hurt deliverability and replies.">
+        {links === 0 ? 'no links' : `${links} link${links > 1 ? 's' : ''}`}
+      </span>
+      {subjectWords > 0 && (
+        <>
+          <span>·</span>
+          <span
+            className={subjectWords > 4 || subject.includes('?') ? warn : undefined}
+            title="Short, plain subjects (1-4 words, no question mark) read like internal email."
+          >
+            subject {subjectWords} word{subjectWords > 1 ? 's' : ''}
+          </span>
+        </>
+      )}
+    </span>
+  );
+}
+
 type EmailComposeDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -438,7 +474,7 @@ export function EmailComposeDialog({ open, onOpenChange, company, people, gmailA
           <DialogDescription>
             {isSequenceDraft
               ? 'Drafted by a sequence. Edit as needed, then send or schedule. Skipping moves the sequence on.'
-              : `Sent from ${gmailAddress ?? 'your Gmail'}. Replies are detected automatically.`}
+              : `Sent from ${gmailAddress ?? 'your Gmail'} with your signature. Replies are detected automatically.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -545,7 +581,7 @@ export function EmailComposeDialog({ open, onOpenChange, company, people, gmailA
                 onChange={(event) => setBody(event.target.value)}
               />
               <p className="text-xs text-muted-foreground flex justify-between gap-2">
-                <span>Your Gmail signature is added automatically when sending.</span>
+                <EmailCheck subject={subject} body={body} />
                 <span>{saveLabel}</span>
               </p>
               <EmailRewriteBar

@@ -66,7 +66,7 @@ export const DEFAULT_SEQUENCES: Omit<Sequence, "id" | "created_at" | "archived">
         channel: "email",
         label: "Intro email",
         instructions:
-          "First email after trying to call. Mention you tried to reach them by phone. One sentence on what Whisper does for a venue like theirs, one fitting proof point from the brain, then ask for a 15-minute call (booking link).",
+          "First email after trying to call. Mention in a few words that you tried to reach them by phone, then a guess at a problem they likely have, one sentence on what Whisper does for a venue like theirs, one fitting proof point from the brain, and an easy yes/no question about interest. No booking link.",
       },
       {
         wait_days: 3,
@@ -102,7 +102,7 @@ export const DEFAULT_SEQUENCES: Omit<Sequence, "id" | "created_at" | "archived">
         channel: "email",
         label: "Intro email",
         instructions:
-          "Intro to the marketing lead. Why their customers are a fit for ambassador videos, one proof point from the brain, and a request for a 15-minute call (booking link). Keep it short.",
+          "Intro to the marketing lead: why their customers are a fit for ambassador videos, one proof point from the brain, and an easy yes/no question about interest. No booking link.",
       },
       {
         wait_days: 3,
