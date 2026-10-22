@@ -1,9 +1,10 @@
 // Drafts an email to a company (optionally a specific person there) with
 // Claude: POST {companyId, contactId?, instructions?} -> {subject, body, attachments}.
+// Rewrites one: POST {rewrite: {subject, body, instruction, key?}} -> {subject, body, suggestDefault}.
 
 import Anthropic from "npm:@anthropic-ai/sdk";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { DraftError, generateDraft } from "../_shared/drafting.ts";
+import { countRewrite, DraftError, generateDraft, rewriteEmail } from "../_shared/drafting.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -29,8 +30,21 @@ Deno.serve(async (req) => {
   if (!user) return json({ error: "unauthorized" }, 401);
   if (!Deno.env.get("ANTHROPIC_API_KEY")) return json({ error: "ANTHROPIC_API_KEY is not configured." }, 500);
 
-  const { companyId, contactId, instructions } = await req.json().catch(() => ({}));
+  const { companyId, contactId, instructions, rewrite } = await req.json().catch(() => ({}));
   try {
+    if (rewrite) {
+      const result = await rewriteEmail(db, anthropic, {
+        userId: user.id,
+        subject: String(rewrite.subject ?? ""),
+        body: String(rewrite.body ?? ""),
+        instruction: String(rewrite.instruction ?? ""),
+      });
+      // Buttons used again and again are offered as a default for first drafts.
+      const suggestDefault = rewrite.key
+        ? await countRewrite(db, user.id, String(rewrite.key)).catch(() => false)
+        : false;
+      return json({ ...result, suggestDefault });
+    }
     return json(await generateDraft(db, anthropic, { userId: user.id, companyId, contactId, instructions }));
   } catch (error) {
     if (error instanceof DraftError) return json({ error: error.message }, error.status);

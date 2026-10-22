@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { EmailRewriteBar } from '@/components/EmailRewriteBar';
 import {
   approveDraft,
   cancelEmail,
@@ -116,6 +117,9 @@ export function EmailComposeDialog({ open, onOpenChange, company, people, gmailA
   const [aiDraft, setAiDraft] = useState<string | null>(null);
   const [history, setHistory] = useState<DraftVersion[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [rewriting, setRewriting] = useState(false);
+  /** Rewrites that can be undone: the history entry they replaced and the text they produced. */
+  const [undoStack, setUndoStack] = useState<{ savedAt: string; subject: string; body: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const attachmentsBytes = attachments.reduce((total, attachment) => total + attachment.size, 0);
 
@@ -143,6 +147,7 @@ export function EmailComposeDialog({ open, onOpenChange, company, people, gmailA
     setAiDraft(null);
     setHistory([]);
     setInstructions('');
+    setUndoStack([]);
     setDraftId(null);
     setIsSequenceDraft(false);
     setResumedAt(null);
@@ -159,6 +164,7 @@ export function EmailComposeDialog({ open, onOpenChange, company, people, gmailA
     setAiDraft(record.ai_draft);
     setHistory(record.draft_history ?? []);
     setInstructions(record.draft_instructions ?? '');
+    setUndoStack([]);
     setDraftId(record.id);
     setIsSequenceDraft(Boolean(record.enrollment_id));
     setSaveState('saved');
@@ -315,6 +321,30 @@ export function EmailComposeDialog({ open, onOpenChange, company, people, gmailA
     }
   };
 
+  const applyRewrite = (result: { subject: string; body: string }) => {
+    const savedAt = new Date().toISOString();
+    setHistory((current) =>
+      [{ subject, body, instructions, saved_at: savedAt }, ...current].slice(0, MAX_DRAFT_VERSIONS),
+    );
+    setSubject(result.subject);
+    setBody(result.body);
+    setUndoStack((current) => [...current, { savedAt, subject: result.subject, body: result.body }]);
+  };
+
+  // Undo only while the text is still exactly what the last rewrite produced.
+  const lastRewrite = undoStack[undoStack.length - 1];
+  const canUndo = Boolean(lastRewrite && lastRewrite.subject === subject && lastRewrite.body === body);
+
+  const undoRewrite = () => {
+    if (!lastRewrite) return;
+    const version = history.find((item) => item.saved_at === lastRewrite.savedAt);
+    setUndoStack((current) => current.slice(0, -1));
+    if (!version) return;
+    setHistory((current) => current.filter((item) => item !== version));
+    setSubject(version.subject);
+    setBody(version.body);
+  };
+
   const restoreVersion = (index: number) => {
     const version = history[index];
     if (!version) return;
@@ -339,7 +369,8 @@ export function EmailComposeDialog({ open, onOpenChange, company, people, gmailA
     if (!keepOpen) onOpenChange(false);
   };
 
-  const canSend = to.trim().includes('@') && subject.trim() !== '' && body.trim() !== '' && !sending && !uploading;
+  const canSend =
+    to.trim().includes('@') && subject.trim() !== '' && body.trim() !== '' && !sending && !uploading && !rewriting;
 
   const handleSend = async (when: 'now' | 'scheduled') => {
     const scheduledFor = when === 'now' ? new Date() : new Date(scheduleAt);
@@ -440,7 +471,7 @@ export function EmailComposeDialog({ open, onOpenChange, company, people, gmailA
                     if (event.key === 'Enter' && !drafting) handleDraft();
                   }}
                 />
-                <Button variant="outline" onClick={handleDraft} disabled={drafting}>
+                <Button variant="outline" onClick={handleDraft} disabled={drafting || rewriting}>
                   {drafting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
                   {drafting ? 'Drafting…' : body ? 'Redraft' : 'Draft'}
                 </Button>
@@ -505,11 +536,27 @@ export function EmailComposeDialog({ open, onOpenChange, company, people, gmailA
             </div>
             <div className="grid gap-2">
               <Label htmlFor="email-body">Message</Label>
-              <Textarea id="email-body" rows={10} value={body} onChange={(event) => setBody(event.target.value)} />
+              <Textarea
+                id="email-body"
+                rows={10}
+                value={body}
+                readOnly={rewriting}
+                className={rewriting ? 'opacity-60' : undefined}
+                onChange={(event) => setBody(event.target.value)}
+              />
               <p className="text-xs text-muted-foreground flex justify-between gap-2">
                 <span>Your Gmail signature is added automatically when sending.</span>
                 <span>{saveLabel}</span>
               </p>
+              <EmailRewriteBar
+                subject={subject}
+                body={body}
+                disabled={drafting || sending}
+                onRewritingChange={setRewriting}
+                onApply={applyRewrite}
+                canUndo={canUndo}
+                onUndo={undoRewrite}
+              />
             </div>
 
             <div className="space-y-2">
