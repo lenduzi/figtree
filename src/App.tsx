@@ -133,7 +133,7 @@ function AppContent() {
   const showAppChrome = !isLanding && !appGate;
   const mobileTitle = (() => {
     const path = location.pathname;
-    if (path === "/app" || path === "/") return "Tasks";
+    if (path === "/app" || path === "/") return "Ops Home";
     if (path.startsWith("/companies/")) return "Company";
     if (path.startsWith("/companies") || path.startsWith("/contacts")) return "Companies";
     if (path.startsWith("/pipeline")) return "Pipeline";

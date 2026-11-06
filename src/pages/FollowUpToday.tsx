@@ -1,15 +1,43 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarCheck, AlertTriangle, Clock, CheckCircle2, Plus, Phone, Snowflake, ChevronRight, User, Radar } from 'lucide-react';
+import {
+  Activity as ActivityIcon,
+  AlertTriangle,
+  ArrowRight,
+  BriefcaseBusiness,
+  CalendarCheck,
+  CheckCircle2,
+  ChevronRight,
+  CircleAlert,
+  Clock,
+  Mail,
+  MapPin,
+  Phone,
+  Plus,
+  Radar,
+  Snowflake,
+  Sparkles,
+  User,
+  Users,
+  Workflow,
+  type LucideIcon,
+} from 'lucide-react';
+import {
+  addDays,
+  differenceInCalendarDays,
+  format,
+  formatDistanceToNow,
+  startOfWeek,
+} from 'date-fns';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { TaskItem } from '@/components/TaskItem';
 import { TaskDetailDialog } from '@/components/TaskDetailDialog';
 import { ApprovalQueue } from '@/components/ApprovalQueue';
 import { AddTaskWithContactDialog } from '@/components/AddTaskWithContactDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Task } from '@/types/crm';
-import { addDays, differenceInCalendarDays } from 'date-fns';
+import { OPEN_DEAL_LIFECYCLES, type Activity, type Task } from '@/types/crm';
 import { COLD_AFTER_DAYS, getColdCompanies } from '@/lib/follow-up-health';
 import { cn, toLocalDateKey } from '@/lib/utils';
 
@@ -18,9 +46,26 @@ interface RecentlyCompleted {
   completedAt: number;
 }
 
+interface PulseCardProps {
+  icon: LucideIcon;
+  label: string;
+  value: number;
+  detail: string;
+  onClick: () => void;
+}
+
+interface Recommendation {
+  id: string;
+  icon: LucideIcon;
+  title: string;
+  detail: string;
+  action: string;
+  onClick: () => void;
+}
+
 const FIRST_TASK_NUDGE_KEY = 'simplecrm_first_task_nudge_seen';
-const COLD_PREVIEW_LIMIT = 6;
-const CALLS_PREVIEW_LIMIT = 6;
+const COLD_PREVIEW_LIMIT = 4;
+const CALLS_PREVIEW_LIMIT = 4;
 const CALL_STAGES = ['sourced', 'qualified', 'contacting', 'talking'];
 
 const formatOutreachDue = (nextActionAt: string | null) => {
@@ -30,10 +75,81 @@ const formatOutreachDue = (nextActionAt: string | null) => {
   return `${days} day${days !== 1 ? 's' : ''} overdue`;
 };
 
+const activityIcon = (type: Activity['type']) => {
+  if (type === 'call' || type === 'call_attempted') return Phone;
+  if (type === 'email') return Mail;
+  if (type === 'meeting') return Users;
+  if (type === 'task_completed') return CheckCircle2;
+  if (type === 'stage_change') return Workflow;
+  return ActivityIcon;
+};
+
+function SectionHeading({
+  title,
+  description,
+  count,
+}: {
+  title: string;
+  description: string;
+  count?: number;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <h2 className="text-lg font-semibold tracking-tight text-foreground lg:text-xl">{title}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      </div>
+      {typeof count === 'number' && count > 0 && (
+        <Badge variant="secondary" className="shrink-0 rounded-full px-2.5">
+          {count}
+        </Badge>
+      )}
+    </div>
+  );
+}
+
+function PulseCard({ icon: Icon, label, value, detail, onClick }: PulseCardProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group rounded-xl border border-border/70 bg-background p-3 text-left transition-colors hover:border-primary/30 hover:bg-muted/40"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Icon className="h-4 w-4" />
+        </span>
+        <ArrowRight className="h-4 w-4 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
+      </div>
+      <p className="mt-3 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
+      <p className="text-sm font-medium text-foreground">{label}</p>
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p>
+    </button>
+  );
+}
+
 export default function FollowUpToday() {
   const navigate = useNavigate();
-  const { tasks, companies, toggleTaskComplete, getContactById, rescheduleTask } = useCRMContext();
-  // Calls due through today. Most recently due first: long-overdue leads from old campaigns matter least.
+  const {
+    tasks,
+    companies,
+    contacts,
+    activities,
+    projects,
+    projectVisits,
+    toggleTaskComplete,
+    getContactById,
+    rescheduleTask,
+  } = useCRMContext();
+  const [approvalCount, setApprovalCount] = useState(0);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [recentlyCompleted, setRecentlyCompleted] = useState<RecentlyCompleted[]>([]);
+  const [showFirstTaskNudge, setShowFirstTaskNudge] = useState(false);
+
+  const today = toLocalDateKey();
+  const comingUpEnd = toLocalDateKey(addDays(new Date(), 7));
+  const visitWindowEnd = toLocalDateKey(addDays(new Date(), 14));
+
   const dueCalls = useMemo(() => {
     const endOfToday = addDays(new Date(new Date().setHours(0, 0, 0, 0)), 1);
     return companies
@@ -41,32 +157,128 @@ export default function FollowUpToday() {
       .filter((company) => company.nextActionAt && new Date(company.nextActionAt) < endOfToday)
       .sort((a, b) => (b.nextActionAt ?? '').localeCompare(a.nextActionAt ?? ''));
   }, [companies]);
+
   const coldCompanies = useMemo(() => getColdCompanies(companies, tasks), [companies, tasks]);
   const prospectsToReview = companies.filter((company) => company.needsReview && company.fit).length;
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [recentlyCompleted, setRecentlyCompleted] = useState<RecentlyCompleted[]>([]);
-  const [showFirstTaskNudge, setShowFirstTaskNudge] = useState(false);
+  const aFitProspects = companies.filter((company) => company.needsReview && company.fit === 'A').length;
 
-  const today = toLocalDateKey();
-  const comingUpEnd = toLocalDateKey(addDays(new Date(), 7));
+  const isPersonal = (task: Task) => !task.companyId && !task.contactId;
+  const openTasks = tasks.filter((task) => !task.completed && task.dueDate && !isPersonal(task));
+  const personalTasks = tasks
+    .filter((task) => !task.completed && task.dueDate && isPersonal(task) && task.dueDate <= comingUpEnd)
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  const overdueTasks = openTasks.filter((task) => task.dueDate < today);
+  const todayTasks = openTasks.filter((task) => task.dueDate === today);
+  const comingUpTasks = openTasks
+    .filter((task) => task.dueDate > today && task.dueDate <= comingUpEnd)
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
-  // Clean up expired recently completed tasks
+  const openDeals = companies.filter((company) => OPEN_DEAL_LIFECYCLES.includes(company.lifecycle));
+  const lateStageDeals = openDeals.filter((company) => company.lifecycle === 'proposal' || company.lifecycle === 'pilot');
+  const activeProjects = projects.filter((project) => project.status !== 'Closed' && project.status !== 'Archived');
+  const upcomingVisits = projectVisits.filter(
+    (visit) => visit.status !== 'Done' && visit.date >= today && visit.date <= visitWindowEnd,
+  );
+  const visitsNeedingPrep = upcomingVisits.filter(
+    (visit) => !visit.briefing.trim() || visit.creatorIds.length === 0,
+  );
+  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 }).getTime();
+  const weeklyActivities = activities.filter((activity) => new Date(activity.timestamp).getTime() >= weekStart);
+  const completedThisWeek = weeklyActivities.filter((activity) => activity.type === 'task_completed').length;
+  const recentActivities = activities.slice(0, 6);
+  const hasPulseData = companies.length > 0 || projects.length > 0 || activities.length > 0;
+
+  const dueNowCount =
+    overdueTasks.length +
+    todayTasks.length +
+    personalTasks.filter((task) => task.dueDate <= today).length +
+    dueCalls.length;
+  const decisionCount = approvalCount + prospectsToReview;
+
+  const recommendations = useMemo<Recommendation[]>(() => {
+    const items: Recommendation[] = [];
+
+    if (overdueTasks.length > 0) {
+      items.push({
+        id: 'overdue',
+        icon: AlertTriangle,
+        title: `Clear ${overdueTasks.length} overdue task${overdueTasks.length === 1 ? '' : 's'}`,
+        detail: 'These are the oldest promises currently waiting on you.',
+        action: 'Review tasks',
+        onClick: () => document.getElementById('today-work')?.scrollIntoView({ behavior: 'smooth' }),
+      });
+    }
+
+    if (prospectsToReview > 0) {
+      items.push({
+        id: 'prospects',
+        icon: Radar,
+        title: `Review ${prospectsToReview} researched prospect${prospectsToReview === 1 ? '' : 's'}`,
+        detail: aFitProspects > 0 ? `${aFitProspects} are marked A-fit.` : 'Accept the useful ones into your pipeline.',
+        action: 'Open prospecting',
+        onClick: () => navigate('/prospecting'),
+      });
+    }
+
+    if (coldCompanies.length > 0) {
+      items.push({
+        id: 'cold',
+        icon: Snowflake,
+        title: `Rescue ${coldCompanies.length} deal${coldCompanies.length === 1 ? '' : 's'} going cold`,
+        detail: `They have no open task and no touch in ${COLD_AFTER_DAYS}+ days.`,
+        action: 'Review pipeline',
+        onClick: () => navigate('/pipeline'),
+      });
+    }
+
+    if (visitsNeedingPrep.length > 0) {
+      const firstVisit = visitsNeedingPrep[0];
+      items.push({
+        id: 'visits',
+        icon: MapPin,
+        title: `Prepare ${visitsNeedingPrep.length} upcoming visit${visitsNeedingPrep.length === 1 ? '' : 's'}`,
+        detail: 'A briefing or creator assignment is still missing.',
+        action: 'Open projects',
+        onClick: () => navigate(`/projects?projectId=${firstVisit.projectId}`),
+      });
+    }
+
+    if (dueCalls.length > 0) {
+      items.push({
+        id: 'calls',
+        icon: Phone,
+        title: `Make ${dueCalls.length} due call${dueCalls.length === 1 ? '' : 's'}`,
+        detail: 'Work the current call queue while the context is fresh.',
+        action: 'Start Call Mode',
+        onClick: () => navigate('/calls'),
+      });
+    }
+
+    if (items.length === 0 && openDeals.length > 0) {
+      items.push({
+        id: 'pipeline',
+        icon: BriefcaseBusiness,
+        title: 'Your operating queue is clear',
+        detail: `Use the space to move one of ${openDeals.length} open deals forward.`,
+        action: 'Open pipeline',
+        onClick: () => navigate('/pipeline'),
+      });
+    }
+
+    return items.slice(0, 4);
+  }, [aFitProspects, coldCompanies.length, dueCalls.length, navigate, openDeals.length, overdueTasks.length, prospectsToReview, visitsNeedingPrep]);
+
   useEffect(() => {
     if (recentlyCompleted.length === 0) return;
-    
-    const interval = setInterval(() => {
+    const interval = window.setInterval(() => {
       const now = Date.now();
-      setRecentlyCompleted(prev => 
-        prev.filter(item => now - item.completedAt < 5000)
-      );
+      setRecentlyCompleted((current) => current.filter((item) => now - item.completedAt < 5000));
     }, 500);
-
-    return () => clearInterval(interval);
+    return () => window.clearInterval(interval);
   }, [recentlyCompleted.length]);
 
   useEffect(() => {
-    const hasAnyTasks = tasks.length > 0;
-    if (hasAnyTasks) {
+    if (tasks.length > 0) {
       try {
         localStorage.setItem(FIRST_TASK_NUDGE_KEY, '1');
       } catch {
@@ -76,32 +288,35 @@ export default function FollowUpToday() {
       return;
     }
     try {
-      const hasSeen = localStorage.getItem(FIRST_TASK_NUDGE_KEY) === '1';
-      setShowFirstTaskNudge(!hasSeen);
+      setShowFirstTaskNudge(localStorage.getItem(FIRST_TASK_NUDGE_KEY) !== '1');
     } catch {
       setShowFirstTaskNudge(false);
     }
   }, [tasks.length]);
 
-  const handleToggleComplete = useCallback((taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (task && !task.completed) {
-      // Task is being completed - add to recently completed
-      setRecentlyCompleted(prev => [
-        ...prev.filter(item => item.task.id !== taskId),
-        { task, completedAt: Date.now() }
-      ]);
-    } else {
-      // Task is being uncompleted - remove from recently completed
-      setRecentlyCompleted(prev => prev.filter(item => item.task.id !== taskId));
-    }
-    toggleTaskComplete(taskId);
-  }, [tasks, toggleTaskComplete]);
+  const handleToggleComplete = useCallback(
+    (taskId: string) => {
+      const task = tasks.find((item) => item.id === taskId);
+      if (task && !task.completed) {
+        setRecentlyCompleted((current) => [
+          ...current.filter((item) => item.task.id !== taskId),
+          { task, completedAt: Date.now() },
+        ]);
+      } else {
+        setRecentlyCompleted((current) => current.filter((item) => item.task.id !== taskId));
+      }
+      toggleTaskComplete(taskId);
+    },
+    [tasks, toggleTaskComplete],
+  );
 
-  const handleUndoComplete = useCallback((taskId: string) => {
-    setRecentlyCompleted(prev => prev.filter(item => item.task.id !== taskId));
-    toggleTaskComplete(taskId);
-  }, [toggleTaskComplete]);
+  const handleUndoComplete = useCallback(
+    (taskId: string) => {
+      setRecentlyCompleted((current) => current.filter((item) => item.task.id !== taskId));
+      toggleTaskComplete(taskId);
+    },
+    [toggleTaskComplete],
+  );
 
   const handleNewTaskClick = () => {
     if (!showFirstTaskNudge) return;
@@ -112,372 +327,481 @@ export default function FollowUpToday() {
     }
     setShowFirstTaskNudge(false);
   };
-  
-  const isPersonal = (task: Task) => !task.companyId && !task.contactId;
-  const openTasks = tasks.filter(t => !t.completed && t.dueDate && !isPersonal(t));
-  const personalTasks = tasks
-    .filter(t => !t.completed && t.dueDate && isPersonal(t) && t.dueDate <= comingUpEnd)
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  const overdueTasks = openTasks.filter(t => t.dueDate < today);
-  const todayTasks = openTasks.filter(t => t.dueDate === today);
-  const comingUpTasks = openTasks
-    .filter(t => t.dueDate > today && t.dueDate <= comingUpEnd)
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
-  const totalActionItems =
-    overdueTasks.length + todayTasks.length + personalTasks.filter((task) => task.dueDate <= today).length;
+  const activityTarget = (activity: Activity) => {
+    const company = activity.companyId ? companies.find((item) => item.id === activity.companyId) : undefined;
+    const contact = activity.contactId ? contacts.find((item) => item.id === activity.contactId) : undefined;
+    return {
+      label: company?.name ?? contact?.fullName ?? 'Figtree',
+      path: company ? `/companies/${company.id}` : contact ? `/contacts/${contact.id}` : null,
+    };
+  };
 
   return (
-    <div className="p-6 lg:p-8 xl:p-10 max-w-4xl lg:max-w-5xl 2xl:max-w-6xl mx-auto">
-      <div className="mb-8 lg:mb-10">
+    <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8 xl:p-10">
+      <header className="mb-7 lg:mb-9">
         <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground">
-              <span className="lg:hidden">
-                Today{totalActionItems > 0 ? ` (${totalActionItems})` : ''}
-              </span>
-              <span className="hidden lg:inline">Follow-Up Today</span>
-            </h1>
-            <p className="text-muted-foreground lg:text-lg">
-              <span className="lg:hidden">
-                {totalActionItems === 0 ? "All clear for today." : `${totalActionItems} due now`}
-              </span>
-              <span className="hidden lg:inline">
-                {totalActionItems === 0
-                  ? "You're all caught up! No pending follow-ups."
-                  : `${totalActionItems} action item${totalActionItems !== 1 ? 's' : ''} need your attention`
-                }
-              </span>
+          <div>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="rounded-full bg-background font-normal text-muted-foreground">
+                {format(new Date(), 'EEEE, MMMM d')}
+              </Badge>
+              {decisionCount > 0 && (
+                <Badge className="rounded-full">{decisionCount} decision{decisionCount === 1 ? '' : 's'}</Badge>
+              )}
+            </div>
+            <h1 className="sr-only text-3xl font-semibold tracking-tight text-foreground sm:not-sr-only lg:text-4xl">Ops Home</h1>
+            <p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">
+              {dueNowCount > 0
+                ? `${dueNowCount} item${dueNowCount === 1 ? '' : 's'} due or waiting today. Keep the business moving from one place.`
+                : 'Your operating queue is clear. Use the pulse below to decide what moves next.'}
             </p>
-            {showFirstTaskNudge && (
-              <p className="text-xs text-muted-foreground lg:hidden">Tap + to create your first task</p>
-            )}
           </div>
-          <div className="hidden lg:flex flex-col items-end">
+          <div className="hidden sm:block">
             <AddTaskWithContactDialog
               trigger={
-                <Button
-                  onClick={handleNewTaskClick}
-                  className={cn(
-                    "relative",
-                    showFirstTaskNudge &&
-                      "animate-heartbeat ring-2 ring-primary/25 ring-offset-2 ring-offset-background shadow-[0_0_12px_rgba(59,130,246,0.12)]",
-                  )}
-                >
-                  {showFirstTaskNudge && (
-                    <span
-                      aria-hidden
-                      className="pointer-events-none absolute -inset-1.5 rounded-lg bg-primary/5 blur-sm"
-                    />
-                  )}
-                  <span className="relative z-10 flex items-center">
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Task
-                  </span>
+                <Button onClick={handleNewTaskClick} className="shadow-sm">
+                  <Plus className="mr-2 h-4 w-4" />
+                  New task
                 </Button>
               }
             />
-            {showFirstTaskNudge && (
-              <span className="mt-2 text-xs text-muted-foreground">Create your first task</span>
-            )}
           </div>
         </div>
-        <p className="mt-2 hidden text-xs lg:block lg:text-sm text-muted-foreground">
-          Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs lg:text-sm">⌘K</kbd> for Quick Actions
-        </p>
-      </div>
+      </header>
 
-      <ApprovalQueue />
+      <div className="grid gap-7 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.75fr)] xl:items-start">
+        <main className="min-w-0 space-y-8">
+          <section className="space-y-4">
+            <SectionHeading
+              title="Needs you"
+              description="Approvals and decisions that are holding up the next step."
+              count={decisionCount}
+            />
 
-      {prospectsToReview > 0 && (
-        <button
-          onClick={() => navigate('/prospecting')}
-          className="mb-4 lg:mb-8 w-full text-left rounded-lg border border-primary/30 bg-card p-4 hover:bg-muted/40 flex items-center gap-3"
-        >
-          <Radar className="h-5 w-5 text-primary" />
-          <span className="flex-1 font-medium">
-            {prospectsToReview} new prospect{prospectsToReview === 1 ? '' : 's'} to review
-          </span>
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-        </button>
-      )}
+            <ApprovalQueue onCountChange={setApprovalCount} />
 
-      <div className="grid gap-4 lg:gap-8 lg:grid-cols-2 items-stretch">
-        <Card className="flex flex-col h-full">
-          <CardHeader className="pb-3 lg:pb-4 lg:px-6">
-            <CardTitle className="flex items-center gap-2 text-foreground text-lg lg:text-xl">
-              <CalendarCheck className="h-5 w-5 lg:h-6 lg:w-6" />
-              Today
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 space-y-5 lg:space-y-6 lg:px-6">
-            {overdueTasks.length > 0 && (
-              <div className="space-y-3 lg:space-y-4">
-                <div className="flex items-center gap-2 text-sm lg:text-base text-destructive-foreground">
-                  <AlertTriangle className="h-4 w-4 lg:h-5 lg:w-5" />
-                  Overdue ({overdueTasks.length})
+            {prospectsToReview > 0 && (
+              <button
+                type="button"
+                onClick={() => navigate('/prospecting')}
+                className="group flex w-full items-center gap-4 rounded-xl border border-primary/25 bg-card p-4 text-left transition-colors hover:bg-muted/40"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Radar className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium text-foreground">
+                    {prospectsToReview} researched prospect{prospectsToReview === 1 ? '' : 's'} ready for review
+                  </span>
+                  <span className="mt-0.5 block text-sm text-muted-foreground">
+                    {aFitProspects > 0 ? `${aFitProspects} are marked A-fit. ` : ''}Accept, reject, or refine them before outreach.
+                  </span>
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+              </button>
+            )}
+
+            {decisionCount === 0 && (
+              <div className="flex items-center gap-3 rounded-xl border border-dashed border-border bg-muted/20 p-4">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">Nothing is waiting for your approval</p>
+                  <p className="text-xs text-muted-foreground">New drafts and researched prospects will appear here.</p>
                 </div>
-                {overdueTasks.map(task => {
-                  const contact = getContactById(task.contactId);
-                  return (
+              </div>
+            )}
+          </section>
+
+          <section id="today-work" className="scroll-mt-6 space-y-4">
+            <SectionHeading
+              title="Today’s work"
+              description="Promises, follow-ups, and calls that should move today."
+              count={dueNowCount}
+            />
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Card className="flex h-full flex-col">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base lg:text-lg">
+                    <CalendarCheck className="h-5 w-5" />
+                    Due now
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex-1 space-y-5">
+                  {overdueTasks.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-sm text-destructive-foreground">
+                        <AlertTriangle className="h-4 w-4" />
+                        Overdue ({overdueTasks.length})
+                      </div>
+                      {overdueTasks.map((task) => (
+                        <TaskItem
+                          key={task.id}
+                          task={task}
+                          contact={getContactById(task.contactId)}
+                          onToggleComplete={handleToggleComplete}
+                          onContactClick={(id) => navigate(`/contacts/${id}`)}
+                          onReschedule={rescheduleTask}
+                          onTaskClick={setSelectedTask}
+                          showContact
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {todayTasks.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-sm text-accent-foreground">
+                        <CalendarCheck className="h-4 w-4" />
+                        Today ({todayTasks.length})
+                      </div>
+                      {todayTasks.map((task) => (
+                        <TaskItem
+                          key={task.id}
+                          task={task}
+                          contact={getContactById(task.contactId)}
+                          onToggleComplete={handleToggleComplete}
+                          onContactClick={(id) => navigate(`/contacts/${id}`)}
+                          onReschedule={rescheduleTask}
+                          onTaskClick={setSelectedTask}
+                          showContact
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {overdueTasks.length === 0 && todayTasks.length === 0 && (
+                    <div className="py-7 text-center">
+                      <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-emerald-500/70" />
+                      <p className="font-medium text-foreground">{showFirstTaskNudge ? 'Create your first task' : 'All clear'}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {showFirstTaskNudge ? 'Add a company follow-up to start your operating rhythm.' : 'No company follow-ups are due today.'}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="flex h-full flex-col">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base lg:text-lg">
+                    <Clock className="h-5 w-5 text-muted-foreground" />
+                    Next 7 days
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex-1 space-y-3">
+                  {comingUpTasks.map((task) => (
                     <TaskItem
                       key={task.id}
                       task={task}
-                      contact={contact}
+                      contact={getContactById(task.contactId)}
                       onToggleComplete={handleToggleComplete}
                       onContactClick={(id) => navigate(`/contacts/${id}`)}
                       onReschedule={rescheduleTask}
                       onTaskClick={setSelectedTask}
                       showContact
                     />
-                  );
-                })}
+                  ))}
+                  {comingUpTasks.length === 0 && (
+                    <div className="py-7 text-center">
+                      <Clock className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+                      <p className="text-sm text-muted-foreground">No company tasks due in the next 7 days</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {(dueCalls.length > 0 || coldCompanies.length > 0) && (
+              <div className="grid gap-4 lg:grid-cols-2">
+                {dueCalls.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-base lg:text-lg">
+                        <Phone className="h-5 w-5" />
+                        Calls due ({dueCalls.length})
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {dueCalls.slice(0, CALLS_PREVIEW_LIMIT).map((lead) => {
+                        const dueLabel = formatOutreachDue(lead.nextActionAt);
+                        return (
+                          <button
+                            key={lead.id}
+                            type="button"
+                            onClick={() => navigate(`/calls?company=${lead.id}`)}
+                            className="flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/50"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium text-foreground">{lead.name || 'Untitled'}</p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {[lead.nextAction, lead.city].filter(Boolean).join(' · ')}
+                              </p>
+                            </div>
+                            <span className={cn('shrink-0 text-xs', dueLabel === 'Due today' ? 'text-accent-foreground' : 'text-destructive-foreground')}>
+                              {dueLabel}
+                            </span>
+                            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          </button>
+                        );
+                      })}
+                      {dueCalls.length > CALLS_PREVIEW_LIMIT && (
+                        <Button variant="ghost" size="sm" className="w-full" onClick={() => navigate('/calls')}>
+                          +{dueCalls.length - CALLS_PREVIEW_LIMIT} more in Call Mode
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {coldCompanies.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-base lg:text-lg">
+                        <Snowflake className="h-5 w-5" />
+                        Going cold ({coldCompanies.length})
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {coldCompanies.slice(0, COLD_PREVIEW_LIMIT).map(({ company, daysSinceTouch }) => (
+                        <button
+                          key={company.id}
+                          type="button"
+                          onClick={() => navigate(`/companies/${company.id}`)}
+                          className="flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/50"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-foreground">{company.name}</p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {[company.city, company.industry].filter(Boolean).join(' · ') || 'Open deal'}
+                            </p>
+                          </div>
+                          <span className="shrink-0 text-xs text-amber-600 dark:text-amber-300">{daysSinceTouch}d quiet</span>
+                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        </button>
+                      ))}
+                      {coldCompanies.length > COLD_PREVIEW_LIMIT && (
+                        <Button variant="ghost" size="sm" className="w-full" onClick={() => navigate('/pipeline')}>
+                          +{coldCompanies.length - COLD_PREVIEW_LIMIT} more in Pipeline
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             )}
 
-            {todayTasks.length > 0 && (
-              <div className="space-y-3 lg:space-y-4">
-                <div className="flex items-center gap-2 text-sm lg:text-base text-accent-foreground">
-                  <CalendarCheck className="h-4 w-4 lg:h-5 lg:w-5" />
-                  Due Today ({todayTasks.length})
-                </div>
-                {todayTasks.map(task => {
-                  const contact = getContactById(task.contactId);
-                  return (
+            {personalTasks.length > 0 && (
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base lg:text-lg">
+                    <User className="h-5 w-5" />
+                    My tasks
+                  </CardTitle>
+                  <AddTaskWithContactDialog
+                    trigger={
+                      <Button size="sm" variant="outline">
+                        <Plus className="mr-1 h-4 w-4" />
+                        Add
+                      </Button>
+                    }
+                  />
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {personalTasks.map((task) => (
                     <TaskItem
                       key={task.id}
                       task={task}
-                      contact={contact}
                       onToggleComplete={handleToggleComplete}
-                      onContactClick={(id) => navigate(`/contacts/${id}`)}
                       onReschedule={rescheduleTask}
                       onTaskClick={setSelectedTask}
-                      showContact
                     />
-                  );
-                })}
-              </div>
+                  ))}
+                </CardContent>
+              </Card>
             )}
+          </section>
 
-            {overdueTasks.length === 0 && todayTasks.length === 0 && (
-              <div className="text-center py-6 lg:py-8">
-                <CalendarCheck className="h-12 w-12 lg:h-14 lg:w-14 mx-auto text-muted-foreground/50 mb-3" />
-                <h2 className="text-lg lg:text-xl font-semibold text-foreground mb-1">
-                  {showFirstTaskNudge ? 'Create your first task' : 'All Clear!'}
-                </h2>
-                <p className="text-muted-foreground lg:text-base">
-                  {showFirstTaskNudge
-                    ? 'Add a contact and schedule a follow-up to get started.'
-                    : 'You have no pending tasks. Add contacts and tasks to get started.'}
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="flex flex-col h-full">
-          <CardHeader className="pb-3 lg:pb-4 lg:px-6">
-            <CardTitle className="flex items-center gap-2 text-muted-foreground text-lg lg:text-xl">
-              <Clock className="h-5 w-5 lg:h-6 lg:w-6" />
-              Coming Up
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 space-y-3 lg:space-y-4 lg:px-6">
-            {comingUpTasks.map(task => {
-              const contact = getContactById(task.contactId);
-              return (
-                <TaskItem
-                  key={task.id}
-                  task={task}
-                  contact={contact}
-                  onToggleComplete={toggleTaskComplete}
-                  onContactClick={(id) => navigate(`/contacts/${id}`)}
-                  onReschedule={rescheduleTask}
-                  onTaskClick={setSelectedTask}
-                  showContact
-                />
-              );
-            })}
-            {comingUpTasks.length === 0 && (
-              <p className="text-center py-4 lg:py-6 text-sm lg:text-base text-muted-foreground">
-                No tasks due in the next 7 days
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {(dueCalls.length > 0 || coldCompanies.length > 0) && (
-        <div className="mt-4 lg:mt-8 grid gap-4 lg:gap-8 lg:grid-cols-2 items-stretch">
-          {dueCalls.length > 0 && (
-            <Card className="flex flex-col h-full">
-              <CardHeader className="pb-3 lg:pb-4 lg:px-6">
-                <CardTitle className="flex items-center gap-2 text-foreground text-lg lg:text-xl">
-                  <Phone className="h-5 w-5 lg:h-6 lg:w-6" />
-                  Calls Due ({dueCalls.length})
+          {recentlyCompleted.length > 0 && (
+            <Card className="border-muted bg-muted/30">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base font-medium text-muted-foreground">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Just completed
+                  <span className="text-xs font-normal">Click to undo</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex-1 space-y-2 lg:space-y-3 lg:px-6">
-                {dueCalls.slice(0, CALLS_PREVIEW_LIMIT).map((lead) => {
-                  const dueLabel = formatOutreachDue(lead.nextActionAt);
+              <CardContent className="space-y-2">
+                {recentlyCompleted.map(({ task }) => {
+                  const contact = getContactById(task.contactId);
                   return (
                     <button
-                      key={lead.id}
-                      onClick={() => navigate(`/calls?company=${lead.id}`)}
-                      className="w-full text-left p-3 lg:p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                      key={task.id}
+                      type="button"
+                      onClick={() => handleUndoComplete(task.id)}
+                      className="group flex w-full items-center gap-3 rounded-lg border border-border/50 bg-background/50 p-3 text-left transition-colors hover:border-border hover:bg-background"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm lg:text-base font-medium text-foreground truncate">
-                            {lead.name || 'Untitled'}
-                          </p>
-                          <p className="text-xs lg:text-sm text-muted-foreground truncate">
-                            {[lead.nextAction, lead.city].filter(Boolean).join(' • ')}
-                          </p>
-                        </div>
-                        <span
-                          className={cn(
-                            'text-xs lg:text-sm shrink-0',
-                            dueLabel === 'Due today' ? 'text-accent-foreground' : 'text-destructive-foreground',
-                          )}
-                        >
-                          {dueLabel}
-                        </span>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <CheckCircle2 className="h-5 w-5 text-muted-foreground/50 transition-colors group-hover:text-primary" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm text-muted-foreground line-through">{task.title}</p>
+                        {contact && <p className="text-xs text-muted-foreground/70">{contact.fullName}</p>}
                       </div>
+                      <span className="text-xs text-muted-foreground group-hover:text-primary">Undo</span>
                     </button>
                   );
                 })}
-                {dueCalls.length > CALLS_PREVIEW_LIMIT && (
-                  <button
-                    onClick={() => navigate('/calls')}
-                    className="w-full text-center text-xs lg:text-sm text-muted-foreground hover:text-foreground py-1"
-                  >
-                    +{dueCalls.length - CALLS_PREVIEW_LIMIT} more in Call Mode
-                  </button>
-                )}
               </CardContent>
             </Card>
           )}
+        </main>
 
-          {coldCompanies.length > 0 && (
-            <Card className="flex flex-col h-full">
-              <CardHeader className="pb-3 lg:pb-4 lg:px-6">
-                <CardTitle className="flex items-center gap-2 text-foreground text-lg lg:text-xl">
-                  <Snowflake className="h-5 w-5 lg:h-6 lg:w-6" />
-                  Going Cold ({coldCompanies.length})
-                </CardTitle>
-                <p className="text-xs lg:text-sm text-muted-foreground">
-                  Open deals with no task planned and no touch in {COLD_AFTER_DAYS}+ days
-                </p>
-              </CardHeader>
-              <CardContent className="flex-1 space-y-2 lg:space-y-3 lg:px-6">
-                {coldCompanies.slice(0, COLD_PREVIEW_LIMIT).map(({ company, daysSinceTouch }) => (
-                  <button
-                    key={company.id}
-                    onClick={() => navigate(`/companies/${company.id}`)}
-                    className="w-full text-left p-3 lg:p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm lg:text-base font-medium text-foreground truncate">
-                          {company.name}
-                        </p>
-                        <p className="text-xs lg:text-sm text-muted-foreground truncate">
-                          {[company.city, company.industry].filter(Boolean).join(' · ') || '—'}
-                        </p>
-                      </div>
-                      <span className="text-xs lg:text-sm text-amber-600 dark:text-amber-300 shrink-0">
-                        {daysSinceTouch}d quiet
-                      </span>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                    </div>
-                  </button>
-                ))}
-                {coldCompanies.length > COLD_PREVIEW_LIMIT && (
-                  <button
+        <aside className="space-y-5 xl:sticky xl:top-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base lg:text-lg">
+                <ActivityIcon className="h-5 w-5" />
+                Business pulse
+              </CardTitle>
+            </CardHeader>
+            <CardContent className={cn(hasPulseData && 'grid grid-cols-2 gap-3')}>
+              {hasPulseData ? (
+                <>
+                  <PulseCard
+                    icon={BriefcaseBusiness}
+                    label="Open deals"
+                    value={openDeals.length}
+                    detail={`${lateStageDeals.length} in proposal or pilot`}
                     onClick={() => navigate('/pipeline')}
-                    className="w-full text-center text-xs lg:text-sm text-muted-foreground hover:text-foreground py-1"
-                  >
-                    +{coldCompanies.length - COLD_PREVIEW_LIMIT} more in Pipeline
-                  </button>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
+                  />
+                  <PulseCard
+                    icon={MapPin}
+                    label="Active projects"
+                    value={activeProjects.length}
+                    detail={`${upcomingVisits.length} visits in the next 14 days`}
+                    onClick={() => navigate('/projects')}
+                  />
+                  <PulseCard
+                    icon={Workflow}
+                    label="Activity this week"
+                    value={weeklyActivities.length}
+                    detail={`${completedThisWeek} tasks completed`}
+                    onClick={() => navigate('/companies')}
+                  />
+                  <PulseCard
+                    icon={Radar}
+                    label="Prospects ready"
+                    value={prospectsToReview}
+                    detail={aFitProspects > 0 ? `${aFitProspects} marked A-fit` : 'Research queue reviewed'}
+                    onClick={() => navigate('/prospecting')}
+                  />
+                </>
+              ) : (
+                <div className="rounded-xl border border-dashed border-border p-4">
+                  <p className="text-sm font-medium text-foreground">Your pulse starts with the first company</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    Pipeline, project, and weekly activity signals will appear as you work.
+                  </p>
+                  <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate('/companies')}>
+                    Add a company
+                    <ArrowRight className="ml-2 h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-      {personalTasks.length > 0 && (
-        <Card className="mt-4 lg:mt-8">
-          <CardHeader className="pb-3 lg:pb-4 lg:px-6 flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-foreground text-lg lg:text-xl">
-              <User className="h-5 w-5 lg:h-6 lg:w-6" />
-              My Tasks
-            </CardTitle>
-            <AddTaskWithContactDialog
-              trigger={
-                <Button size="sm" variant="outline">
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add
-                </Button>
-              }
-            />
-          </CardHeader>
-          <CardContent className="space-y-3 lg:px-6">
-            {personalTasks.map((task) => (
-              <TaskItem
-                key={task.id}
-                task={task}
-                onToggleComplete={handleToggleComplete}
-                onReschedule={rescheduleTask}
-                onTaskClick={setSelectedTask}
-              />
-            ))}
-          </CardContent>
-        </Card>
-      )}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base lg:text-lg">
+                <Sparkles className="h-5 w-5 text-primary" />
+                Recommended next moves
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {recommendations.length > 0 ? (
+                recommendations.map((recommendation) => {
+                  const Icon = recommendation.icon;
+                  return (
+                    <button
+                      key={recommendation.id}
+                      type="button"
+                      onClick={recommendation.onClick}
+                      className="group w-full rounded-xl border border-border/70 p-3 text-left transition-colors hover:border-primary/25 hover:bg-muted/40"
+                    >
+                      <div className="flex gap-3">
+                        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary">
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-medium text-foreground">{recommendation.title}</span>
+                          <span className="mt-1 block text-xs leading-5 text-muted-foreground">{recommendation.detail}</span>
+                          <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary">
+                            {recommendation.action}
+                            <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+                          </span>
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="flex gap-3 rounded-xl border border-dashed border-border p-4">
+                  <CircleAlert className="h-5 w-5 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Add a company or task and Figtree will surface the next useful move here.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-      {recentlyCompleted.length > 0 && (
-        <Card className="mt-6 lg:mt-8 border-muted bg-muted/30">
-          <CardHeader className="pb-3 lg:pb-4 lg:px-6">
-            <CardTitle className="flex items-center gap-2 text-muted-foreground text-base lg:text-lg font-medium">
-              <CheckCircle2 className="h-4 w-4 lg:h-5 lg:w-5" />
-              Just Completed
-              <span className="text-xs font-normal">(click to undo)</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 lg:space-y-3 lg:px-6">
-            {recentlyCompleted.map(({ task }) => {
-              const contact = getContactById(task.contactId);
-              return (
-                <button
-                  key={task.id}
-                  onClick={() => handleUndoComplete(task.id)}
-                  className="w-full text-left p-3 lg:p-4 rounded-lg bg-background/50 border border-border/50 hover:bg-background hover:border-border transition-colors cursor-pointer group"
-                >
-                  <div className="flex items-center gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-muted-foreground/50 group-hover:text-primary transition-colors" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm lg:text-base text-muted-foreground line-through truncate">
-                        {task.title}
-                      </p>
-                      {contact && (
-                        <p className="text-xs lg:text-sm text-muted-foreground/70">
-                          {contact.fullName}{contact.company ? ` • ${contact.company}` : ''}
-                        </p>
-                      )}
-                    </div>
-                    <span className="text-xs text-muted-foreground/50 group-hover:text-primary transition-colors">
-                      Undo
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center justify-between text-base lg:text-lg">
+                <span className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Recent activity
+                </span>
+                {recentActivities.length > 0 && <span className="text-xs font-normal text-muted-foreground">Latest first</span>}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {recentActivities.length > 0 ? (
+                <div className="relative space-y-1 before:absolute before:bottom-4 before:left-[15px] before:top-4 before:w-px before:bg-border">
+                  {recentActivities.map((activity) => {
+                    const Icon = activityIcon(activity.type);
+                    const target = activityTarget(activity);
+                    return (
+                      <button
+                        key={activity.id}
+                        type="button"
+                        disabled={!target.path}
+                        onClick={() => target.path && navigate(target.path)}
+                        className="relative flex w-full gap-3 rounded-lg p-2 text-left transition-colors enabled:hover:bg-muted/50"
+                      >
+                        <span className="z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-background text-muted-foreground">
+                          <Icon className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="min-w-0 flex-1 pt-0.5">
+                          <span className="block truncate text-xs font-medium text-foreground">{target.label}</span>
+                          <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">{activity.description}</span>
+                          <span className="mt-0.5 block text-[11px] text-muted-foreground/70">
+                            {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="py-5 text-center">
+                  <ActivityIcon className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
+                  <p className="text-sm text-muted-foreground">Calls, emails, meetings, and stage changes will appear here.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </aside>
+      </div>
 
       <TaskDetailDialog
         task={selectedTask}
@@ -488,24 +812,18 @@ export default function FollowUpToday() {
         showContact
       />
 
-      <div className="fixed lg:hidden right-[calc(1.25rem+env(safe-area-inset-right))] bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40">
+      <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-[calc(1.25rem+env(safe-area-inset-right))] z-40 sm:hidden">
         <AddTaskWithContactDialog
           trigger={
             <Button
-              aria-label="New Task"
+              aria-label="New task"
               onClick={handleNewTaskClick}
               className={cn(
-                "relative h-12 w-12 rounded-full shadow-lg px-0",
+                'relative h-12 w-12 rounded-full px-0 shadow-lg',
                 showFirstTaskNudge &&
-                  "animate-heartbeat ring-2 ring-primary/25 ring-offset-2 ring-offset-background shadow-[0_0_12px_rgba(59,130,246,0.12)]",
+                  'animate-heartbeat ring-2 ring-primary/25 ring-offset-2 ring-offset-background shadow-[0_0_12px_rgba(59,130,246,0.12)]',
               )}
             >
-              {showFirstTaskNudge && (
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute -inset-1.5 rounded-full bg-primary/5 blur-sm"
-                />
-              )}
               <Plus className="h-5 w-5" />
             </Button>
           }

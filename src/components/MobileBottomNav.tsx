@@ -1,4 +1,4 @@
-import { BookOpen, Brain, Building2, CalendarCheck, MapPin, Kanban, MoreHorizontal, Settings, Phone, Lightbulb, Workflow, Radar } from "lucide-react";
+import { BookOpen, Brain, Building2, House, MapPin, Kanban, MoreHorizontal, Settings, Phone, Lightbulb, Workflow, Radar } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { cn } from "@/lib/utils";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const navItems = [
-  { label: "Tasks", to: "/app", icon: CalendarCheck },
+  { label: "Home", to: "/app", icon: House },
   { label: "Companies", to: "/companies", icon: Building2 },
   { label: "Settings", to: "/settings", icon: Settings },
 ];

@@ -6,8 +6,12 @@ import { EmailComposeDialog } from '@/components/CompanyEmails';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getGmailAccount, listDraftEmails, type EmailRecord } from '@/lib/gmail';
 
+interface ApprovalQueueProps {
+  onCountChange?: (count: number) => void;
+}
+
 /** Sequence emails Claude drafted, waiting for the user to approve, edit or skip. */
-export function ApprovalQueue() {
+export function ApprovalQueue({ onCountChange }: ApprovalQueueProps) {
   const { getCompanyById, contacts } = useCRMContext();
   const [drafts, setDrafts] = useState<EmailRecord[]>([]);
   const [gmailAddress, setGmailAddress] = useState<string | undefined>();
@@ -30,11 +34,15 @@ export function ApprovalQueue() {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [load]);
 
+  useEffect(() => {
+    onCountChange?.(drafts.length);
+  }, [drafts.length, onCountChange]);
+
   if (drafts.length === 0) return null;
   const company = open ? getCompanyById(open.company_id) : undefined;
 
   return (
-    <Card className="mb-4 lg:mb-8 border-primary/30">
+    <Card className="border-primary/30">
       <CardHeader className="pb-3 lg:pb-4 lg:px-6">
         <CardTitle className="flex items-center gap-2 text-foreground text-lg lg:text-xl">
           <MailCheck className="h-5 w-5 lg:h-6 lg:w-6" />
