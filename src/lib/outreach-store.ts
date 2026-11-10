@@ -418,7 +418,7 @@ const findHeaderIndex = (normalizedHeaders: string[], options: string[]) => {
   return normalizedHeaders.findIndex((header) => optionSet.includes(header));
 };
 
-const detectDelimiter = (text: string) => {
+export const detectDelimiter = (text: string) => {
   let commas = 0;
   let semicolons = 0;
   let tabs = 0;

@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
-import { Search, Sparkles, Workflow } from 'lucide-react';
+import { Search, Sparkles, Upload, Workflow } from 'lucide-react';
 import { toast } from 'sonner';
 import { ESTIMATED_COST_EUR, queueEnrichment } from '@/lib/research';
 import { useCRMContext } from '@/contexts/CRMContext';
 import { AddCompanyDialog } from '@/components/AddCompanyDialog';
+import { ImportLeadsDialog } from '@/components/ImportLeadsDialog';
 import { LifecycleBadge } from '@/components/LifecycleBadge';
 import { StartSequenceDialog } from '@/components/StartSequenceDialog';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,8 @@ export default function Companies() {
   const [search, setSearch] = useState('');
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [sequenceOpen, setSequenceOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [droppedFile, setDroppedFile] = useState<File | null>(null);
 
   const stageFilter = searchParams.get('stage') ?? ACTIVE;
   const typeFilter = searchParams.get('type') ?? ALL;
@@ -118,7 +121,19 @@ export default function Companies() {
   };
 
   return (
-    <div className="p-6 lg:p-8 xl:p-10 max-w-7xl mx-auto space-y-6">
+    <div
+      className="p-6 lg:p-8 xl:p-10 max-w-7xl mx-auto space-y-6"
+      onDragOver={(event) => {
+        if (event.dataTransfer.types.includes('Files')) event.preventDefault();
+      }}
+      onDrop={(event) => {
+        const file = event.dataTransfer.files?.[0];
+        if (!file) return;
+        event.preventDefault();
+        setDroppedFile(file);
+        setImportOpen(true);
+      }}
+    >
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Companies</h1>
@@ -145,10 +160,29 @@ export default function Companies() {
             <Workflow className="h-4 w-4 mr-2" />
             Start sequence ({filtered.length})
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setDroppedFile(null);
+              setImportOpen(true);
+            }}
+            title="Import companies and people from an .xlsx or .csv lead list (or drop the file onto this page)"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Import
+          </Button>
           <AddCompanyDialog defaultList={listFilter !== ALL ? listFilter : undefined} />
         </div>
       </div>
       <StartSequenceDialog open={sequenceOpen} onOpenChange={setSequenceOpen} companies={filtered} />
+      <ImportLeadsDialog
+        open={importOpen}
+        onOpenChange={(next) => {
+          setImportOpen(next);
+          if (!next) setDroppedFile(null);
+        }}
+        initialFile={droppedFile}
+      />
 
       <div className="flex flex-col lg:flex-row gap-3">
         <div className="relative flex-1">
@@ -222,7 +256,7 @@ export default function Companies() {
       {filtered.length === 0 ? (
         <div className="text-center py-12 bg-card rounded-lg border">
           <p className="text-muted-foreground">
-            {companies.length === 0 ? 'No companies yet. Add one or import a CSV in Call Mode.' : 'Nothing matches these filters.'}
+            {companies.length === 0 ? 'No companies yet. Add one, or drop an .xlsx or .csv lead list here.' : 'Nothing matches these filters.'}
           </p>
         </div>
       ) : (

@@ -888,6 +888,14 @@ export function useCRM(userId: string | null) {
     return created;
   }, []);
 
+  /** Adds many people at once (lead list import) in a single save. */
+  const addContacts = useCallback((list: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>[]) => {
+    const now = new Date().toISOString();
+    const created = list.map((contact): Contact => ({ ...contact, id: crypto.randomUUID(), createdAt: now, updatedAt: now }));
+    setContacts(prev => [...prev, ...created]);
+    return created;
+  }, []);
+
   const updateCompany = useCallback((id: string, updates: Partial<Company>) => {
     const current = companies.find(company => company.id === id);
     if (!current) return;
@@ -1020,6 +1028,7 @@ export function useCRM(userId: string | null) {
     companies,
     addCompany,
     addCompanies,
+    addContacts,
     updateCompany,
     moveCompanyToLifecycle,
     deleteCompany,
